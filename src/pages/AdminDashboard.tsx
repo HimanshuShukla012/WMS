@@ -12,12 +12,7 @@ import {
   Legend,
   Cell,
 } from "recharts";
-import DashboardLayout from "../components/DashboardLayout";
-import DistributionRoaster from "../components/DistributionRoaster";
-import FillingRoaster from "../components/FillingRoaster";
 import { useEffect, useState } from "react";
-import Modal from "../components/Modal";
-import LodgeComplaintForm from "../components/LodgeComplaint";
 import WaterGauge from "../components/WaterDistributionProgress";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -30,11 +25,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 
 
-const barData = [
-  { name: "Zone 1", Complaints: 12 },
-  { name: "Zone 2", Complaints: 5 },
-  { name: "Zone 3", Complaints: 8 },
-];
+
 
 const pieData = [
   { name: "Resolved", value: 70 },
@@ -44,10 +35,7 @@ const pieData = [
 const COLORS = ["#4ade80", "#facc15"];
 
 export default function AdminDashboard() {
-  const [showModal, setShowModal] = useState(false);
-  const openModal = () => setShowModal(true);
-  const closeModal = () => setShowModal(false);
-
+  
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -239,16 +227,14 @@ export default function AdminDashboard() {
         cy="50%"
         outerRadius={100}
         label={({ percent }) =>
-          `${(percent * 100).toFixed(0)}%`
+          `${((percent ?? 0) * 100).toFixed(0)}%`
         }
         labelLine={false}
       >
-        {pieData.map((entry, index) => (
-          <Cell
-            key={`cell-${index}`}
-            fill={COLORS[index % COLORS.length]}
-          />
-        ))}
+        {pieData.map((_, index) => (
+  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+))}
+
       </Pie>
       <Tooltip
         contentStyle={{
@@ -300,7 +286,7 @@ export default function AdminDashboard() {
           cx="50%"
           cy="50%"
           outerRadius={90}
-          label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
           labelLine={false}
           dataKey="value"
         >
@@ -338,30 +324,32 @@ export default function AdminDashboard() {
   <div className="bg-gradient-to-br from-white via-blue-50 to-purple-50 p-6 rounded-2xl shadow-lg">
     <h3 className="text-lg font-semibold text-gray-800 mb-4">Fee Collection vs Target</h3>
     <ResponsiveContainer width="100%" height={300}>
-      <BarChart
-        data={[
-          { gp: "GP-101", target: 5000, collected: 4200 },
-          { gp: "GP-102", target: 4000, collected: 3900 },
-          { gp: "GP-103", target: 6000, collected: 5800 },
-        ]}
-        barGap={12}
-      >
-        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-        <XAxis dataKey="gp" />
-        <YAxis />
-        <Tooltip
-          contentStyle={{
-            backgroundColor: "#fff",
-            borderRadius: "8px",
-            border: "1px solid #ccc",
-            color: "#333",
-          }}
-        />
-        <Legend />
-        <Bar dataKey="target" fill="#f97316" radius={[8, 8, 0, 0]} />
-        <Bar dataKey="collected" fill="#3b82f6" radius={[8, 8, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
+  <BarChart
+    data={[
+      { gp: "GP-101", target: 5000, collected: 4200 },
+      { gp: "GP-102", target: 4000, collected: 3900 },
+      { gp: "GP-103", target: 6000, collected: 5800 },
+      { gp: "GP-104", target: 3000, collected: 3100 }, // newly added
+    ]}
+    barGap={12}
+  >
+    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+    <XAxis dataKey="gp" />
+    <YAxis />
+    <Tooltip
+      contentStyle={{
+        backgroundColor: "#fff",
+        borderRadius: "8px",
+        border: "1px solid #ccc",
+        color: "#333",
+      }}
+    />
+    <Legend />
+    <Bar dataKey="target" fill="#f97316" radius={[8, 8, 0, 0]} />
+    <Bar dataKey="collected" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+  </BarChart>
+</ResponsiveContainer>
+
   </div>
 </div>
 

@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import DashboardLayout from "../components/DashboardLayout";
 
 const dummyData = [
   {

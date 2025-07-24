@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 
 const ManageComplaint = () => {
   const [editMode, setEditMode] = useState(false);
@@ -18,6 +18,10 @@ const ManageComplaint = () => {
     category: "No Water",
     resolutionDays: "2",
       status: "Pending",
+      complaintType: "Low Pressure",
+    description: "Water pressure is very low during evenings.",
+    complainantName: "Sita Devi",
+    contact: "9998887777",
     },
     // Add more dummy complaints as needed
   ]);
@@ -146,7 +150,7 @@ const ManageComplaint = () => {
                 {editMode ? (
                   <select
                     className="w-full border rounded p-1"
-                    value={c.Village}
+                    value={c.village}
                     onChange={(e) => handleChange(c.id, "Village", e.target.value)}
                   >
                     <option value="Village 1">Village 1</option>
@@ -154,7 +158,7 @@ const ManageComplaint = () => {
                     <option value="Village 3">Village 3</option>
                   </select>
                 ) : (
-                  c.Village
+                  c.village
                 )}
               </td>
               <td className="border p-2">

@@ -1,5 +1,4 @@
-import React from "react";
-import DashboardLayout from "../components/DashboardLayout"; // adjust path as needed
+
 
 const AddBeneficiary = () => {
   return (

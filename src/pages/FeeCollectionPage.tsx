@@ -30,7 +30,10 @@ const FeeCollectionPage: React.FC = () => {
       updated[index][field] = amountPaid;
       updated[index].balanceAmount = Math.max(outstanding - amountPaid, 0);
     } else {
-      updated[index][field] = value;
+updated[index] = {
+  ...updated[index],
+  [field]: value as FeeEntry[typeof field],
+};
     }
     setEntries(updated);
   };

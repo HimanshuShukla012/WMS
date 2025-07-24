@@ -1,7 +1,6 @@
-import React from "react";
 import Navbar from "../components/Navbar"; // adjust the path if it's in a different folder
 import Footer from "../components/Footer";
-import { Map, Home, Layers, Building2, PhoneCall,
+import { Map, Layers, Building2, PhoneCall,
   Send,
   Wrench,
   CheckCircle2,

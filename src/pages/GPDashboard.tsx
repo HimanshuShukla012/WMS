@@ -1,37 +1,32 @@
 
 import {
-  BarChart,
+  faExclamationTriangle,
+  faFaucetDrip,
+  faUsers,
+} from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { useEffect, useState } from "react";
+import {
   Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Legend,
-  Cell,
 } from "recharts";
-import DashboardLayout from "../components/DashboardLayout";
 import DistributionRoaster from "../components/DistributionRoaster";
 import FillingRoaster from "../components/FillingRoaster";
-import { useEffect, useState } from "react";
-import Modal from "../components/Modal";
 import LodgeComplaintForm from "../components/LodgeComplaint";
+import Modal from "../components/Modal";
 import WaterGauge from "../components/WaterDistributionProgress";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faUsers,
-  faFaucetDrip,
-  faExclamationTriangle,
-} from "@fortawesome/free-solid-svg-icons";
 
 
-const barData = [
-  { name: "Zone 1", Complaints: 12 },
-  { name: "Zone 2", Complaints: 5 },
-  { name: "Zone 3", Complaints: 8 },
-];
+
 
 const pieData = [
   { name: "Resolved", value: 70 },
@@ -170,7 +165,7 @@ export default function GPDashboard() {
 
       {showModal && (
         <Modal onClose={closeModal}>
-          <LodgeComplaintForm mode="modal" onClose={closeModal} />
+          <LodgeComplaintForm isModal={true} onClose={closeModal} />
         </Modal>
       )}
 
@@ -215,17 +210,25 @@ export default function GPDashboard() {
         cx="50%"
         cy="50%"
         outerRadius={100}
-        label={({ percent }) =>
-          `${(percent * 100).toFixed(0)}%`
-        }
+        label={({ percent }) => (
+  <text
+    x={0}
+    y={0}
+    fill="#000"
+    textAnchor="middle"
+    dominantBaseline="middle"
+    className="text-sm"
+  >
+    {`${((percent ?? 0) * 100).toFixed(0)}%`}
+  </text>
+)}
+
         labelLine={false}
       >
-        {pieData.map((entry, index) => (
-          <Cell
-            key={`cell-${index}`}
-            fill={COLORS[index % COLORS.length]}
-          />
-        ))}
+        {pieData.map((_, index) => (
+  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+))}
+
       </Pie>
       <Tooltip
         contentStyle={{
@@ -248,14 +251,15 @@ export default function GPDashboard() {
   {/* Optional: Custom Color Dot Legend */}
   <div className="mt-6 flex flex-wrap gap-6 justify-center text-sm text-gray-700 font-medium">
     {pieData.map((entry, index) => (
-      <div key={entry.name} className="flex items-center gap-2">
-        <span
-          className="inline-block w-3 h-3 rounded-full"
-          style={{ backgroundColor: COLORS[index % COLORS.length] }}
-        ></span>
-        <span>{entry.name}: {entry.value}</span>
-      </div>
-    ))}
+  <div key={entry.name} className="flex items-center gap-2">
+    <span
+      className="inline-block w-3 h-3 rounded-full"
+      style={{ backgroundColor: COLORS[index % COLORS.length] }}
+    ></span>
+    <span>{entry.name}: {entry.value}</span>
+  </div>
+))}
+
   </div>
 </div>
 
@@ -277,7 +281,7 @@ export default function GPDashboard() {
           cx="50%"
           cy="50%"
           outerRadius={90}
-          label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+          label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
           labelLine={false}
           dataKey="value"
         >
