@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 const WaterGauge = ({ totalDemand, totalConsumed, totalLoss }) => {
-  const [tooltip, setTooltip] = useState(null);
+  const [tooltip, setTooltip] = useState<string | null>(null);
+
   const [selectedRange, setSelectedRange] = useState('This Week');
 
   const width = 300;

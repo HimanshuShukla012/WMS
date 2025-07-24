@@ -3,7 +3,7 @@ import React, { useState } from "react";
 const ManageComplaint = () => {
   const [editMode, setEditMode] = useState(false);
   const [search, setSearch] = useState("");
-  const [filterZone, setFilterZone] = useState("");
+  const [filterVillage, setFilterVillage] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [complaints, setComplaints] = useState([
     {
@@ -39,7 +39,7 @@ const ManageComplaint = () => {
   const filteredData = complaints.filter((c) => {
   return (
     (c.beneficiaryName || "").toLowerCase().includes(search.toLowerCase()) &&
-    (filterZone ? c.zone === filterZone : true) &&
+    (filterVillage ? c.village === filterVillage : true) &&
     (filterStatus ? c.status === filterStatus : true)
   );
 });
@@ -64,13 +64,13 @@ const ManageComplaint = () => {
         <div className="flex gap-4 flex-wrap">
           <select
             className="p-2 border rounded"
-            value={filterZone}
-            onChange={(e) => setFilterZone(e.target.value)}
+            value={filterVillage}
+            onChange={(e) => setFilterVillage(e.target.value)}
           >
-            <option value="">All Zones</option>
-            <option value="Zone 1">Zone 1</option>
-            <option value="Zone 2">Zone 2</option>
-            <option value="Zone 3">Zone 3</option>
+            <option value="">All Villages</option>
+            <option value="Village 1">Village 1</option>
+            <option value="Village 2">Village 2</option>
+            <option value="Village 3">Village 3</option>
           </select>
 
           <select
@@ -146,15 +146,15 @@ const ManageComplaint = () => {
                 {editMode ? (
                   <select
                     className="w-full border rounded p-1"
-                    value={c.zone}
-                    onChange={(e) => handleChange(c.id, "zone", e.target.value)}
+                    value={c.Village}
+                    onChange={(e) => handleChange(c.id, "Village", e.target.value)}
                   >
-                    <option value="Zone 1">Zone 1</option>
-                    <option value="Zone 2">Zone 2</option>
-                    <option value="Zone 3">Zone 3</option>
+                    <option value="Village 1">Village 1</option>
+                    <option value="Village 2">Village 2</option>
+                    <option value="Village 3">Village 3</option>
                   </select>
                 ) : (
-                  c.zone
+                  c.Village
                 )}
               </td>
               <td className="border p-2">

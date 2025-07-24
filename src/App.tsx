@@ -13,13 +13,16 @@ import FeeCollectionPage from "./pages/FeeCollectionPage";
 import FeeManagementPage from "./pages/FeeManagementPage";
 import CallCenterDashboard from "./pages/CallCenterDashboard"; // ✅ Import
 import DashboardLayout from "./components/DashboardLayout"; // ✅ Import this
+import LandingPage from "./pages/LandingPage";
+
 
 function App() {
   return (
     <Router>
       <Routes>
         {/* Public Route */}
-        <Route path="/" element={<Login />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<Login />} />
 
         <Route
           path="/admin/*"
