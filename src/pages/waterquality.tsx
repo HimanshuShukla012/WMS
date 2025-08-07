@@ -1,24 +1,23 @@
 import React, { useState } from 'react';
-import Select from 'react-select';
-
-const villageOptions = [
-  { value: 'Village A', label: 'Village A' },
-  { value: 'Village B', label: 'Village B' },
-  { value: 'Village C', label: 'Village C' },
-  { value: 'Village D', label: 'Village D' }
-];
+import Select, { MultiValue } from 'react-select';
 
 type OptionType = {
   value: string;
   label: string;
 };
 
+const villageOptions: OptionType[] = [
+  { value: 'Village A', label: 'Village A' },
+  { value: 'Village B', label: 'Village B' },
+  { value: 'Village C', label: 'Village C' },
+  { value: 'Village D', label: 'Village D' }
+];
 
 const WaterQuality = () => {
   const [samplesCollected, setSamplesCollected] = useState(0);
   const [contaminatedSamples, setContaminatedSamples] = useState(0);
   const [villagesTested, setVillagesTested] = useState<MultiValue<OptionType>>([]);
-const [villagesContaminated, setVillagesContaminated] = useState<MultiValue<OptionType>>([]);
+  const [villagesContaminated, setVillagesContaminated] = useState<MultiValue<OptionType>>([]);
   const [actionTaken, setActionTaken] = useState('');
 
   const handleReset = () => {
@@ -34,9 +33,8 @@ const [villagesContaminated, setVillagesContaminated] = useState<MultiValue<Opti
     const data = {
       samplesCollected,
       contaminatedSamples,
-      const [villagesTested, setVillagesTested] = useState([] as MultiValue<OptionType>);
-const [villagesContaminated, setVillagesContaminated] = useState([] as MultiValue<OptionType>);
-
+      villagesTested,
+      villagesContaminated,
       actionTaken,
     };
     console.log('Water Quality Data Submitted:', data);
