@@ -8,11 +8,17 @@ const villageOptions = [
   { value: 'Village D', label: 'Village D' }
 ];
 
+type OptionType = {
+  value: string;
+  label: string;
+};
+
+
 const WaterQuality = () => {
   const [samplesCollected, setSamplesCollected] = useState(0);
   const [contaminatedSamples, setContaminatedSamples] = useState(0);
-  const [villagesTested, setVillagesTested] = useState([]);
-  const [villagesContaminated, setVillagesContaminated] = useState([]);
+  const [villagesTested, setVillagesTested] = useState<MultiValue<OptionType>>([]);
+const [villagesContaminated, setVillagesContaminated] = useState<MultiValue<OptionType>>([]);
   const [actionTaken, setActionTaken] = useState('');
 
   const handleReset = () => {
@@ -28,8 +34,8 @@ const WaterQuality = () => {
     const data = {
       samplesCollected,
       contaminatedSamples,
-      villagesTested: villagesTested.map((v: any) => v.value),
-      villagesContaminated: villagesContaminated.map((v: any) => v.value),
+      villagesTested.map((v) => v.value)
+villagesContaminated.map((v) => v.value)
       actionTaken
     };
     console.log('Water Quality Data Submitted:', data);
