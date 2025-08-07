@@ -88,7 +88,7 @@ const PumpHouseMaster = () => {
               <label className="block text-sm font-medium mb-1">Horsepower (HP)</label>
               <input
                 className="border rounded p-2 w-full"
-                placeholder="Horsepower (HP)"
+                placeholder="Capacity (HP)"
                 value={pump.horsepower}
                 onChange={(e) => handlePumpChange(index, "horsepower", e.target.value)}
               />
@@ -103,6 +103,19 @@ const PumpHouseMaster = () => {
                 <option value="">Select Power Source</option>
                 <option value="Electricity">Electricity</option>
                 <option value="Solar">Solar</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Pump Status</label>
+              <select
+                className="border rounded p-2 w-full"
+                value={pump.powerSource}
+                onChange={(e) => handlePumpChange(index, "powerSource", e.target.value)}
+              >
+                <option value="">Select Status</option>
+                <option value="Electricity">Active</option>
+                <option value="Solar">Inactive</option>
               </select>
             </div>
 

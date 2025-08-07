@@ -15,6 +15,8 @@ const DistributionRoaster: React.FC<DistributionRoasterProps> = ({
     morningTo: "",
     eveningFrom: "",
     eveningTo: "",
+    afternoonTo: "",
+    afternoonFrom: "",
   });
 
   const [totalMinutes, setTotalMinutes] = useState(0);
@@ -41,7 +43,12 @@ const DistributionRoaster: React.FC<DistributionRoasterProps> = ({
         ? toMinutes(times.eveningTo) - toMinutes(times.eveningFrom)
         : 0;
 
-    setTotalMinutes(morning + evening);
+    const afternoon =
+      times.afternoonFrom && times.afternoonTo
+        ? toMinutes(times.afternoonTo) - toMinutes(times.afternoonFrom)
+        : 0;
+
+    setTotalMinutes(morning + evening + afternoon);
   };
 
   React.useEffect(() => {
@@ -76,6 +83,15 @@ const DistributionRoaster: React.FC<DistributionRoasterProps> = ({
           setTimes((prev) => ({ ...prev, morningFrom: from, morningTo: to }))
         }
       />
+      <TimeRangePicker
+        label="Afternoon Distribution"
+        from={times.afternoonFrom}
+        to={times.afternoonTo}
+        onChange={(from, to) =>
+          setTimes((prev) => ({ ...prev, afternoonFrom: from, afternoonTo: to }))
+        }
+      />
+
       <TimeRangePicker
         label="Evening Distribution"
         from={times.eveningFrom}

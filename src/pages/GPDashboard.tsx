@@ -321,9 +321,9 @@ export default function GPDashboard() {
     <ResponsiveContainer width="100%" height={300}>
       <BarChart
         data={[
-          { gp: "GP-101", target: 5000, collected: 4200 },
-          { gp: "GP-102", target: 4000, collected: 3900 },
-          { gp: "GP-103", target: 6000, collected: 5800 },
+          { gp: "Village-1", target: 5000, collected: 4200 },
+          { gp: "Village-2", target: 4000, collected: 3900 },
+          { gp: "Village-3", target: 6000, collected: 5800 },
         ]}
         barGap={12}
       >

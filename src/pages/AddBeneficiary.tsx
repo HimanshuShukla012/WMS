@@ -18,7 +18,7 @@ const AddBeneficiary = () => {
             <label className="block font-medium mb-1">District</label>
             <input
               type="text"
-              value="Your District"
+              placeholder="Lucknow"
               disabled
               className="w-full border rounded-md px-3 py-2 bg-gray-100 cursor-not-allowed"
             />
@@ -29,8 +29,9 @@ const AddBeneficiary = () => {
             <label className="block font-medium mb-1">Block</label>
             <input
               type="text"
-              placeholder="Enter Block"
-              className="w-full border rounded-md px-3 py-2"
+              placeholder="Bakshi Ka Talab"
+              disabled
+              className="w-full border rounded-md px-3 py-2 cursor-not-allowed"
             />
           </div>
 
@@ -39,8 +40,9 @@ const AddBeneficiary = () => {
             <label className="block font-medium mb-1">Gram Panchayat</label>
             <input
               type="text"
-              placeholder="Enter Gram Panchayat"
-              className="w-full border rounded-md px-3 py-2"
+              placeholder="Dhanohari"
+              disabled
+              className="w-full border rounded-md px-3 py-2 cursor-not-allowed"
             />
           </div>
 
@@ -49,8 +51,8 @@ const AddBeneficiary = () => {
             <label className="block font-medium mb-1">Village</label>
             <select className="w-full border rounded-md px-3 py-2">
               <option value="">Select Village</option>
-              <option value="Village 1">Village 1</option>
-              <option value="Village 2">Village 2</option>
+              <option value="Village 1">Dhinohari</option>
+              <option value="Village 2">Nagavamau Khurd</option>
             </select>
           </div>
 
@@ -70,6 +72,16 @@ const AddBeneficiary = () => {
             <input
               type="text"
               placeholder="Enter Name"
+              className="w-full border rounded-md px-3 py-2"
+            />
+          </div>
+
+          {/* Aadhar Number */}
+          <div>
+            <label className="block font-medium mb-1">Beneficiary Aadhaar</label>
+            <input
+              type="text"
+              placeholder="Enter Aadhaar Number"
               className="w-full border rounded-md px-3 py-2"
             />
           </div>

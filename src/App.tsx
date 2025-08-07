@@ -14,7 +14,11 @@ import FeeManagementPage from "./pages/FeeManagementPage";
 import CallCenterDashboard from "./pages/CallCenterDashboard"; // ✅ Import
 import DashboardLayout from "./components/DashboardLayout"; // ✅ Import this
 import LandingPage from "./pages/LandingPage";
-
+import ManageOHT from "./pages/ManageOHT";
+import ManagePumpHouse from "./pages/ManagePumphouse";
+import ViewRoaster from "./pages/ViewRoaster";
+import WaterQuality from "./pages/waterquality";
+import ViewWaterQuality from "./pages/viewwaterquality";
 
 function App() {
   return (
@@ -45,6 +49,11 @@ function App() {
           <Route path="manage-complaint" element={<ManageComplaint />} />
           <Route path="fee-collection" element={<FeeCollectionPage />} />
           <Route path="fee-management" element={<FeeManagementPage />} />
+          <Route path="manage-oht" element={<ManageOHT />} />
+          <Route path="manage-pumphouse" element={<ManagePumpHouse />} />
+          <Route path="view-roaster" element={<ViewRoaster />} />
+          <Route path="water-quality" element={<WaterQuality />} />
+          <Route path="view-water-quality" element={<ViewWaterQuality />} />
 
 
   <Route path="pump-house-roaster" element={<PumpHouseRoaster />} />

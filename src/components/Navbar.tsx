@@ -32,9 +32,7 @@ const Navbar = () => {
             <div className="text-lg md:text-xl font-bold">
               Integrated Water Management System
             </div>
-            <div className="text-[11px] md:text-xs text-gray-300">
-              Operation & Maintenance of Rural Water Supply Projects in Uttar Pradesh
-            </div>
+            
           </div>
         </Link>
 

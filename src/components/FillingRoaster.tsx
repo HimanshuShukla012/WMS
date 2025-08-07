@@ -29,6 +29,8 @@ const FillingRoaster: React.FC<FillingRoasterProps> = ({
     morningTo: "",
     eveningFrom: "",
     eveningTo: "",
+    afternoonFrom:"",
+    afternoonTo:"",
   });
 
   const [totalMinutes, setTotalMinutes] = useState(0);
@@ -44,12 +46,17 @@ const FillingRoaster: React.FC<FillingRoasterProps> = ({
         ? toMinutes(times.morningTo) - toMinutes(times.morningFrom)
         : 0;
 
+const afternoon =
+      times.afternoonFrom && times.afternoonTo
+        ? toMinutes(times.afternoonTo) - toMinutes(times.afternoonFrom)
+        : 0;
+
     const evening =
       times.eveningFrom && times.eveningTo
         ? toMinutes(times.eveningTo) - toMinutes(times.eveningFrom)
         : 0;
 
-    setTotalMinutes(morning + evening);
+    setTotalMinutes(morning + evening + afternoon);
   }, [times]);
 
   return (
@@ -80,6 +87,14 @@ const FillingRoaster: React.FC<FillingRoasterProps> = ({
         to={times.morningTo}
         onChange={(from, to) =>
           setTimes((prev) => ({ ...prev, morningFrom: from, morningTo: to }))
+        }
+      />
+      <TimeRangePicker
+        label="Afternoon Filling"
+        from={times.afternoonFrom}
+        to={times.afternoonTo}
+        onChange={(from, to) =>
+          setTimes((prev) => ({ ...prev, afternoonFrom: from, afternoonTo: to }))
         }
       />
       <TimeRangePicker

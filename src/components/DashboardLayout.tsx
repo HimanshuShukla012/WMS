@@ -14,8 +14,10 @@ import {
   CreditCard,
   FileText,
   Building2Icon,
+  Droplet,
+  DropletIcon,
 } from "lucide-react";
-import { BiBuildingHouse } from "react-icons/bi";
+import { BiBuildingHouse, BiDroplet, BiMoney } from "react-icons/bi";
 
 type Role = "admin" | "gp" | "callcenter";
 
@@ -38,6 +40,7 @@ const getMenuLinks = (role: Role): MenuItem[] => {
     return [
       { name: "Dashboard", to: "/admin/dashboard", icon: <LayoutDashboard size={18} /> },
       { name: "User Management", to: "/admin/users", icon: <Users size={18} /> },
+      { name: "Fee Management", to: "/admin/fee", icon: <BiMoney size={18} /> },
       { name: "MIS Reports", to: "/admin/reports", icon: <BarChart3 size={18} /> },
     ];
   } else if (role === "gp") {
@@ -64,8 +67,8 @@ const getMenuLinks = (role: Role): MenuItem[] => {
   name: "Manage Infrastructure",
   icon: <BiBuildingHouse size={16} />,
   children: [
-    { name: "Manage OHT", to: "/gp/manage-overhead-tank", icon: <Calendar size={16} /> },
-    { name: "Manage Pump House", to: "/gp/view-roaster", icon: <ClipboardList size={16} /> },
+    { name: "Manage OHT", to: "/gp/manage-oht", icon: <Calendar size={16} /> },
+    { name: "Manage Pump House", to: "/gp/manage-pumphouse", icon: <ClipboardList size={16} /> },
   ],
 },
       ],
@@ -95,6 +98,14 @@ const getMenuLinks = (role: Role): MenuItem[] => {
         children: [
           { name: "Fee Collection", to: "/gp/fee-collection", icon: <CreditCard size={16} /> },
           { name: "Fee Management", to: "/gp/fee-management", icon: <ClipboardList size={16} /> },
+        ],
+      },
+      {
+        name: "Water Quality",
+        icon: <Droplet size={18} />,
+        children: [
+          { name: "Update Water Quality", to: "/gp/water-quality", icon: <DropletIcon size={16} /> },
+          { name: "View Water Quality", to: "/gp/view-water-quality", icon: <BiDroplet size={16} /> },
         ],
       },
       { name: "Reporting", to: "/gp/reports", icon: <FileText size={18} /> },
