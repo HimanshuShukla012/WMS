@@ -34,8 +34,9 @@ const [villagesContaminated, setVillagesContaminated] = useState<MultiValue<Opti
     const data = {
       samplesCollected,
       contaminatedSamples,
-      villagesTested.map((v) => v.value),
-      villagesContaminated.map((v) => v.value),
+      const [villagesTested, setVillagesTested] = useState([] as MultiValue<OptionType>);
+const [villagesContaminated, setVillagesContaminated] = useState([] as MultiValue<OptionType>);
+
       actionTaken,
     };
     console.log('Water Quality Data Submitted:', data);
