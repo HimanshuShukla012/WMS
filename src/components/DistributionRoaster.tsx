@@ -1,22 +1,30 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import TimeRangePicker from "./TimeRangePicker";
 
 interface DistributionRoasterProps {
   selectedDate?: string;
   onDateChange?: (date: string) => void;
+  onChange?: (data: any) => void;      // NEW: For capturing data changes
+  initialData?: any;                   // NEW: For pre-filling saved data
+  readOnly?: boolean;                  // NEW: For view-only mode
 }
 
 const DistributionRoaster: React.FC<DistributionRoasterProps> = ({
   selectedDate,
   onDateChange,
+  onChange,
+  initialData,
+  readOnly = false,
 }) => {
+  // Initialize with initialData if provided
   const [times, setTimes] = useState({
     morningFrom: "",
     morningTo: "",
+    afternoonFrom: "",
+    afternoonTo: "",
     eveningFrom: "",
     eveningTo: "",
-    afternoonTo: "",
-    afternoonFrom: "",
+    ...initialData, // Merge initialData if provided
   });
 
   const [totalMinutes, setTotalMinutes] = useState(0);
@@ -34,31 +42,63 @@ const DistributionRoaster: React.FC<DistributionRoasterProps> = ({
       return h * 60 + m;
     };
 
-    const morning =
-      times.morningFrom && times.morningTo
-        ? toMinutes(times.morningTo) - toMinutes(times.morningFrom)
-        : 0;
-    const evening =
-      times.eveningFrom && times.eveningTo
-        ? toMinutes(times.eveningTo) - toMinutes(times.eveningFrom)
-        : 0;
+    const calculateDuration = (from: string, to: string) => {
+      if (!from || !to) return 0;
+      
+      const fromMinutes = toMinutes(from);
+      const toMinutes_val = toMinutes(to);
+      
+      // If end time is less than start time, it means it crosses midnight
+      if (toMinutes_val < fromMinutes) {
+        // Add 24 hours (1440 minutes) to the end time
+        return (toMinutes_val + 1440) - fromMinutes;
+      }
+      
+      return toMinutes_val - fromMinutes;
+    };
 
-    const afternoon =
-      times.afternoonFrom && times.afternoonTo
-        ? toMinutes(times.afternoonTo) - toMinutes(times.afternoonFrom)
-        : 0;
+    const morning = calculateDuration(times.morningFrom, times.morningTo);
+    const afternoon = calculateDuration(times.afternoonFrom, times.afternoonTo);
+    const evening = calculateDuration(times.eveningFrom, times.eveningTo);
 
-    setTotalMinutes(morning + evening + afternoon);
+    const total = morning + afternoon + evening;
+    setTotalMinutes(total);
+
+    // NEW: Send data to parent component when times change
+    if (onChange && !readOnly) {
+      onChange({
+        morningFrom: times.morningFrom,
+        morningTo: times.morningTo,
+        afternoonFrom: times.afternoonFrom,
+        afternoonTo: times.afternoonTo,
+        eveningFrom: times.eveningFrom,
+        eveningTo: times.eveningTo,
+        totalMinutes: total,
+      });
+    }
   };
 
   React.useEffect(() => {
     calculateTotalMinutes();
-  }, [times]);
+  }, [times, onChange, readOnly]);
+
+  // Update times when initialData changes (for view mode)
+  useEffect(() => {
+    if (initialData) {
+      setTimes(prev => ({
+        ...prev,
+        ...initialData
+      }));
+    }
+  }, [initialData]);
 
   return (
     <div className="p-4 bg-white border rounded shadow mb-6 text-black">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
-        <h2 className="text-lg font-bold">Distribution Roaster</h2>
+        <h2 className="text-lg font-bold">
+          Distribution Roaster
+          {readOnly && <span className="text-sm font-normal text-gray-500 ml-2">(View Only)</span>}
+        </h2>
         {selectedDate === undefined && (
           <div className="flex items-center gap-2 mt-2 md:mt-0">
             <label htmlFor="distribution-date" className="text-sm font-medium">
@@ -69,7 +109,8 @@ const DistributionRoaster: React.FC<DistributionRoasterProps> = ({
               id="distribution-date"
               value={effectiveDate}
               onChange={handleDateChange}
-              className="border border-gray-300 hover:border-blue-500 transition duration-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+              disabled={readOnly}
+              className="border border-gray-300 hover:border-blue-500 transition duration-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
             />
           </div>
         )}
@@ -79,26 +120,28 @@ const DistributionRoaster: React.FC<DistributionRoasterProps> = ({
         label="Morning Distribution"
         from={times.morningFrom}
         to={times.morningTo}
-        onChange={(from, to) =>
-          setTimes((prev) => ({ ...prev, morningFrom: from, morningTo: to }))
-        }
+      onChange={(from, to) => {
+            if (readOnly) return;
+            setTimes((prev) => ({ ...prev, morningFrom: from, morningTo: to }))
+        }}
       />
+      
       <TimeRangePicker
         label="Afternoon Distribution"
         from={times.afternoonFrom}
         to={times.afternoonTo}
-        onChange={(from, to) =>
-          setTimes((prev) => ({ ...prev, afternoonFrom: from, afternoonTo: to }))
-        }
+onChange={(from, to) => {
+  if (readOnly) return;          setTimes((prev) => ({ ...prev, afternoonFrom: from, afternoonTo: to }))
+        }}
       />
 
       <TimeRangePicker
         label="Evening Distribution"
         from={times.eveningFrom}
         to={times.eveningTo}
-        onChange={(from, to) =>
-          setTimes((prev) => ({ ...prev, eveningFrom: from, eveningTo: to }))
-        }
+onChange={(from, to) => {
+  if (readOnly) return;          setTimes((prev) => ({ ...prev, eveningFrom: from, eveningTo: to }))
+        }}
       />
 
       <div className="mt-4 text-sm font-medium">

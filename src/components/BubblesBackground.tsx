@@ -4,7 +4,7 @@ const BubblesBackground = () => {
   const bubbles = Array.from({ length: 30 });
 
   return (
-    <div className="absolute inset-0 overflow-hidden z-0">
+    <div className="absolute inset-0 overflow-hidden z-0 pointer-events-none">
       {bubbles.map((_, i) => (
         <span
           key={i}

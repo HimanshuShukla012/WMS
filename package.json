@@ -6,7 +6,7 @@
   "author": "Muhaz Ahmed",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -16,19 +16,24 @@
     "@fortawesome/react-fontawesome": "^0.2.2",
     "axios": "^1.11.0",
     "date-fns": "^4.1.0",
+    "file-saver": "^2.0.5",
     "framer-motion": "^12.23.7",
     "gsap": "^3.13.0",
+    "jwt-decode": "^4.0.0",
     "lodash": "^4.17.21",
     "lottie-react": "^2.4.1",
     "lucide-react": "^0.525.0",
     "react": "^18.3.1",
     "react-circular-progressbar": "^2.2.0",
+    "react-csv": "^2.2.2",
     "react-dom": "^18.3.1",
     "react-gauge-chart": "^0.5.1",
     "react-icons": "^5.3.0",
     "react-router-dom": "^7.7.0",
     "react-select": "^5.10.2",
-    "recharts": "^3.1.0"
+    "react-toastify": "^11.0.5",
+    "recharts": "^3.1.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",

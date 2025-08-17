@@ -1,168 +1,327 @@
-import React, { useState } from "react";
-import { Download } from "lucide-react";
-import { format } from "date-fns";
+import React, { useState } from 'react';
+import {Search, Download, BarChart3, Droplets, AlertTriangle, CheckCircle} from 'lucide-react';
+import { useUserInfo } from '../utils/userInfo';
+import * as XLSX from 'xlsx'; // top imports
 
-interface WaterQualityEntry {
-  date: string;
-  samplesCollected: number;
-  villagesTested: string[];
-  contaminatedSamples: number;
-  contaminatedVillages: string[];
-  actionTaken: string;
-}
+const WaterQualityPage = () => {
+  const { userId } = useUserInfo(); // ✅ Call hook at top level
 
-// Dummy data
-const sampleData: WaterQualityEntry[] = [
-  {
-    date: "2025-08-07",
-    samplesCollected: 12,
-    villagesTested: ["Rampur", "Sitapur"],
-    contaminatedSamples: 3,
-    contaminatedVillages: ["Sitapur"],
-    actionTaken: "Notified health department and initiated chlorination",
-  },
-  {
-    date: "2025-08-05",
-    samplesCollected: 9,
-    villagesTested: ["Lucknow", "Barabanki"],
-    contaminatedSamples: 1,
-    contaminatedVillages: ["Lucknow"],
-    actionTaken: "Immediate alert sent to JE",
-  },
-];
-
-const ViewWaterQuality = () => {
-  const [filterDateFrom, setFilterDateFrom] = useState("");
-  const [filterDateTo, setFilterDateTo] = useState("");
-  const [filterVillage, setFilterVillage] = useState("");
-
-  const filteredData = sampleData.filter((entry) => {
-    const entryDate = new Date(entry.date);
-    const from = filterDateFrom ? new Date(filterDateFrom) : null;
-    const to = filterDateTo ? new Date(filterDateTo) : null;
-    const matchesVillage =
-      !filterVillage ||
-      entry.villagesTested.includes(filterVillage) ||
-      entry.contaminatedVillages.includes(filterVillage);
-
-    return (
-      (!from || entryDate >= from) &&
-      (!to || entryDate <= to) &&
-      matchesVillage
-    );
+  const [formData, setFormData] = useState({
+    StartDate: '',
+    EndDate: ''
   });
+  
+  const [reportData, setReportData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const getContaminationRate = (item) => {
+  return item.NoOfSampleCollected > 0 
+    ? ((item.NoOfContaminatedSamples / item.NoOfSampleCollected) * 100).toFixed(1)
+    : 0;
+};
 
-  const downloadCSV = () => {
-    const csv = [
-      [
-        "Date",
-        "Samples Collected",
-        "Villages Tested",
-        "Contaminated Samples",
-        "Contaminated Villages",
-        "Action Taken",
-      ].join(","),
-      ...filteredData.map((entry) =>
-        [
-          entry.date,
-          entry.samplesCollected,
-          entry.villagesTested.join(" | "),
-          entry.contaminatedSamples,
-          entry.contaminatedVillages.join(" | "),
-          entry.actionTaken.replace(/,/g, " "),
-        ].join(",")
-      ),
-    ].join("\n");
+  const downloadTableExcel = () => {
+  if (!reportData || reportData.length === 0) return;
 
-    const blob = new Blob([csv], { type: "text/csv" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "WaterQualityReport.csv";
-    a.click();
+  // Map data for export
+  const exportData = reportData.map((item) => ({
+    'Test ID': item.TestId,
+    'Samples Collected': item.NoOfSampleCollected,
+    'Contaminated Samples': item.NoOfContaminatedSamples,
+    'Villages Tested': item.VillagesTested,
+    'Villages With Contamination': item.VillagesWithContamination,
+    'Action Taken': item.ActionTaken,
+    'Created Date': item.CreatedDate,
+    'Contamination Rate (%)': getContaminationRate(item),
+  }));
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(exportData);
+
+  // Optional: Auto-size columns
+  const colWidths = Object.keys(exportData[0]).map((key) => ({
+    wch: Math.max(
+      key.length,
+      ...exportData.map((row) => String(row[key as keyof typeof row]).length)
+    ),
+  }));
+  ws['!cols'] = colWidths;
+
+  XLSX.utils.book_append_sheet(wb, ws, 'WaterQualityReport');
+
+  const filename = `water_quality_report_${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(wb, filename);
+};
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = async () => {
+  setLoading(true);
+  setError('');
+    const token = localStorage.getItem("authToken");
+if (!token) {
+  setError("User not authenticated. Please login.");
+  setLoading(false);
+  return;
+}
+  try {
+    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetWaterQualityReport', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+  'accept': '*/*',
+  'Authorization': `Bearer ${token}` // ✅ token now defined
+      },
+      body: JSON.stringify({
+        CreatedBy: userId ? parseInt(userId) : 0,
+        StartDate: formData.StartDate ? new Date(formData.StartDate).toISOString() : new Date().toISOString(),
+        EndDate: formData.EndDate ? new Date(formData.EndDate).toISOString() : new Date().toISOString()
+      })
+    });
+
+    if (!response.ok) throw new Error(`Error: ${response.status}`);
+
+    const result = await response.json();
+
+    if (result.Status) {
+      setReportData(result.Data || []);
+    } else {
+      setError(result.Message || 'Failed to fetch data');
+    }
+  } catch (err: any) {
+    setError(`Failed to fetch water quality reports: ${err.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
+
+  const getStatusColor = (rate) => {
+    if (rate === 0) return 'text-green-600 bg-green-50';
+    if (rate <= 20) return 'text-yellow-600 bg-yellow-50';
+    return 'text-red-600 bg-red-50';
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <h2 className="text-2xl font-bold">Water Quality Report</h2>
-
-        <div className="flex flex-wrap gap-4 items-center">
-          <div>
-            <label className="block text-sm">From</label>
-            <input
-              type="date"
-              value={filterDateFrom}
-              onChange={(e) => setFilterDateFrom(e.target.value)}
-              className="border px-2 py-1 rounded"
-            />
+    <div className="min-h-screen bg-gray-50 p-6 relative z-10">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Droplets className="h-6 w-6 text-blue-600" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Water Quality Report</h1>
+                <p className="text-gray-600">Monitor and analyze water quality test results</p>
+              </div>
+            </div>
+            
           </div>
-          <div>
-            <label className="block text-sm">To</label>
-            <input
-              type="date"
-              value={filterDateTo}
-              onChange={(e) => setFilterDateTo(e.target.value)}
-              className="border px-2 py-1 rounded"
-            />
-          </div>
-          <div>
-            <label className="block text-sm">Village</label>
-            <input
-              type="text"
-              placeholder="e.g. Sitapur"
-              value={filterVillage}
-              onChange={(e) => setFilterVillage(e.target.value)}
-              className="border px-2 py-1 rounded"
-            />
-          </div>
-
-          <button
-            onClick={downloadCSV}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center"
-          >
-            <Download className="w-4 h-4 mr-2" /> Download CSV
-          </button>
         </div>
+
+        {/* Filter Form */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Filter Reports</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Start Date
+              </label>
+              <input
+                type="date"
+                name="StartDate"
+                value={formData.StartDate}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                End Date
+              </label>
+              <input
+                type="date"
+                name="EndDate"
+                value={formData.EndDate}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+          
+          <div className="mt-4 flex justify-end">
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Search className="h-4 w-4" />
+              <span>{loading ? 'Loading...' : 'Generate Report'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <AlertTriangle className="h-5 w-5 text-red-600 mr-2" />
+              <span className="text-red-800">{error}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Report Results */}
+        {reportData.length > 0 && (
+          <div className="space-y-6">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {reportData.map((item, index) => {
+                const contaminationRate = getContaminationRate(item);
+                return (
+                  <div key={index} className="bg-white rounded-lg shadow-sm p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-2">
+                        <BarChart3 className="h-5 w-5 text-blue-600" />
+                        <span className="font-medium text-gray-900">Test #{item.TestId}</span>
+                      </div>
+                      <div className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(contaminationRate)}`}>
+                        {contaminationRate}% Contaminated
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Samples Collected</span>
+                        <span className="font-semibold text-gray-900">{item.NoOfSampleCollected}</span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Contaminated</span>
+                        <span className="font-semibold text-red-600">{item.NoOfContaminatedSamples}</span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Villages Tested</span>
+                        <span className="font-semibold text-gray-900">{item.VillagesTested}</span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">With Contamination</span>
+                        <span className="font-semibold text-orange-600">{item.VillagesWithContamination}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Detailed Report Table */}
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+  <h3 className="text-lg font-semibold text-gray-900">Detailed Report</h3>
+
+  <button
+    onClick={downloadTableExcel}
+    className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+    disabled={reportData.length === 0}
+  >
+    <Download className="h-4 w-4" />
+    <span>Download Excel</span>
+  </button>
+</div>
+
+              
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Test ID
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Samples
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Contaminated
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Villages
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Action Taken
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Date
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {reportData.map((item, index) => {
+                      const contaminationRate = getContaminationRate(item);
+                      return (
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            #{item.TestId}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.NoOfSampleCollected}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">
+                            {item.NoOfContaminatedSamples}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.VillagesTested} tested, {item.VillagesWithContamination} contaminated
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
+                            {item.ActionTaken}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.CreatedDate}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              {contaminationRate === '0.0' ? (
+                                <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                              ) : (
+                                <AlertTriangle className="h-4 w-4 text-red-600 mr-2" />
+                              )}
+                              <span className={`text-xs font-medium px-2 py-1 rounded-full ${getStatusColor(contaminationRate)}`}>
+                                {contaminationRate === '0.0' ? 'Clean' : `${contaminationRate}% Contaminated`}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* No Data State */}
+        {reportData.length === 0 && !loading && !error && (
+          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+            <Droplets className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Reports Generated Yet</h3>
+            <p className="text-gray-600">Use the filter form above to generate water quality reports</p>
+          </div>
+        )}
       </div>
-
-      {filteredData.length > 0 ? (
-        <div className="overflow-auto">
-          <table className="min-w-full bg-white border rounded shadow text-sm">
-            <thead>
-              <tr className="bg-gray-100 text-left">
-                <th className="py-2 px-4 border">Date</th>
-                <th className="py-2 px-4 border">Samples Collected</th>
-                <th className="py-2 px-4 border">Villages Tested</th>
-                <th className="py-2 px-4 border">Contaminated Samples</th>
-                <th className="py-2 px-4 border">Contaminated Villages</th>
-                <th className="py-2 px-4 border">Action Taken</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredData.map((entry, idx) => (
-                <tr key={idx} className="border-t">
-                  <td className="py-2 px-4 border">
-                    {format(new Date(entry.date), "dd-MM-yyyy")}
-                  </td>
-                  <td className="py-2 px-4 border">{entry.samplesCollected}</td>
-                  <td className="py-2 px-4 border">
-                    {entry.villagesTested.join(", ")}
-                  </td>
-                  <td className="py-2 px-4 border">{entry.contaminatedSamples}</td>
-                  <td className="py-2 px-4 border">
-                    {entry.contaminatedVillages.join(", ")}
-                  </td>
-                  <td className="py-2 px-4 border">{entry.actionTaken}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p className="text-gray-500">No data found.</p>
-      )}
     </div>
   );
 };
 
-export default ViewWaterQuality;
+export default WaterQualityPage;

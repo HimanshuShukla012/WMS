@@ -1,126 +1,797 @@
 import { useEffect, useState } from "react";
-import { format } from "date-fns";
-import axios from "axios";
+import { Calendar, AlertCircle, Zap, User, RefreshCw, Eye, Clock, Droplets } from "lucide-react";
 
-// Define interfaces for the data structures
-interface FillingRoaster {
-  gpName: string;
-  ohtName: string;
-  inletValveStatus: string;
-  outletValveStatus: string;
-  fillingTime: string;
-  filledBy: string;
+// Define interfaces for pump house data
+interface PumpHouseData {
+  OhtId: number;
+  OperatorName: string;
+  Contact: string;
+  PumpId: number;
+  HorsePower: string;
+  PowerSource: string;
+  SolarOutput: number;
+  Status: number;
 }
 
-interface DistributionRoaster {
-  gpName: string;
-  distributionArea: string;
-  valveStatus: string;
-  distributionTime: string;
-  distributedBy: string;
+// Define interfaces for the monthly roaster data based on your API
+interface MonthlyRoasterData {
+  RoasterId: number;
+  GPId: number;
+  VillageId: number;
+  RoasterDate: string;
+  ActivityType: string;
+  StartDate: string;
+  EndDate: string;
+  Remark: string;
+  PumpId: number;
+  Shift1DistributionFrom: string | null;
+  Shift1DistributionTo: string | null;
+  Shift2DistributionFrom: string | null;
+  Shift2DistributionTo: string | null;
+  Shift3DistributionFrom: string | null;
+  Shift3DistributionTo: string | null;
+  Shift1FillingFrom: string | null;
+  Shift1FillingTo: string | null;
+  Shift2FillingFrom: string | null;
+  Shift2FillingTo: string | null;
+  Shift3FillingFrom: string | null;
+  Shift3FillingTo: string | null;
+  DeviceToken: string;
+  IPAddress: string;
+  Status: number;
+  UpdatedDate: string;
 }
 
-const ViewRoaster = () => {
-  const [selectedDate, setSelectedDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
-  const [fillingData, setFillingData] = useState<FillingRoaster[]>([]);
-  const [distributionData, setDistributionData] = useState<DistributionRoaster[]>([]);
+// API Response interface
+interface ApiResponse<T> {
+  Data: T;
+  Error?: string | null;
+  Errror?: string | null;
+  Message: string;
+  Status: boolean;
+}
 
-  const fetchRoasterData = async () => {
+// Request interface for the monthly API
+interface MonthlyRoasterRequest {
+  GPId: number;
+  VillgeId: number;
+  Month: number;
+  Year: number;
+}
+
+// Statistics interface for dashboard cards
+interface RoasterStats {
+  totalSchedules: number;
+  activeSchedules: number;
+  maintenanceSchedules: number;
+  avgDistributionHours: number;
+}
+
+// Get current user ID (you may need to modify this based on your authentication system)
+const getCurrentUserId = (): number => {
+  return 5; // You might want to get this from localStorage, context, or props
+};
+
+// Fetch pump houses for the current user
+const fetchPumpHouses = async (userId: number): Promise<ApiResponse<PumpHouseData[]>> => {
+  try {
+    const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetPumpHouseListByUserId?UserId=${userId}`, {
+      method: 'GET',
+      headers: {
+        'accept': '*/*',
+      },
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data;
+    } else {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+  } catch (error) {
+    console.error('Error fetching pump houses:', error);
+    throw error;
+  }
+};
+
+// Fetch monthly roaster data from the correct API
+const fetchMonthlyRoasterData = async (requestBody: MonthlyRoasterRequest): Promise<ApiResponse<MonthlyRoasterData[]>> => {
+  try {
+    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetMonthlyRoasterWithSchedule', {
+      method: 'POST',
+      headers: {
+        'accept': '*/*',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data;
+    } else {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+  } catch (error) {
+    console.error('Error fetching monthly roaster data:', error);
+    throw error;
+  }
+};
+
+// Calculate statistics from roaster data
+const calculateStats = (data: MonthlyRoasterData[]): RoasterStats => {
+  const totalSchedules = data.length;
+  const activeSchedules = data.filter(item => item.Status === 1).length;
+  const maintenanceSchedules = data.filter(item => 
+    item.ActivityType.toLowerCase().includes('maintenance') || 
+    item.ActivityType.toLowerCase().includes('monthly')
+  ).length;
+  
+  const totalDistributionHours = data.reduce((acc, item) => {
+    if (item.Status === 1) {
+      const shift1Hours = calculateShiftDuration(item.Shift1DistributionFrom, item.Shift1DistributionTo);
+      const shift2Hours = calculateShiftDuration(item.Shift2DistributionFrom, item.Shift2DistributionTo);
+      const shift3Hours = calculateShiftDuration(item.Shift3DistributionFrom, item.Shift3DistributionTo);
+      return acc + shift1Hours + shift2Hours + shift3Hours;
+    }
+    return acc;
+  }, 0);
+  
+  const avgDistributionHours = activeSchedules > 0 ? totalDistributionHours / activeSchedules : 0;
+  
+  return {
+    totalSchedules,
+    activeSchedules,
+    maintenanceSchedules,
+    avgDistributionHours
+  };
+};
+
+// Helper function to calculate shift duration
+const calculateShiftDuration = (fromTime: string | null, toTime: string | null): number => {
+  if (!fromTime || !toTime || fromTime === "00:00:00" || toTime === "00:00:00" || fromTime === "00:00:01") {
+    return 0;
+  }
+  
+  const from = new Date(`2000-01-01T${fromTime}`);
+  const to = new Date(`2000-01-01T${toTime}`);
+  
+  if (to <= from) return 0;
+  
+  return (to.getTime() - from.getTime()) / (1000 * 60 * 60);
+};
+
+const ViewRoaster: React.FC = () => {
+  const currentDate = new Date();
+  const [selectedMonth, setSelectedMonth] = useState<number>(() => currentDate.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState<number>(() => currentDate.getFullYear());
+  const [selectedPumpId, setSelectedPumpId] = useState<number | null>(null);
+  const [selectedVillageId, setSelectedVillageId] = useState<number>(1);
+  
+  // Data states
+  const [pumpHouses, setPumpHouses] = useState<PumpHouseData[]>([]);
+  const [uniquePumpHouses, setUniquePumpHouses] = useState<PumpHouseData[]>([]);
+  const [monthlyRoasterData, setMonthlyRoasterData] = useState<MonthlyRoasterData[]>([]);
+  const [roasterStats, setRoasterStats] = useState<RoasterStats>({
+    totalSchedules: 0,
+    activeSchedules: 0,
+    maintenanceSchedules: 0,
+    avgDistributionHours: 0
+  });
+  
+  // UI states
+  const [loading, setLoading] = useState<boolean>(false);
+  const [pumpHouseLoading, setPumpHouseLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
+  const [filterActivity, setFilterActivity] = useState<string>('all');
+
+  const currentUserId = getCurrentUserId();
+
+  // Fetch pump houses on component mount
+  useEffect(() => {
+    const loadPumpHouses = async () => {
+      setPumpHouseLoading(true);
+      try {
+        const response = await fetchPumpHouses(currentUserId);
+        
+        if (response && response.Status && Array.isArray(response.Data)) {
+          setPumpHouses(response.Data);
+          
+          // Create unique pump houses based on PumpId
+          const uniqueMap = new Map<number, PumpHouseData>();
+          response.Data.forEach(pump => {
+            if (!uniqueMap.has(pump.PumpId)) {
+              uniqueMap.set(pump.PumpId, pump);
+            }
+          });
+          const uniquePumps = Array.from(uniqueMap.values());
+          setUniquePumpHouses(uniquePumps);
+          
+          // Auto-select first active pump or first pump
+          const activePumps = uniquePumps.filter(pump => pump.Status === 1);
+          if (activePumps.length > 0) {
+            setSelectedPumpId(activePumps[0].PumpId);
+          } else if (uniquePumps.length > 0) {
+            setSelectedPumpId(uniquePumps[0].PumpId);
+          }
+        } else {
+          setError(response?.Message || 'Failed to fetch pump houses');
+        }
+      } catch (err) {
+        console.error('Error loading pump houses:', err);
+        setError('Failed to load pump houses. Please refresh and try again.');
+      } finally {
+        setPumpHouseLoading(false);
+      }
+    };
+
+    loadPumpHouses();
+  }, [currentUserId]);
+
+  // Fetch monthly roaster data
+  const loadMonthlyRoasterData = async (): Promise<void> => {
+    if (!selectedMonth || !selectedYear || !selectedPumpId) return;
+
+    setLoading(true);
+    setError('');
+
     try {
-      const [fillingRes, distributionRes] = await Promise.all([
-        axios.get<FillingRoaster[]>(`https://wmsapi.kdsgroup.co.in/api/FillingRoaster/ViewFillingRoaster?date=${selectedDate}`),
-        axios.get<DistributionRoaster[]>(`https://wmsapi.kdsgroup.co.in/api/DistributionRoaster/ViewDistributionRoaster?date=${selectedDate}`)
-      ]);
-      setFillingData(fillingRes.data || []);
-      setDistributionData(distributionRes.data || []);
-    } catch (error) {
-      console.error("Error fetching roaster data", error);
+      const requestBody: MonthlyRoasterRequest = {
+        GPId: selectedPumpId,
+        VillgeId: selectedVillageId,
+        Month: selectedMonth,
+        Year: selectedYear
+      };
+
+      console.log('Fetching monthly roaster data with payload:', requestBody);
+
+      const response = await fetchMonthlyRoasterData(requestBody);
+      
+      console.log('Monthly roaster API response:', response);
+      
+      if (response && response.Status && Array.isArray(response.Data)) {
+        setMonthlyRoasterData(response.Data);
+        setRoasterStats(calculateStats(response.Data));
+      } else {
+        setMonthlyRoasterData([]);
+        setRoasterStats({ totalSchedules: 0, activeSchedules: 0, maintenanceSchedules: 0, avgDistributionHours: 0 });
+        if (response && !response.Status) {
+          setError(response.Message || 'Failed to fetch data');
+        }
+      }
+
+    } catch (err: unknown) {
+      console.error("Error fetching monthly roaster data:", err);
+      if (err instanceof Error) {
+        setError(`Error: ${err.message}`);
+      } else {
+        setError('Failed to fetch monthly roaster data. Please try again.');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Effect for monthly data
   useEffect(() => {
-    fetchRoasterData();
-  }, [selectedDate]);
+    if (selectedPumpId) {
+      loadMonthlyRoasterData();
+    }
+  }, [selectedMonth, selectedYear, selectedPumpId, selectedVillageId]);
+
+  const getMonthName = (month: number): string => {
+    const months: string[] = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return months[month - 1] || '';
+  };
+
+  const formatTime = (timeString: string | null): string => {
+    if (!timeString || timeString === '00:00:00' || timeString === '00:00:01') return 'Not Set';
+    return timeString.substring(0, 5);
+  };
+
+  const formatDate = (dateString: string): string => {
+    try {
+      // Handle DD-MM-YYYY format from API
+      if (dateString.includes('-') && dateString.split('-')[0].length === 2) {
+        const [day, month, year] = dateString.split('-');
+        const date = new Date(`${year}-${month}-${day}`);
+        return date.toLocaleDateString('en-GB', { 
+          day: '2-digit', 
+          month: 'short', 
+          year: 'numeric' 
+        });
+      }
+      // Handle ISO format
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-GB', { 
+        day: '2-digit', 
+        month: 'short', 
+        year: 'numeric' 
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const getPowerSourceText = (powerSource: string): string => {
+    switch (powerSource) {
+      case '1': return 'Electric';
+      case '2': return 'Solar';
+      default: return 'Unknown';
+    }
+  };
+
+  const getStatusText = (status: number): string => {
+    return status === 1 ? 'Active' : 'Inactive';
+  };
+
+  const getStatusBadgeClass = (status: number): string => {
+    return status === 1 
+      ? 'bg-green-100 text-green-800 border-green-200' 
+      : 'bg-red-100 text-red-800 border-red-200';
+  };
+
+  const getActivityBadgeClass = (activityType: string): string => {
+    if (activityType.toLowerCase().includes('maintenance')) {
+      return 'bg-orange-100 text-orange-800 border-orange-200';
+    }
+    if (activityType.toLowerCase().includes('monthly')) {
+      return 'bg-purple-100 text-purple-800 border-purple-200';
+    }
+    return 'bg-blue-100 text-blue-800 border-blue-200';
+  };
+
+  // Filter monthly data based on activity type
+  const filteredMonthlyData = monthlyRoasterData.filter(item => {
+    if (filterActivity === 'all') return true;
+    if (filterActivity === 'monthly') return item.ActivityType.toLowerCase().includes('monthly');
+    if (filterActivity === 'maintenance') return item.ActivityType.toLowerCase().includes('maintenance');
+    return item.ActivityType.toLowerCase().includes(filterActivity.toLowerCase());
+  });
+
+  const selectedPumpDetails = uniquePumpHouses.find(p => p.PumpId === selectedPumpId);
+
+  // Event handlers
+  const refreshData = () => {
+    console.log('Refresh button clicked!');
+    setError('');
+    loadMonthlyRoasterData();
+  };
+
+  const handlePumpSelect = (pumpId: number) => {
+    console.log('Pump card clicked! Pump ID:', pumpId);
+    setSelectedPumpId(pumpId);
+    setError('');
+  };
+
+  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newMonth = Number(e.target.value);
+    console.log('Month changed to:', newMonth);
+    setSelectedMonth(newMonth);
+  };
+
+  const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newYear = Number(e.target.value);
+    console.log('Year changed to:', newYear);
+    setSelectedYear(newYear);
+  };
+
+  const handleVillageIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVillageId = Number(e.target.value);
+    console.log('Village ID changed to:', newVillageId);
+    setSelectedVillageId(newVillageId);
+  };
+
+  const handleActivityFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newFilter = e.target.value;
+    console.log('Activity filter changed to:', newFilter);
+    setFilterActivity(newFilter);
+  };
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-2">View Pump House Roaster</h1>
-      <p className="text-sm text-gray-900 mb-6">
-        View the filled roasters for any selected date. This data is view-only and cannot be changed.
-      </p>
+    <div className="w-full bg-gray-50 relative z-10">
+        <div className="p-4 md:p-6 space-y-6">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl p-4 md:p-6 shadow-lg text-white">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold mb-2">Water Management System</h1>
+                <p className="text-blue-100">
+                  View and monitor pump house roaster schedules and operations
+                </p>
+              </div>
+              <div className="text-left md:text-right">
+                <div className="text-sm text-blue-200">Current Date</div>
+                <div className="text-lg font-semibold">
+                  {new Date().toLocaleDateString('en-GB', { 
+                    day: '2-digit', 
+                    month: 'long', 
+                    year: 'numeric' 
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
 
-      <div className="flex gap-4 mb-4">
-        <input
-          type="date"
-          className="p-2 border rounded"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-        />
-      </div>
-
-      {/* Filled OHT Roaster Table */}
-      <h2 className="text-xl font-semibold mb-2">Filled OHT Roaster (Filling)</h2>
-      <table className="w-full text-sm border border-collapse mb-8">
-        <thead>
-          <tr className="bg-blue-600 text-white">
-            <th className="border p-2">GP Name</th>
-            <th className="border p-2">OHT Name</th>
-            <th className="border p-2">Inlet Valve Status</th>
-            <th className="border p-2">Outlet Valve Status</th>
-            <th className="border p-2">Filling Time</th>
-            <th className="border p-2">Filled By</th>
-          </tr>
-        </thead>
-        <tbody>
-          {fillingData.length === 0 ? (
-            <tr>
-              <td colSpan={6} className="text-center p-2">No data available</td>
-            </tr>
-          ) : (
-            fillingData.map((item, index) => (
-              <tr key={index} className="bg-white">
-                <td className="border p-2">{item.gpName}</td>
-                <td className="border p-2">{item.ohtName}</td>
-                <td className="border p-2">{item.inletValveStatus}</td>
-                <td className="border p-2">{item.outletValveStatus}</td>
-                <td className="border p-2">{item.fillingTime}</td>
-                <td className="border p-2">{item.filledBy}</td>
-              </tr>
-            ))
+          {/* Error Display */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-3 shadow-sm">
+              <AlertCircle className="w-6 h-6 flex-shrink-0" />
+              <div className="flex-1">
+                <div className="font-semibold">Error</div>
+                <div className="text-sm">{error}</div>
+              </div>
+              <button
+                onClick={() => setError('')}
+                className="text-red-500 hover:text-red-700 text-xl font-bold transition-colors"
+              >
+                ×
+              </button>
+            </div>
           )}
-        </tbody>
-      </table>
 
-      {/* Filled Distribution Roaster Table */}
-      <h2 className="text-xl font-semibold mb-2">Filled Distribution Roaster</h2>
-      <table className="w-full text-sm border border-collapse">
-        <thead>
-          <tr className="bg-blue-600 text-white">
-            <th className="border p-2">GP Name</th>
-            <th className="border p-2">Distribution Area</th>
-            <th className="border p-2">Valve Status</th>
-            <th className="border p-2">Distribution Time</th>
-            <th className="border p-2">Distributed By</th>
-          </tr>
-        </thead>
-        <tbody>
-          {distributionData.length === 0 ? (
-            <tr>
-              <td colSpan={5} className="text-center p-2">No data available</td>
-            </tr>
-          ) : (
-            distributionData.map((item, index) => (
-              <tr key={index} className="bg-white">
-                <td className="border p-2">{item.gpName}</td>
-                <td className="border p-2">{item.distributionArea}</td>
-                <td className="border p-2">{item.valveStatus}</td>
-                <td className="border p-2">{item.distributionTime}</td>
-                <td className="border p-2">{item.distributedBy}</td>
-              </tr>
-            ))
+          {/* Pump House Loading State */}
+          {pumpHouseLoading && (
+            <div className="bg-white p-6 rounded-lg shadow-sm border">
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <span className="ml-3 text-gray-600">Loading your pump houses...</span>
+              </div>
+            </div>
           )}
-        </tbody>
-      </table>
+
+          {/* Pump House Selection */}
+          {!pumpHouseLoading && uniquePumpHouses.length > 0 && (
+            <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border">
+              <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                <div className="flex items-center gap-3">
+                  <Zap className="w-6 h-6 text-blue-600" />
+                  <h2 className="text-xl font-semibold text-gray-800">Select Pump House</h2>
+                </div>
+                <div className="text-sm text-gray-500">
+                  {uniquePumpHouses.length} pump house(s) available
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                {uniquePumpHouses.map((pump) => (
+                  <div
+                    key={pump.PumpId}
+                    onClick={() => handlePumpSelect(pump.PumpId)}
+                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md text-left w-full ${
+                      selectedPumpId === pump.PumpId
+                        ? 'border-blue-500 bg-blue-50 shadow-md'
+                        : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="font-semibold text-lg text-gray-800">Pump #{pump.PumpId}</div>
+                      <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getStatusBadgeClass(pump.Status)}`}>
+                        {getStatusText(pump.Status)}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-600 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4" />
+                        <span>{pump.OperatorName && pump.OperatorName !== '0' ? pump.OperatorName : 'No operator assigned'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-4 h-4" />
+                        <span>{pump.HorsePower} HP ({getPowerSourceText(pump.PowerSource)})</span>
+                      </div>
+                      {pump.SolarOutput > 0 && (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 bg-yellow-400 rounded-full"></div>
+                          <span>Solar: {pump.SolarOutput} kW</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Selected Pump Details */}
+              {selectedPumpDetails && (
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+                  <div className="font-medium text-blue-800 mb-3 flex items-center gap-2">
+                    <Eye className="w-5 h-5" />
+                    Selected Pump House Details
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-700">Pump ID:</span>
+                      <div className="text-gray-900">{selectedPumpDetails.PumpId}</div>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">OHT ID:</span>
+                      <div className="text-gray-900">{selectedPumpDetails.OhtId}</div>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">Horse Power:</span>
+                      <div className="text-gray-900">{selectedPumpDetails.HorsePower} HP</div>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">Contact:</span>
+                      <div className="text-gray-900">{selectedPumpDetails.Contact || 'N/A'}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* No Pump Houses Available */}
+          {!pumpHouseLoading && uniquePumpHouses.length === 0 && !error && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+              <div className="flex items-center gap-3 text-yellow-800">
+                <AlertCircle className="w-6 h-6" />
+                <div>
+                  <div className="font-semibold text-lg">No Pump Houses Assigned</div>
+                  <div className="text-sm text-yellow-700">No pump houses are currently assigned to your user account. Please contact your administrator.</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Filters and Controls - Only show if pump is selected */}
+          {selectedPumpId && (
+            <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border">
+              <div className="flex flex-col lg:flex-row lg:items-center gap-6">
+                {/* Title */}
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="w-6 h-6 text-blue-600" />
+                    <span className="text-xl font-semibold text-gray-800">Monthly Roaster Schedule</span>
+                  </div>
+                </div>
+
+                {/* Refresh Button */}
+                <button
+                  onClick={refreshData}
+                  disabled={loading}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors"
+                >
+                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                  Refresh Data
+                </button>
+              </div>
+
+              {/* Filters */}
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block font-medium text-gray-700 mb-2">Month</label>
+                    <select
+                      value={selectedMonth}
+                      onChange={handleMonthChange}
+                      className="border border-gray-300 rounded-lg px-3 py-2 w-full shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {Array.from({length: 12}, (_, i) => (
+                        <option key={i + 1} value={i + 1}>
+                          {getMonthName(i + 1)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-medium text-gray-700 mb-2">Year</label>
+                    <select
+                      value={selectedYear}
+                      onChange={handleYearChange}
+                      className="border border-gray-300 rounded-lg px-3 py-2 w-full shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {Array.from({length: 5}, (_, i) => {
+                        const year = new Date().getFullYear() + i - 2;
+                        return (
+                          <option key={year} value={year}>
+                            {year}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-medium text-gray-700 mb-2">Village ID</label>
+                    <input
+                      type="number"
+                      value={selectedVillageId}
+                      onChange={handleVillageIdChange}
+                      className="border border-gray-300 rounded-lg px-3 py-2 w-full shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      min="1"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-medium text-gray-700 mb-2">Activity Type</label>
+                    <select
+                      value={filterActivity}
+                      onChange={handleActivityFilterChange}
+                      className="border border-gray-300 rounded-lg px-3 py-2 w-full shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="all">All Activities</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="maintenance">Maintenance</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Statistics Cards */}
+          {selectedPumpId && !loading && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+              <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-2xl font-bold text-blue-600">{roasterStats.totalSchedules}</div>
+                    <div className="text-sm font-medium text-gray-700">Total Roasters</div>
+                  </div>
+                  <Calendar className="w-8 h-8 text-blue-600 opacity-60" />
+                </div>
+              </div>
+              
+              <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-2xl font-bold text-green-600">{roasterStats.activeSchedules}</div>
+                    <div className="text-sm font-medium text-gray-700">Active Roasters</div>
+                  </div>
+                  <Droplets className="w-8 h-8 text-green-600 opacity-60" />
+                </div>
+              </div>
+              
+              <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-2xl font-bold text-orange-600">{roasterStats.maintenanceSchedules}</div>
+                    <div className="text-sm font-medium text-gray-700">Monthly Schedules</div>
+                  </div>
+                  <Zap className="w-8 h-8 text-orange-600 opacity-60" />
+                </div>
+              </div>
+              
+              <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-2xl font-bold text-purple-600">{roasterStats.avgDistributionHours.toFixed(1)}</div>
+                    <div className="text-sm font-medium text-gray-700">Avg Hours/Day</div>
+                  </div>
+                  <Clock className="w-8 h-8 text-purple-600 opacity-60" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {loading && (
+            <div className="bg-white p-8 rounded-lg shadow-sm border">
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                <span className="ml-3 text-gray-600 text-lg">Loading roaster data...</span>
+              </div>
+            </div>
+          )}
+
+          {/* Monthly Roaster Data */}
+          {!loading && selectedPumpId && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+                <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-4 md:p-6">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <Calendar className="w-6 h-6" />
+                      <h2 className="text-xl font-semibold">
+                        Monthly Roaster Schedule - {getMonthName(selectedMonth)} {selectedYear}
+                      </h2>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 md:gap-4">
+                      <span className="bg-blue-500 bg-opacity-50 text-blue-100 px-3 py-1 rounded-full text-sm">
+                        Pump #{selectedPumpId}
+                      </span>
+                      <span className="bg-blue-500 bg-opacity-50 text-blue-100 px-3 py-1 rounded-full text-sm">
+                        {filteredMonthlyData.length} records
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                {filteredMonthlyData.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <AlertCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <p className="text-lg font-medium">No roaster data found</p>
+                    <p className="text-sm">No monthly roaster data found for the selected criteria.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200">
+                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Roaster Date</th>
+                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Activity Type</th>
+                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Duration</th>
+                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Distribution Shifts</th>
+                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Filling Shifts</th>
+                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Remark</th>
+                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Status</th>
+                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Updated</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredMonthlyData.map((item, index) => (
+                          <tr key={item.RoasterId || index} className="bg-white hover:bg-gray-50 border-b border-gray-100 transition-colors">
+                            <td className="p-3 md:p-4 font-medium text-gray-900">
+                              {formatDate(item.RoasterDate)}
+                            </td>
+                            <td className="p-3 md:p-4">
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getActivityBadgeClass(item.ActivityType)}`}>
+                                {item.ActivityType || 'N/A'}
+                              </span>
+                            </td>
+                            <td className="p-3 md:p-4 text-gray-700">
+                              <div className="text-xs">
+                                <div><strong>From:</strong> {formatDate(item.StartDate)}</div>
+                                <div><strong>To:</strong> {formatDate(item.EndDate)}</div>
+                              </div>
+                            </td>
+                            <td className="p-3 md:p-4">
+                              <div className="space-y-1 text-xs">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-16 font-medium text-gray-600">Shift 1:</span>
+                                  <span className="text-gray-900">{formatTime(item.Shift1DistributionFrom)} - {formatTime(item.Shift1DistributionTo)}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="w-16 font-medium text-gray-600">Shift 2:</span>
+                                  <span className="text-gray-900">{formatTime(item.Shift2DistributionFrom)} - {formatTime(item.Shift2DistributionTo)}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="w-16 font-medium text-gray-600">Shift 3:</span>
+                                  <span className="text-gray-900">{formatTime(item.Shift3DistributionFrom)} - {formatTime(item.Shift3DistributionTo)}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-3 md:p-4">
+                              <div className="space-y-1 text-xs">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-16 font-medium text-gray-600">Shift 1:</span>
+                                  <span className="text-gray-900">{formatTime(item.Shift1FillingFrom)} - {formatTime(item.Shift1FillingTo)}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="w-16 font-medium text-gray-600">Shift 2:</span>
+                                  <span className="text-gray-900">{formatTime(item.Shift2FillingFrom)} - {formatTime(item.Shift2FillingTo)}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="w-16 font-medium text-gray-600">Shift 3:</span>
+                                  <span className="text-gray-900">{formatTime(item.Shift3FillingFrom)} - {formatTime(item.Shift3FillingTo)}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-3 md:p-4 text-gray-700 max-w-xs">
+                              <div className="truncate" title={item.Remark}>
+                                {item.Remark || 'N/A'}
+                              </div>
+                            </td>
+                            <td className="p-3 md:p-4">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusBadgeClass(item.Status)}`}>
+                                {getStatusText(item.Status)}
+                              </span>
+                            </td>
+                            <td className="p-3 md:p-4 text-gray-600 text-xs">
+                              {formatDate(item.UpdatedDate)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      
     </div>
   );
 };
