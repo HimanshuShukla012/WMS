@@ -61,11 +61,15 @@ const Login = () => {
         }
 
         // Save token, userID, and role in both context state and localStorage
-        localStorage.setItem("authToken", data.Token);
-        localStorage.setItem("userID", data.UserID);
-        localStorage.setItem("role", roleFromToken);
-        
-        if (data.uparm) {
+        // Save token, userID, and role in both context state and localStorage
+localStorage.setItem("authToken", data.Token);
+localStorage.setItem("userID", data.UserID);
+localStorage.setItem("role", roleFromToken);
+
+// ✅ clear old cached user info so new login reflects correctly
+localStorage.removeItem("cachedUserInfo");
+
+if (data.uparm) {
   localStorage.setItem("uparm", data.uparm);
 } else {
   // Try extracting from JWT payload if not directly in response
@@ -73,6 +77,7 @@ const Login = () => {
     localStorage.setItem("uparm", payload.uparm);
   }
 }
+
 
         setToken(data.Token);
         setUserID(data.UserID);
@@ -164,12 +169,9 @@ const Login = () => {
 
         <div className="relative z-10 hidden md:flex flex-col items-end w-1/2 text-right pr-6">
           <h1 className="text-5xl lg:text-6xl font-extrabold leading-tight text-white drop-shadow-lg">
-            Integrated Water Management System
+             Water Management System
           </h1>
-          <p className="text-xl lg:text-2xl mt-6 text-gray-200 font-semibold max-w-xl drop-shadow">
-            Operation & Maintenance of Rural Water Supply Projects in Uttar
-            Pradesh
-          </p>
+          
         </div>
       </div>
     </>

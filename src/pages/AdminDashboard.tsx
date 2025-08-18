@@ -138,7 +138,6 @@ export default function AdminDashboard() {
   
   // Real API Data States
   const [pumpHouses, setPumpHouses] = useState<PumpHouseData[]>([]);
-  const [ohtData, setOHTData] = useState<OHTData[]>([]);
   const [complaints, setComplaints] = useState<ComplaintData[]>([]);
   const [feeData, setFeeData] = useState<FeeCollectionData[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
@@ -149,7 +148,10 @@ export default function AdminDashboard() {
   const [totalPendingComplaints, setTotalPendingComplaints] = useState(0);
   const [complaintStatusData, setComplaintStatusData] = useState([]);
   const [waterConnectionData, setWaterConnectionData] = useState([]);
-  const [villageFeeData, setVillageFeeData] = useState([]);
+const [villageFeeData, setVillageFeeData] = useState<{ villages: any[]; totalCollected: number }>({
+  villages: [],
+  totalCollected: 0,
+});
   
   // Loading states
   const [isLoading, setIsLoading] = useState({
@@ -169,6 +171,14 @@ export default function AdminDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear] = useState(new Date().getFullYear());
+  const [pumpHouseCount, setPumpHouseCount] = useState(0);
+const [ohtCount, setOHTCount] = useState(0);
+const [ohtData, setOhtData] = useState<OHTData[]>([]);
+// --- Add state at top ---
+const [totalVillageCount, setTotalVillageCount] = useState(0);
+
+
+
 
   // Time update effect
   useEffect(() => {
@@ -178,25 +188,127 @@ export default function AdminDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Real API Functions
-  const fetchPumpHouses = async (currentUserId: number) => {
-    setIsLoading(prev => ({ ...prev, pumps: true }));
-    try {
-      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetPumpHouseListByUserId?UserId=${currentUserId}`);
-      const data: ApiResponse<PumpHouseData[]> = await response.json();
-      
-      if (data.Status && Array.isArray(data.Data)) {
-        setPumpHouses(data.Data);
-      } else {
-        setPumpHouses([]);
-      }
-    } catch (error) {
-      console.error('Error fetching pump houses:', error);
-      setPumpHouses([]);
-    } finally {
-      setIsLoading(prev => ({ ...prev, pumps: false }));
+const fetchPumpHouseCount = async () => {
+  setIsLoading(prev => ({ ...prev, pumps: true }));
+  try {
+    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalActivePumphouseCountforAdmin", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "*/*",
+      },
+      body: JSON.stringify({ InputType: "string" })
+    });
+
+    if (!res.ok) throw new Error("Network error");
+
+    const data = await res.json();
+    console.log("Pump House Count API response:", data);
+
+    if (data?.Status && data?.Data?.TotalActivePumphouseCount !== undefined) {
+  setPumpHouseCount(Number(data.Data.TotalActivePumphouseCount) || 0);
+} else {
+  setPumpHouseCount(0);
+}
+
+  } catch (error) {
+    console.error("Error fetching pump house count:", error);
+    setPumpHouseCount(0);
+  } finally {
+    setIsLoading(prev => ({ ...prev, pumps: false }));
+  }
+};
+
+const fetchOHTCount = async () => {
+  setIsLoading(prev => ({ ...prev, ohts: true }));
+  try {
+    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalOverHeadTankCountforAdmin", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "*/*",
+      },
+      body: JSON.stringify({ InputType: "string" }),
+    });
+
+    if (!res.ok) throw new Error("Network error");
+    const data = await res.json();
+    console.log("OHT Count API response:", data);
+
+    if (data?.Status && data?.Data?.TotalOverHeadTankCount !== undefined) {
+      setOHTCount(Number(data.Data.TotalOverHeadTankCount) || 0);
+    } else {
+      setOHTCount(0);
     }
-  };
+  } catch (err) {
+    console.error("Error fetching OHT count:", err);
+    setOHTCount(0);
+  } finally {
+    setIsLoading(prev => ({ ...prev, ohts: false }));
+  }
+};
+
+
+
+
+  // Real API Functions
+  const fetchPumpHouses = async () => {
+  setIsLoading(prev => ({ ...prev, pumps: true }));
+  try {
+    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalActivePumphouseCountforAdmin", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "*/*",
+      },
+      body: JSON.stringify({ InputType: "string" })
+    });
+
+    const data = await res.json();
+    console.log("Pump House Count API response:", data);
+
+    if (data?.Status && data?.Data?.TotalPumpHouseCount !== undefined) {
+      setPumpHouses(data.Data.TotalPumpHouseCount);
+    } else {
+      setPumpHouses([]);
+    }
+  } catch (error) {
+    console.error("Error fetching pump house count:", error);
+    setPumpHouses([]);
+  } finally {
+    setIsLoading(prev => ({ ...prev, pumps: false }));
+  }
+};
+
+
+// --- New API function ---
+const fetchTotalVillageCount = async (currentUserId: number) => {
+  setIsLoading(prev => ({ ...prev, villages: true }));
+  try {
+    const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalVillageCountforAdmin?UserId=${currentUserId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "*/*"
+      }
+    });
+    const data = await res.json();
+    console.log("Village Count API response:", data);
+
+    if (data?.Status && data?.Data?.TotalVillageCount !== undefined) {
+      setTotalVillageCount(Number(data.Data.TotalVillageCount) || 0);
+    } else {
+      setTotalVillageCount(0);
+    }
+  } catch (error) {
+    console.error("Error fetching total village count:", error);
+    setTotalVillageCount(0);
+  } finally {
+    setIsLoading(prev => ({ ...prev, villages: false }));
+  }
+};
+
+
 
   const fetchVillages = async (currentUserId: number) => {
     setIsLoading(prev => ({ ...prev, villages: true }));
@@ -207,10 +319,9 @@ export default function AdminDashboard() {
       if (data.Status && Array.isArray(data.Data)) {
         setVillages(data.Data);
         // Fetch dependent data
-        await Promise.all(data.Data.slice(0, 5).map(async (village) => {
-          await fetchOHTData(village.VillageId);
-          await fetchFeeData(village.VillageId);
-        }));
+        await Promise.all(
+  data.Data.slice(0, 5).map(village => fetchFeeData(village.VillageId))
+);
       } else {
         setVillages([]);
       }
@@ -222,18 +333,32 @@ export default function AdminDashboard() {
     }
   };
 
-  const fetchOHTData = async (villageId: number) => {
-    try {
-      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetOHTListByVillage?VillageId=${villageId}`);
-      const data: ApiResponse<OHTData[]> = await response.json();
-      
-      if (data.Status && Array.isArray(data.Data)) {
-        setOHTData(prev => [...prev, ...data.Data]);
-      }
-    } catch (error) {
-      console.error(`Error fetching OHT data for village ${villageId}:`, error);
+  const fetchOHTData = async () => {
+  try {
+    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetOverHeadTankDetailsforAdmin", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "*/*",
+      },
+      body: JSON.stringify({ InputType: "string" }),
+    });
+
+    const data = await res.json();
+    console.log("OHT List API response:", data);
+
+    if (data?.Status && Array.isArray(data?.Data)) {
+      setOhtData(data.Data);
+    } else {
+      setOhtData([]);
     }
-  };
+  } catch (err) {
+    console.error("Error fetching OHT list:", err);
+    setOhtData([]);
+  }
+};
+
+
 
   const fetchFeeData = async (villageId: number) => {
     try {
@@ -287,41 +412,64 @@ export default function AdminDashboard() {
     }
   };
 
-  const fetchTotalBeneficiaries = async (currentUserId: number) => {
-    setIsLoading(prev => ({ ...prev, beneficiaries: true }));
-    try {
-      const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalBeneficiaryCount?UserId=${currentUserId}`);
-      const data = await res.json();
-      if (data?.Status && data?.Data?.TotalBeneficiaryCount !== undefined) {
-        setTotalBeneficiaries(data.Data.TotalBeneficiaryCount);
-      } else {
-        setTotalBeneficiaries(0);
-      }
-    } catch (error) {
-      console.error("Error fetching beneficiaries:", error);
-      setTotalBeneficiaries(0);
-    } finally {
-      setIsLoading(prev => ({ ...prev, beneficiaries: false }));
-    }
-  };
+  const fetchTotalBeneficiaries = async () => {
+  setIsLoading(prev => ({ ...prev, beneficiaries: true }));
+  try {
+    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalBeneficiaryCountforAdmin", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "*/*",
+      },
+      body: JSON.stringify({ InputType: "string" }) // ✅ required body
+    });
 
-  const fetchActiveConnections = async (currentUserId: number) => {
-    setIsLoading(prev => ({ ...prev, connections: true }));
-    try {
-      const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalActiveWaterConnectionCount?UserId=${currentUserId}`);
-      const data = await res.json();
-      if (data?.Status && data?.Data?.TotalActiveWaterConnectionCount !== undefined) {
-        setTotalActiveConnections(data.Data.TotalActiveWaterConnectionCount);
-      } else {
-        setTotalActiveConnections(0);
-      }
-    } catch (error) {
-      console.error("Error fetching connections:", error);
-      setTotalActiveConnections(0);
-    } finally {
-      setIsLoading(prev => ({ ...prev, connections: false }));
+    const data = await res.json();
+    console.log("Beneficiary API response:", data); // debug
+
+    if (data?.Status && data?.Data?.TotalBeneficiaryCount !== undefined) {
+      setTotalBeneficiaries(data.Data.TotalBeneficiaryCount);
+    } else {
+      setTotalBeneficiaries(0);
     }
-  };
+  } catch (error) {
+    console.error("Error fetching beneficiaries:", error);
+    setTotalBeneficiaries(0);
+  } finally {
+    setIsLoading(prev => ({ ...prev, beneficiaries: false }));
+  }
+};
+
+
+
+  const fetchActiveConnections = async () => {
+  setIsLoading(prev => ({ ...prev, connections: true }));
+  try {
+    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalActiveWaterConnectionCountforAdmin", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "*/*",
+      },
+      body: JSON.stringify({ InputType: "string" }) // ✅ required body
+    });
+
+    const data = await res.json();
+    console.log("Active connections API response:", data); // debug
+
+    if (data?.Status && data?.Data?.TotalActiveWaterConnectionCount !== undefined) {
+      setTotalActiveConnections(data.Data.TotalActiveWaterConnectionCount);
+    } else {
+      setTotalActiveConnections(0);
+    }
+  } catch (error) {
+    console.error("Error fetching connections:", error);
+    setTotalActiveConnections(0);
+  } finally {
+    setIsLoading(prev => ({ ...prev, connections: false }));
+  }
+};
+
 
   const fetchPendingComplaints = async (currentUserId: number) => {
     try {
@@ -390,23 +538,39 @@ export default function AdminDashboard() {
   };
 
   const fetchVillageFeeCollectionData = async () => {
-    setIsLoading(prev => ({ ...prev, villageFee: true }));
-    try {
-      const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetVillageFeeCollectionVSTargetStatus");
-      const data = await res.json();
-      if (data?.Status && data?.Data) {
-        setVillageFeeData(data.Data);
-      } else {
-        setVillageFeeData([]);
-      }
-    } catch (error) {
-      console.error("Error fetching village fee collection:", error);
-      setVillageFeeData([]);
-    } finally {
-      setIsLoading(prev => ({ ...prev, villageFee: false }));
-      setIsLoading(prev => ({ ...prev, fees: false, ohts: false }));
-    }
-  };
+  setIsLoading(prev => ({ ...prev, villageFee: true }));
+  try {
+    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetVillageFeeCollectionVSTargetStatus");
+    const data = await res.json();
+    console.log("Village Fee Collection API response:", data);
+
+    if (data?.Status && Array.isArray(data.Data)) {
+  const totalCollected = data.Data.reduce(
+    (sum: number, v: any) => sum + (v.TotalCollectedAmount || 0),
+    0
+  );
+
+  setVillageFeeData({
+    villages: data.Data,
+    totalCollected,
+  });
+} else {
+  setVillageFeeData({
+    villages: [],
+    totalCollected: 0,
+  });
+}
+
+  } catch (error) {
+    console.error("Error fetching village fee collection:", error);
+    setVillageFeeData([]);
+    setFeeCollection(0);
+  } finally {
+    setIsLoading(prev => ({ ...prev, villageFee: false }));
+    setIsLoading(prev => ({ ...prev, fees: false, ohts: false }));
+  }
+};
+
 
   // Modified initialization effect that waits for userId
   useEffect(() => {
@@ -416,16 +580,23 @@ export default function AdminDashboard() {
       console.log('Initializing dashboard with userId:', userId, 'role:', role);
 
       await Promise.all([
-        fetchTotalBeneficiaries(userId),
-        fetchActiveConnections(userId),
-        fetchPendingComplaints(userId),
-        fetchComplaintStatusDistribution(userId),
-        fetchWaterConnectionStatus(),
-        fetchVillageFeeCollectionData(),
-        fetchPumpHouses(userId),
-        fetchVillages(userId),
-        fetchComplaints()
-      ]);
+  fetchTotalBeneficiaries(),
+  fetchActiveConnections(),
+  fetchPendingComplaints(userId),
+  fetchComplaintStatusDistribution(userId),
+  fetchWaterConnectionStatus(),
+  fetchVillageFeeCollectionData(),
+  fetchPumpHouseCount(),  // ✅ number
+  fetchOHTCount(),        // ✅ number
+  fetchPumpHouses(),      // ✅ array
+  fetchOHTData(),         // ✅ array
+  fetchVillages(userId),
+  fetchComplaints(),
+    fetchTotalVillageCount(userId)   // ✅ add here
+
+]);
+
+
     };
 
     initializeDashboard();
@@ -454,20 +625,27 @@ export default function AdminDashboard() {
 
     // Clear existing data
     setPumpHouses([]);
-    setOHTData([]);
+    setOhtData([]);
     setFeeData([]);
 
     await Promise.all([
-      fetchTotalBeneficiaries(userId),
-      fetchActiveConnections(userId),
-      fetchPendingComplaints(userId),
-      fetchComplaintStatusDistribution(userId),
-      fetchWaterConnectionStatus(),
-      fetchVillageFeeCollectionData(),
-      fetchPumpHouses(userId),
-      fetchVillages(userId),
-      fetchComplaints()
-    ]);
+  fetchTotalBeneficiaries(),
+  fetchActiveConnections(),
+  fetchPendingComplaints(userId),
+  fetchComplaintStatusDistribution(userId),
+  fetchWaterConnectionStatus(),
+  fetchVillageFeeCollectionData(),
+  fetchPumpHouseCount(),  // ✅ number
+  fetchOHTCount(),        // ✅ number
+  fetchPumpHouses(),      // ✅ array
+  fetchOHTData(),         // ✅ array
+  fetchVillages(userId),
+  fetchComplaints(),
+    fetchTotalVillageCount(userId)   // ✅ add here
+
+]);
+
+
 
     setRefreshing(false);
   };
@@ -511,8 +689,16 @@ export default function AdminDashboard() {
   const electricPumps = pumpHouses.filter(p => p.PowerSource === '1').length;
 
   // Collection efficiency from API data
-  const totalCollectedVillage = villageFeeData.reduce((sum, item) => sum + (item.TotalCollectedAmount || 0), 0);
-  const totalTargetVillage = villageFeeData.reduce((sum, item) => sum + (item.TotalTargetedAmount || 0), 0);
+  const totalCollectedVillage = villageFeeData.villages.reduce(
+  (sum, item) => sum + (item.TotalCollectedAmount || 0),
+  0
+);
+
+const totalTargetVillage = villageFeeData.villages.reduce(
+  (sum, item) => sum + (item.TotalTargetedAmount || 0),
+  0
+);
+
   const collectionEfficiency = totalTargetVillage > 0 ? ((totalCollectedVillage / totalTargetVillage) * 100).toFixed(1) : '0.0';
 
   // Professional color schemes
@@ -594,7 +780,7 @@ export default function AdminDashboard() {
           
           <StatCard
             title="Pump Infrastructure"
-            value={totalPumps}
+            value={pumpHouseCount}
             subtitle={totalPumps > 0 ? `${activePumps} active, ${solarPumps} solar` : "No pump data"}
             icon={Icons.Pump}
             gradient="bg-gradient-to-br from-amber-800 via-amber-700 to-amber-600"
@@ -624,7 +810,7 @@ export default function AdminDashboard() {
           
           <StatCard
             title="OHT Infrastructure"
-            value={totalOHTs}
+            value={ohtCount}
             subtitle={totalCapacity > 0 ? `${(totalCapacity / 1000).toFixed(0)}K L capacity` : "No OHT data"}
             icon={Icons.Tank}
             gradient="bg-gradient-to-br from-cyan-800 via-cyan-700 to-cyan-600"
@@ -642,7 +828,7 @@ export default function AdminDashboard() {
           
           <StatCard
             title="Villages"
-            value={villages.length}
+            value={totalVillageCount}
             subtitle="Under management"
             icon={Icons.Users}
             gradient="bg-gradient-to-br from-indigo-800 via-indigo-700 to-indigo-600"
@@ -879,7 +1065,7 @@ export default function AdminDashboard() {
             ) : (
               <ResponsiveContainer width="100%" height={400}>
                 <BarChart 
-                  data={villageFeeData} 
+                  data={villageFeeData.totalCollected} 
                   margin={{ top: 20, right: 30, left: 40, bottom: 60 }}
                   barGap={10}
                 >

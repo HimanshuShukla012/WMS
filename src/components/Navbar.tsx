@@ -30,7 +30,7 @@ const Navbar = () => {
           <img src="/logo.png" alt="IWMS Logo" className="h-14 w-auto object-contain" />
           <div className="leading-tight">
             <div className="text-lg md:text-xl font-bold">
-              Integrated Water Management System
+               Water Management System
             </div>
             
           </div>
