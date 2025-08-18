@@ -105,6 +105,7 @@ const UserManagement = () => {
     block: "",
     grampanchayat: "",
     userId: "",
+    email: "",
     password: "",
     confirmPassword: "",
   });
@@ -178,22 +179,56 @@ const UserManagement = () => {
       return;
     }
 
+    if (!newUser.userId) {
+      alert("Please enter a username");
+      return;
+    }
+
+    if (!newUser.email) {
+      alert("Please enter an email");
+      return;
+    }
+
+    if (!newUser.password) {
+      alert("Please enter a password");
+      return;
+    }
+
+    if (newUser.password !== newUser.confirmPassword) {
+      alert("Passwords do not match");
+      return;
+    }
+
+    // Determine RoleId based on role selection
+    let roleId: number;
+    if (newUser.role === "Admin") {
+      roleId = 1;
+    } else if (newUser.role === "Gram Panchayat") {
+      roleId = 3;
+    } else {
+      alert("Invalid role selected");
+      return;
+    }
+
     if (newUser.role === "Gram Panchayat") {
+      if (!selectedDistrictId || !selectedBlockId || !selectedGramPanchayatId) {
+        alert("Please select District, Block, and Gram Panchayat");
+        return;
+      }
+
       const payload = {
-        FirstName: newUser.userId,
-        LastName: "",
         UserName: newUser.userId,
         Password: newUser.password,
-        Email: "",
-        Contact: "",
-        DistrictId: selectedDistrictId || 0,
-        BlockId: selectedBlockId || 0,
-        GPId: selectedGramPanchayatId || 0,
+        Email: newUser.email,
+        DistrictId: selectedDistrictId,
+        BlockId: selectedBlockId,
+        RoleId: roleId,
+        GPId: selectedGramPanchayatId,
         CreatedBy: parseInt(String(userId) || "0"),
         UpdatedBy: 0,
         DeviceToken: "",
         IPAddress: "",
-        Status: 1,
+        Status: 1, // 1 for active
       };
 
       fetch("https://wmsapi.kdsgroup.co.in/api/User/InsertNewUserDetailsByAdmin", {
@@ -204,14 +239,75 @@ const UserManagement = () => {
         .then((res) => res.json())
         .then((data) => {
           alert(data.Message || "User created");
-          if (data.Status) setShowModal(false);
+          if (data.Status) {
+            setShowModal(false);
+            // Reset form
+            setNewUser({
+              role: "",
+              district: "",
+              block: "",
+              grampanchayat: "",
+              userId: "",
+              email: "",
+              password: "",
+              confirmPassword: "",
+            });
+            setSelectedDistrictId(null);
+            setSelectedBlockId(null);
+            setSelectedGramPanchayatId(null);
+            // Refresh the user list
+            window.location.reload(); // Simple refresh, or you could re-fetch the data
+          }
         })
         .catch((err) => {
           console.error(err);
           alert("Failed to create user");
         });
-    } else {
-      alert("User creation for HQ Admin / Call Center not implemented yet.");
+    } else if (newUser.role === "Admin") {
+      const payload = {
+        UserName: newUser.userId,
+        Password: newUser.password,
+        Email: newUser.email,
+        DistrictId: 0, // Admin doesn't need district/block/GP
+        BlockId: 0,
+        RoleId: roleId,
+        GPId: 0,
+        CreatedBy: parseInt(String(userId) || "0"),
+        UpdatedBy: 0,
+        DeviceToken: "",
+        IPAddress: "",
+        Status: 1, // 1 for active
+      };
+
+      fetch("https://wmsapi.kdsgroup.co.in/api/User/InsertNewUserDetailsByAdmin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          alert(data.Message || "User created");
+          if (data.Status) {
+            setShowModal(false);
+            // Reset form
+            setNewUser({
+              role: "",
+              district: "",
+              block: "",
+              grampanchayat: "",
+              userId: "",
+              email: "",
+              password: "",
+              confirmPassword: "",
+            });
+            // Refresh the user list
+            window.location.reload(); // Simple refresh, or you could re-fetch the data
+          }
+        })
+        .catch((err) => {
+          console.error(err);
+          alert("Failed to create user");
+        });
     }
   };
 
@@ -506,7 +602,7 @@ const UserManagement = () => {
 
       {/* HQ / Call Center Users */}
       <Table<HQUser>
-        title="HQ / Call Center Users"
+        title="HQ / Admin Users"
         columns={hqColumns}
         data={filteredHqUsers}
         toolbar={HqToolbar}
@@ -537,9 +633,8 @@ const UserManagement = () => {
                   className="border p-2 rounded w-full text-sm"
                 >
                   <option value="">Select Role</option>
+                  <option value="Admin">Admin</option>
                   <option value="Gram Panchayat">Gram Panchayat</option>
-                  <option value="HQ Admin">HQ Admin</option>
-                  <option value="Call Center">Call Center</option>
                 </select>
               </div>
 
@@ -593,13 +688,24 @@ const UserManagement = () => {
               )}
 
               <div>
-                <label className="block text-sm mb-1">User ID</label>
+                <label className="block text-sm mb-1">Username</label>
                 <input
                   type="text"
                   value={newUser.userId}
                   onChange={(e) => setNewUser({ ...newUser, userId: e.target.value })}
                   className="border p-2 rounded w-full text-sm"
-                  placeholder="Enter user ID"
+                  placeholder="Enter username"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm mb-1">Email</label>
+                <input
+                  type="email"
+                  value={newUser.email}
+                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                  className="border p-2 rounded w-full text-sm"
+                  placeholder="Enter email address"
                 />
               </div>
 

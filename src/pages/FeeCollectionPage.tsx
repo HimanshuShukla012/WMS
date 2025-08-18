@@ -171,7 +171,7 @@ const FeeCollectionPage: React.FC = () => {
         beneficiary_Father: beneficiary.FatherHusbandName,
         amountPaid: 0,
         previousbalance: beneficiary.PreviousBalance,
-        baseFee: beneficiary.BaseFee || 100, // Use API data or fallback to 100
+        baseFee: beneficiary.BaseFee || 0, // Use API data or fallback to 100
         villId: beneficiary.VillageId,
         beneficiaryId: beneficiary.BeneficiaryId,
         paymentMode: "Cash",

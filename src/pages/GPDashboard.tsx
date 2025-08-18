@@ -12,6 +12,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import { useUserInfo } from '../utils/userInfo'; // Import the hook
 
 // Professional Icons (using Unicode symbols)
 const Icons = {
@@ -132,6 +133,9 @@ interface ApiResponse<T> {
 }
 
 export default function EnhancedGPDashboard() {
+  // Get userId from the authentication hook
+  const { userId, role, isLoading: userLoading } = useUserInfo();
+  
   // Real API Data States
   const [pumpHouses, setPumpHouses] = useState<PumpHouseData[]>([]);
   const [ohtData, setOHTData] = useState<OHTData[]>([]);
@@ -163,7 +167,6 @@ export default function EnhancedGPDashboard() {
 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
-  const [userId] = useState(5);
   const [selectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear] = useState(new Date().getFullYear());
 
@@ -176,10 +179,10 @@ export default function EnhancedGPDashboard() {
   }, []);
 
   // Real API Functions
-  const fetchPumpHouses = async () => {
+  const fetchPumpHouses = async (currentUserId: number) => {
     setIsLoading(prev => ({ ...prev, pumps: true }));
     try {
-      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetPumpHouseListByUserId?UserId=${userId}`);
+      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetPumpHouseListByUserId?UserId=${currentUserId}`);
       const data: ApiResponse<PumpHouseData[]> = await response.json();
       
       if (data.Status && Array.isArray(data.Data)) {
@@ -195,10 +198,10 @@ export default function EnhancedGPDashboard() {
     }
   };
 
-  const fetchVillages = async () => {
+  const fetchVillages = async (currentUserId: number) => {
     setIsLoading(prev => ({ ...prev, villages: true }));
     try {
-      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetVillageListByUserId?UserId=${userId}`);
+      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetVillageListByUserId?UserId=${currentUserId}`);
       const data: ApiResponse<Village[]> = await response.json();
       
       if (data.Status && Array.isArray(data.Data)) {
@@ -284,10 +287,10 @@ export default function EnhancedGPDashboard() {
     }
   };
 
-  const fetchTotalBeneficiaries = async () => {
+  const fetchTotalBeneficiaries = async (currentUserId: number) => {
     setIsLoading(prev => ({ ...prev, beneficiaries: true }));
     try {
-      const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalBeneficiaryCount?UserId=1");
+      const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalBeneficiaryCount?UserId=${currentUserId}`);
       const data = await res.json();
       if (data?.Status && data?.Data?.TotalBeneficiaryCount !== undefined) {
         setTotalBeneficiaries(data.Data.TotalBeneficiaryCount);
@@ -302,10 +305,10 @@ export default function EnhancedGPDashboard() {
     }
   };
 
-  const fetchActiveConnections = async () => {
+  const fetchActiveConnections = async (currentUserId: number) => {
     setIsLoading(prev => ({ ...prev, connections: true }));
     try {
-      const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalActiveWaterConnectionCount?UserId=1");
+      const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalActiveWaterConnectionCount?UserId=${currentUserId}`);
       const data = await res.json();
       if (data?.Status && data?.Data?.TotalActiveWaterConnectionCount !== undefined) {
         setTotalActiveConnections(data.Data.TotalActiveWaterConnectionCount);
@@ -320,9 +323,9 @@ export default function EnhancedGPDashboard() {
     }
   };
 
-  const fetchPendingComplaints = async () => {
+  const fetchPendingComplaints = async (currentUserId: number) => {
     try {
-      const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalPendingComplaintCount?UserId=1");
+      const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalPendingComplaintCount?UserId=${currentUserId}`);
       const data = await res.json();
       if (data?.Status && data?.Data?.TotalPendingComplaintCount !== undefined) {
         setTotalPendingComplaints(data.Data.TotalPendingComplaintCount);
@@ -335,10 +338,10 @@ export default function EnhancedGPDashboard() {
     }
   };
 
-  const fetchComplaintStatusDistribution = async () => {
+  const fetchComplaintStatusDistribution = async (currentUserId: number) => {
     setIsLoading(prev => ({ ...prev, complaintStatus: true }));
     try {
-      const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetComplaintStatusDistribution?UserId=1");
+      const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetComplaintStatusDistribution?UserId=${currentUserId}`);
       const data = await res.json();
       if (data?.Status && data?.Data) {
         const transformedData = data.Data.map(item => ({
@@ -405,27 +408,36 @@ export default function EnhancedGPDashboard() {
     }
   };
 
-  // Initial data fetch
+  // Modified initialization effect that waits for userId
   useEffect(() => {
     const initializeDashboard = async () => {
+      if (!userId || userLoading) return; // Wait for userId to be available
+      
+      console.log('Initializing dashboard with userId:', userId, 'role:', role);
+
       await Promise.all([
-        fetchTotalBeneficiaries(),
-        fetchActiveConnections(),
-        fetchPendingComplaints(),
-        fetchComplaintStatusDistribution(),
+        fetchTotalBeneficiaries(userId),
+        fetchActiveConnections(userId),
+        fetchPendingComplaints(userId),
+        fetchComplaintStatusDistribution(userId),
         fetchWaterConnectionStatus(),
         fetchVillageFeeCollectionData(),
-        fetchPumpHouses(),
-        fetchVillages(),
+        fetchPumpHouses(userId),
+        fetchVillages(userId),
         fetchComplaints()
       ]);
     };
 
     initializeDashboard();
-  }, []);
+  }, [userId, userLoading, role]); // Dependencies include userId and userLoading
 
-  // Refresh all data
+  // Modified refresh function
   const handleRefresh = async () => {
+    if (!userId) {
+      console.warn('Cannot refresh: userId not available');
+      return;
+    }
+
     setRefreshing(true);
     setIsLoading({
       pumps: true,
@@ -446,19 +458,44 @@ export default function EnhancedGPDashboard() {
     setFeeData([]);
 
     await Promise.all([
-      fetchTotalBeneficiaries(),
-      fetchActiveConnections(),
-      fetchPendingComplaints(),
-      fetchComplaintStatusDistribution(),
+      fetchTotalBeneficiaries(userId),
+      fetchActiveConnections(userId),
+      fetchPendingComplaints(userId),
+      fetchComplaintStatusDistribution(userId),
       fetchWaterConnectionStatus(),
       fetchVillageFeeCollectionData(),
-      fetchPumpHouses(),
-      fetchVillages(),
+      fetchPumpHouses(userId),
+      fetchVillages(userId),
       fetchComplaints()
     ]);
 
     setRefreshing(false);
   };
+
+  // Show loading state while user info is being fetched
+  if (userLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 flex items-center justify-center">
+        <div className="text-center">
+          <LoadingSpinner />
+          <p className="mt-4 text-slate-600 font-medium">Loading user information...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if no userId is available
+  if (!userId) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 flex items-center justify-center">
+        <div className="text-center bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-8 border border-white/20">
+          <Icons.Warning />
+          <h2 className="text-xl font-bold text-slate-800 mt-4">Authentication Required</h2>
+          <p className="text-slate-600 mt-2">Please log in to access the dashboard.</p>
+        </div>
+      </div>
+    );
+  }
 
   // Calculate real-time metrics from API data
   const activePumps = pumpHouses.filter(p => p.Status === 1).length;
@@ -506,19 +543,22 @@ export default function EnhancedGPDashboard() {
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8 gap-4">
           <div className="flex items-center gap-4">
-            
             <div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-800 via-slate-700 to-slate-600 bg-clip-text text-transparent">
                 Water Management Dashboard
               </h1>
-              <p className="text-slate-600 mt-1 font-medium">Real-time System Overview & Analytics</p>
+              <p className="text-slate-600 mt-1 font-medium">
+                Real-time System Overview & Analytics 
+                {userId && <span className="text-slate-500"> • User ID: {userId}</span>}
+                {role && <span className="text-slate-500"> • Role: {role}</span>}
+              </p>
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <button
               onClick={handleRefresh}
-              disabled={refreshing}
+              disabled={refreshing || !userId}
               className="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white rounded-xl transition-all duration-300 disabled:opacity-50 shadow-lg hover:shadow-xl"
             >
               <Icons.Refresh />
