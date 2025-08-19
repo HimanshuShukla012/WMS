@@ -290,13 +290,29 @@ const ManageComplaint = () => {
     }
   };
 
-  const fetchComplaints = async () => {
+  // COMPLETE CORRECTED fetchComplaints FUNCTION
+// This replaces the existing fetchComplaints function in your component
+
+const fetchComplaints = async () => {
+  // Add more detailed logging
+  console.log("fetchComplaints called with:", {
+    authToken: !!authToken,
+    userId,
+    selectedVillageId,
+    filterStatus,
+    role,
+    userBlockId,
+    userGramPanchayatId
+  });
+
   if (!authToken) {
+    console.error("Missing authentication token");
     toast.error("Missing authentication token");
     return;
   }
 
   if (!userId) {
+    console.error("User ID not found");
     toast.error("User ID not found");
     return;
   }
@@ -304,6 +320,16 @@ const ManageComplaint = () => {
   setLoading(true);
 
   try {
+    const requestBody = {
+      UserId: userId,
+      VillageId: selectedVillageId || 0,
+      Status: filterStatus === "Pending" ? 0 : 
+             filterStatus === "Resolved" ? 1 : 
+             filterStatus === "Closed" ? 2 : 0
+    };
+
+    console.log("API Request:", requestBody);
+
     const response = await fetch(
       "https://wmsapi.kdsgroup.co.in/api/Complain/GetComplaintListByUserIdVillageAndStatus",
       {
@@ -313,27 +339,31 @@ const ManageComplaint = () => {
           accept: "*/*",
           Authorization: `Bearer ${authToken}`,
         },
-        body: JSON.stringify({
-          UserId: userId, // ✅ from useUserInfo
-          VillageId: selectedVillageId || 0,
-          Status:
-            filterStatus === "Pending"
-              ? 0
-              : filterStatus === "Resolved"
-              ? 1
-              : filterStatus === "Closed"
-              ? 2
-              : 0, // ✅ default to 0 like Swagger
-        }),
+        body: JSON.stringify(requestBody),
       }
     );
 
-    if (!response.ok) throw new Error(`Error: ${response.status}`);
+    console.log("API Response Status:", response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("API Error:", errorText);
+      throw new Error(`Error: ${response.status} - ${errorText}`);
+    }
 
     const apiData = await response.json();
-    let mappedData: Complaint[] = (apiData?.Data || []).map((item: any) => ({
-      id: item.ComplaintID,
-      beneficiaryId: item.BeneficiaryID || 0,
+    console.log("API Response Data:", apiData);
+
+    if (!apiData.Status) {
+      console.error("API returned error:", apiData.Message || apiData.Errror);
+      toast.error(apiData.Message || apiData.Errror || "Failed to fetch complaints");
+      return;
+    }
+
+    // FIXED: Map only the fields that actually exist in the API response
+    let mappedData = (apiData?.Data || []).map((item) => ({
+      id: item.ComplaintID || 0,
+      beneficiaryId: 0, // Not provided in API response
       district: item.District || "",
       districtId: item.DistrictId || 0,
       block: item.Block || "",
@@ -343,36 +373,104 @@ const ManageComplaint = () => {
       village: item.Village || "",
       villageId: item.VillageId || 0,
       beneficiaryName: item.BeneficiaryName || "",
-      fatherHusbandName: item.FatherHusbandName || "",
+      fatherHusbandName: "", // Not provided in API response
       beneficiaryContact: item.Contact || "",
-      familyMemberCount: item.FamilyMemberCount || "",
+      familyMemberCount: "", // Not provided in API response
       landmark: item.Landmark || "",
       category: item.Category || "",
       categoryId: item.CategoryId || 0,
       otherCategory: item.OtherCategory || "",
-      complaintStatus:
-        item.Status === 0 ? "Pending" : item.Status === 1 ? "Resolved" : "Closed",
-      beneficiaryStatus: item.BeneficiaryStatus || 0,
-      createdDate: item.CreatedDate || "",
-      updatedDate: item.UpdatedDate || "",
+      complaintStatus: item.Status === 0 ? "Pending" : 
+                      item.Status === 1 ? "Resolved" : "Closed",
+      beneficiaryStatus: 0, // Not provided in API response, defaulting to Active
+      createdDate: "", // Not provided in API response
+      updatedDate: "", // Not provided in API response
+      complaintDetails: item.ComplaintDetails || "" // Adding this field from API
     }));
 
-    // ✅ Role-based filtering using hook data
-    if (role?.toLowerCase() === "block officer") {
-  mappedData = mappedData.filter((c) => c.blockId == userBlockId);
-} else if (role?.toLowerCase() === "gram panchayat") {
-  mappedData = mappedData.filter((c) => c.gramPanchayatId == userGramPanchayatId);
-}
+    console.log("Mapped Data:", mappedData);
 
+    // FIXED: Role-based filtering with strict comparison
+    if (role?.toLowerCase() === "block officer" && userBlockId !== null) {
+      const beforeFilter = mappedData.length;
+      mappedData = mappedData.filter((c) => c.blockId === userBlockId);
+      console.log(`Block Officer filter: ${beforeFilter} -> ${mappedData.length} complaints`);
+    } else if (role?.toLowerCase() === "gram panchayat" && userGramPanchayatId !== null) {
+      const beforeFilter = mappedData.length;
+      mappedData = mappedData.filter((c) => c.gramPanchayatId === userGramPanchayatId);
+      console.log(`Gram Panchayat filter: ${beforeFilter} -> ${mappedData.length} complaints`);
+    }
+
+    console.log("Final filtered data:", mappedData);
+    
     setComplaints(mappedData);
-    toast.success(`Loaded ${mappedData.length} complaint records`);
+    
+    if (mappedData.length > 0) {
+      toast.success(`Loaded ${mappedData.length} complaint records`);
+    } else {
+      toast.info("No complaint records found for the selected criteria");
+    }
+    
   } catch (error) {
-    console.error("Failed to fetch complaints", error);
-    toast.error("Failed to fetch complaints");
+    console.error("Failed to fetch complaints:", error);
+    toast.error(`Failed to fetch complaints: ${error.message}`);
   } finally {
     setLoading(false);
   }
 };
+
+// ADDITIONAL FIXES FOR OTHER useEffect HOOKS:
+
+// 1. Fix the useEffect for auth token initialization
+useEffect(() => {
+  // Direct access instead of storing in separate state
+  const token = localStorage.getItem("authToken");
+  const role = localStorage.getItem("role");
+  const blockId = localStorage.getItem("blockId");
+  const gramPanchayatId = localStorage.getItem("gramPanchayatId");
+  
+  console.log("Auth data from localStorage:", {
+    token: !!token,
+    role,
+    blockId,
+    gramPanchayatId
+  });
+  
+  if (token) {
+    setAuthToken(token);
+    setUserRole(role);
+    setUserBlockId(blockId ? Number(blockId) : null);
+    setUserGramPanchayatId(gramPanchayatId ? Number(gramPanchayatId) : null);
+  } else {
+    console.warn("No auth token found in localStorage");
+    toast.error("Authentication required. Please login again.");
+  }
+}, []);
+
+// 2. Fix the complaints fetch trigger
+useEffect(() => {
+  if (authToken && userId) {
+    console.log("Triggering fetchComplaints due to:", {
+      selectedVillageId, 
+      filterStatus, 
+      authToken: !!authToken, 
+      userId
+    });
+    fetchComplaints();
+  }
+}, [selectedVillageId, filterStatus, authToken, userId]); // Added userId dependency
+
+// 3. Add debugging for the useUserInfo hook
+useEffect(() => {
+  console.log("User info from hook:", { userId, role });
+}, [userId, role]);
+
+// DEBUGGING CHECKLIST:
+// 1. Open browser DevTools > Console
+// 2. Look for the console.log outputs
+// 3. Check Network tab for the API call
+// 4. Verify localStorage has authToken, role, blockId, gramPanchayatId
+// 5. Check if API returns 200 status and data
 
   const handleEditComplaint = (complaint: Complaint) => {
     setSelectedComplaint({ ...complaint });

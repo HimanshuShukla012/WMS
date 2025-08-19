@@ -69,7 +69,114 @@ const PumpHouseMaster: React.FC = () => {
     { horsepower: "", powerSource: "", solarOutput: "", status: "" },
   ]);
 
+  // Validation error states
+  const [errors, setErrors] = useState({
+    ohtCapacity: "",
+    operatorName: "",
+    contact: "",
+    pumps: Array(1).fill({ horsepower: "" }) // Array of pump errors
+  });
+
   const [saving, setSaving] = useState(false);
+
+  // Validation functions
+  const validateOHTCapacity = (capacity: string) => {
+    const num = Number(capacity);
+    return num >= 10000 && num <= 100000;
+  };
+
+  const validateHorsepower = (hp: string) => {
+    const num = Number(hp);
+    return num > 0 && num <= 1000;
+  };
+
+  const validateName = (name: string) => {
+    const nameRegex = /^[a-zA-Z.\s]+$/;
+    return nameRegex.test(name);
+  };
+
+  const validateContact = (contact: string) => {
+    const contactRegex = /^[6-9]\d{9}$/;
+    return contactRegex.test(contact);
+  };
+
+  // Input handlers with validation
+  const handleOHTCapacityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+    setOhtCapacity(value);
+    
+    if (value && !validateOHTCapacity(value)) {
+      const num = Number(value);
+      if (num < 10000) {
+        setErrors(prev => ({ ...prev, ohtCapacity: "OHT Capacity must be at least 10,000 litres" }));
+      } else if (num > 100000) {
+        setErrors(prev => ({ ...prev, ohtCapacity: "OHT Capacity must not exceed 1,00,000 litres" }));
+      }
+    } else {
+      setErrors(prev => ({ ...prev, ohtCapacity: "" }));
+    }
+  };
+
+  const handleOperatorNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Only allow letters, dots, and spaces
+    const filteredValue = value.replace(/[^a-zA-Z.\s]/g, '');
+    setOperatorName(filteredValue);
+    setErrors(prev => ({ ...prev, operatorName: "" }));
+  };
+
+  const handleContactChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+    if (value.length <= 10) {
+      setContact(value);
+      
+      if (value && !validateContact(value)) {
+        if (value.length !== 10) {
+          setErrors(prev => ({ ...prev, contact: "Contact number must be exactly 10 digits" }));
+        } else if (!/^[6-9]/.test(value)) {
+          setErrors(prev => ({ ...prev, contact: "Contact number must start with 6, 7, 8, or 9" }));
+        }
+      } else {
+        setErrors(prev => ({ ...prev, contact: "" }));
+      }
+    }
+  };
+
+  const handleHorsepowerChange = (index: number, value: string) => {
+    const filteredValue = value.replace(/\D/g, ''); // Remove non-digits
+    const updated = [...pumps];
+    updated[index] = { ...updated[index], horsepower: filteredValue };
+    setPumps(updated);
+
+    // Update errors for this pump
+    const newPumpErrors = [...errors.pumps];
+    if (filteredValue && !validateHorsepower(filteredValue)) {
+      const num = Number(filteredValue);
+      if (num <= 0) {
+        newPumpErrors[index] = { ...newPumpErrors[index], horsepower: "Horsepower must be greater than 0" };
+      } else if (num > 1000) {
+        newPumpErrors[index] = { ...newPumpErrors[index], horsepower: "Horsepower must not exceed 1000 HP" };
+      }
+    } else {
+      newPumpErrors[index] = { ...newPumpErrors[index], horsepower: "" };
+    }
+    setErrors(prev => ({ ...prev, pumps: newPumpErrors }));
+  };
+
+  // Prevent invalid key presses
+  const handleNameKeyPress = (e: React.KeyboardEvent) => {
+    const char = String.fromCharCode(e.which);
+    if (!/[a-zA-Z.\s]/.test(char)) {
+      e.preventDefault();
+    }
+  };
+
+  const handleNumberKeyPress = (e: React.KeyboardEvent) => {
+    const char = String.fromCharCode(e.which);
+    if (!/[0-9]/.test(char)) {
+      e.preventDefault();
+    }
+  };
 
   // --- INIT: fetch Districts + Power Sources (same as AddBeneficiary pattern) ---
   useEffect(() => {
@@ -260,12 +367,22 @@ const PumpHouseMaster: React.FC = () => {
       pumps[i] ?? { horsepower: "", powerSource: "", solarOutput: "", status: "" }
     );
     setPumps(updatedPumps);
+    
+    // Update errors array to match pump count
+    const updatedErrors = Array.from({ length: count }, (_, i) =>
+      errors.pumps[i] ?? { horsepower: "" }
+    );
+    setErrors(prev => ({ ...prev, pumps: updatedErrors }));
   };
 
   const handlePumpChange = (index: number, field: keyof Pump, value: string) => {
-    const updated = [...pumps];
-    updated[index] = { ...updated[index], [field]: value };
-    setPumps(updated);
+    if (field === "horsepower") {
+      handleHorsepowerChange(index, value);
+    } else {
+      const updated = [...pumps];
+      updated[index] = { ...updated[index], [field]: value };
+      setPumps(updated);
+    }
   };
 
   // Map power source name -> numeric code (uses API if available)
@@ -280,28 +397,44 @@ const PumpHouseMaster: React.FC = () => {
     return 0;
   };
 
-  // Minimal validation
+  // Enhanced validation
   const validate = () => {
+    let isValid = true;
+    
     if (!villageId) {
       alert("Please select a village.");
       return false;
     }
-    if (!ohtCapacity || Number(ohtCapacity) <= 0) {
-      alert("Please enter a valid OHT Capacity.");
+    
+    if (!ohtCapacity || !validateOHTCapacity(ohtCapacity)) {
+      alert("Please enter a valid OHT Capacity between 10,000 and 1,00,000 litres.");
       return false;
     }
+    
     if (!operatorName.trim()) {
       alert("Please enter Operator Name.");
       return false;
     }
+    
+    if (operatorName && !validateName(operatorName)) {
+      alert("Operator Name should contain only letters, dots, and spaces.");
+      return false;
+    }
+    
     if (!contact.trim()) {
       alert("Please enter Contact Number.");
       return false;
     }
+    
+    if (contact && !validateContact(contact)) {
+      alert("Please enter a valid 10-digit contact number starting with 6, 7, 8, or 9.");
+      return false;
+    }
+    
     for (let i = 0; i < pumps.length; i++) {
       const p = pumps[i];
-      if (!p.horsepower || Number(p.horsepower) <= 0) {
-        alert(`Please enter a valid horsepower for Pump-${i + 1}.`);
+      if (!p.horsepower || !validateHorsepower(p.horsepower)) {
+        alert(`Please enter a valid horsepower (1-1000 HP) for Pump-${i + 1}.`);
         return false;
       }
       if (!p.powerSource) {
@@ -309,7 +442,7 @@ const PumpHouseMaster: React.FC = () => {
         return false;
       }
     }
-    return true;
+    return isValid;
   };
 
   const handleSave = async () => {
@@ -376,6 +509,20 @@ const PumpHouseMaster: React.FC = () => {
       setSaving(false);
       alert("Error saving pump details: " + (err?.message || "unknown error"));
     }
+  };
+
+  const resetForm = () => {
+    setNumPumps(1);
+    setPumps([{ horsepower: "", powerSource: "", solarOutput: "", status: "" }]);
+    setOhtCapacity("");
+    setOperatorName("");
+    setContact("");
+    setErrors({
+      ohtCapacity: "",
+      operatorName: "",
+      contact: "",
+      pumps: [{ horsepower: "" }]
+    });
   };
 
   return (
@@ -465,12 +612,17 @@ const PumpHouseMaster: React.FC = () => {
             OHT Capacity (Litres)
           </label>
           <input
-            className="border rounded p-2 w-full"
-            placeholder="OHT Capacity (Litres)"
+            className={`border rounded p-2 w-full ${errors.ohtCapacity ? 'border-red-500' : 'border-gray-300'}`}
+            placeholder="OHT Capacity (10,000 - 1,00,000 litres)"
             value={ohtCapacity}
-            onChange={(e) => setOhtCapacity(e.target.value)}
+            onChange={handleOHTCapacityChange}
+            onKeyPress={handleNumberKeyPress}
             inputMode="numeric"
           />
+          {errors.ohtCapacity && (
+            <p className="text-red-500 text-sm mt-1">{errors.ohtCapacity}</p>
+          )}
+          <p className="text-gray-500 text-xs mt-1">Range: 10,000 - 1,00,000 litres</p>
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Number of Pumps</label>
@@ -501,11 +653,16 @@ const PumpHouseMaster: React.FC = () => {
                 Horsepower (HP)
               </label>
               <input
-                className="border rounded p-2 w-full"
-                placeholder="Capacity (HP)"
+                className={`border rounded p-2 w-full ${errors.pumps[index]?.horsepower ? 'border-red-500' : 'border-gray-300'}`}
+                placeholder="Capacity (1-1000 HP)"
                 value={pump.horsepower}
                 onChange={(e) => handlePumpChange(index, "horsepower", e.target.value)}
+                onKeyPress={handleNumberKeyPress}
               />
+              {errors.pumps[index]?.horsepower && (
+                <p className="text-red-500 text-sm mt-1">{errors.pumps[index].horsepower}</p>
+              )}
+              <p className="text-gray-500 text-xs mt-1">Maximum: 1000 HP</p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Power Source</label>
@@ -570,20 +727,30 @@ const PumpHouseMaster: React.FC = () => {
         <div>
           <label className="block text-sm font-medium mb-1">Operator Name</label>
           <input
-            className="border rounded p-2 w-full"
-            placeholder="Pump House Operator Name"
+            className={`border rounded p-2 w-full ${errors.operatorName ? 'border-red-500' : 'border-gray-300'}`}
+            placeholder="Pump House Operator Name (letters, dots, spaces only)"
             value={operatorName}
-            onChange={(e) => setOperatorName(e.target.value)}
+            onChange={handleOperatorNameChange}
+            onKeyPress={handleNameKeyPress}
           />
+          {errors.operatorName && (
+            <p className="text-red-500 text-sm mt-1">{errors.operatorName}</p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Contact Number</label>
           <input
-            className="border rounded p-2 w-full"
-            placeholder="Pump House Operator Contact Number"
+            className={`border rounded p-2 w-full ${errors.contact ? 'border-red-500' : 'border-gray-300'}`}
+            placeholder="10-digit Contact Number"
             value={contact}
-            onChange={(e) => setContact(e.target.value)}
+            onChange={handleContactChange}
+            onKeyPress={handleNumberKeyPress}
+            maxLength={10}
           />
+          {errors.contact && (
+            <p className="text-red-500 text-sm mt-1">{errors.contact}</p>
+          )}
+          <p className="text-gray-500 text-xs mt-1">10 digits, starting with 6, 7, 8, or 9</p>
         </div>
       </div>
 
@@ -598,11 +765,7 @@ const PumpHouseMaster: React.FC = () => {
         </button>
         <button
           className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded"
-          onClick={() => {
-            setNumPumps(1);
-            setPumps([{ horsepower: "", powerSource: "", solarOutput: "", status: "" }]);
-            // keep other fields as-is
-          }}
+          onClick={resetForm}
         >
           Reset
         </button>

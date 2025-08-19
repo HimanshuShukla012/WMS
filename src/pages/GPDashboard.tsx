@@ -361,10 +361,11 @@ export default function EnhancedGPDashboard() {
     }
   };
 
-  const fetchWaterConnectionStatus = async () => {
+  // Updated to include userId parameter
+  const fetchWaterConnectionStatus = async (currentUserId: number) => {
     setIsLoading(prev => ({ ...prev, waterConnection: true }));
     try {
-      const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetWaterConnectionStatus");
+      const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetWaterConnectionStatus?UserId=${currentUserId}`);
       const data = await res.json();
       if (data?.Status && data?.Data) {
         const statusMap = {};
@@ -389,10 +390,11 @@ export default function EnhancedGPDashboard() {
     }
   };
 
-  const fetchVillageFeeCollectionData = async () => {
+  // Updated to include userId parameter
+  const fetchVillageFeeCollectionData = async (currentUserId: number) => {
     setIsLoading(prev => ({ ...prev, villageFee: true }));
     try {
-      const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetVillageFeeCollectionVSTargetStatus");
+      const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetVillageFeeCollectionVSTargetStatus?UserId=${currentUserId}`);
       const data = await res.json();
       if (data?.Status && data?.Data) {
         setVillageFeeData(data.Data);
@@ -420,8 +422,8 @@ export default function EnhancedGPDashboard() {
         fetchActiveConnections(userId),
         fetchPendingComplaints(userId),
         fetchComplaintStatusDistribution(userId),
-        fetchWaterConnectionStatus(),
-        fetchVillageFeeCollectionData(),
+        fetchWaterConnectionStatus(userId), // Now includes userId
+        fetchVillageFeeCollectionData(userId), // Now includes userId
         fetchPumpHouses(userId),
         fetchVillages(userId),
         fetchComplaints()
@@ -462,8 +464,8 @@ export default function EnhancedGPDashboard() {
       fetchActiveConnections(userId),
       fetchPendingComplaints(userId),
       fetchComplaintStatusDistribution(userId),
-      fetchWaterConnectionStatus(),
-      fetchVillageFeeCollectionData(),
+      fetchWaterConnectionStatus(userId), // Now includes userId
+      fetchVillageFeeCollectionData(userId), // Now includes userId
       fetchPumpHouses(userId),
       fetchVillages(userId),
       fetchComplaints()
@@ -885,7 +887,7 @@ export default function EnhancedGPDashboard() {
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis 
-                    dataKey="VillageName" 
+                    dataKey="Village_Name" 
                     stroke="#64748b"
                     fontSize={11}
                     fontWeight="500"

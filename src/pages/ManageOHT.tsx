@@ -274,14 +274,19 @@ const ManageOHT = () => {
     }
   };
 
-  // Fetch OHT data
+  // FIXED: Fetch OHT data with UserId parameter
   const fetchOHTs = async (villageId: number) => {
+    if (!userId) {
+      console.error("Cannot fetch OHTs: userId is null");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     
     try {
       const res = await fetch(
-        `https://wmsapi.kdsgroup.co.in/api/Master/GetOHTListByVillage?VillageId=${villageId}`,
+        `https://wmsapi.kdsgroup.co.in/api/Master/GetOHTListByVillage?VillageId=${villageId}&UserId=${userId}`,
         { 
           method: "GET", 
           headers: { 
@@ -473,6 +478,9 @@ const ManageOHT = () => {
       const village = villages.find(v => v.Id === selectedVillageId);
       return village?.VillageName || `Village ID: ${selectedVillageId}`;
     }
+    if (selectedVillageId === 0) {
+    return "All Villages";
+  }
     if (selectedGramPanchayatId) {
       const gp = gramPanchayats.find(gp => gp.Id === selectedGramPanchayatId);
       return gp?.GramPanchayatName || "Selected Gram Panchayat";
@@ -591,18 +599,19 @@ const ManageOHT = () => {
           <div>
             <label className="block text-sm font-medium mb-1">Village</label>
             <select
-              value={selectedVillageId || ""}
-              onChange={(e) => setSelectedVillageId(Number(e.target.value) || null)}
-              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading || !selectedGramPanchayatId || !userId}
-            >
-              <option value="">Select Village</option>
-              {villages.map((v) => (
-                <option key={v.Id} value={v.Id}>
-                  {v.VillageName}
-                </option>
-              ))}
-            </select>
+  value={selectedVillageId || ""}
+  onChange={(e) => setSelectedVillageId(Number(e.target.value) || null)}
+  className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+  disabled={loading || !selectedGramPanchayatId || !userId}
+>
+  <option value="">Select Village</option>
+  <option value={0}>All Villages</option>
+  {villages.map((v) => (
+    <option key={v.Id} value={v.Id}>
+      {v.VillageName}
+    </option>
+  ))}
+</select>
           </div>
         </div>
 
@@ -695,134 +704,7 @@ const ManageOHT = () => {
         </div>
       )}
 
-      {/* Data Table */}
-      {selectedVillageId && (
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-blue-600 text-white">
-                  <th className="border border-gray-300 p-3 text-left font-medium">OHT ID</th>
-                  <th className="border border-gray-300 p-3 text-left font-medium">District</th>
-                  <th className="border border-gray-300 p-3 text-left font-medium">Block</th>
-                  <th className="border border-gray-300 p-3 text-left font-medium">Gram Panchayat</th>
-                  <th className="border border-gray-300 p-3 text-left font-medium">Village</th>
-                  <th className="border border-gray-300 p-3 text-left font-medium">Capacity (L)</th>
-                  <th className="border border-gray-300 p-3 text-left font-medium">No. of Pumps</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredData.map((o, index) => {
-                  const isEdited = editedOHTs.has(o.OHTId);
-                  
-                  return (
-                    <tr 
-                      key={o.OHTId} 
-                      className={`${
-                        index % 2 === 0 ? 'bg-gray-50' : 'bg-white'
-                      } hover:bg-blue-50 transition-colors ${
-                        isEdited ? 'ring-2 ring-orange-200 bg-orange-50' : ''
-                      }`}
-                    >
-                      <td className="border border-gray-300 p-3 font-medium text-blue-600">
-                        #{o.OHTId}
-                      </td>
-                      
-                      <td className="border border-gray-300 p-3">{o.DistrictName}</td>
-                      <td className="border border-gray-300 p-3">{o.BlockName}</td>
-                      <td className="border border-gray-300 p-3">{o.GramPanchayatName}</td>
-                      <td className="border border-gray-300 p-3">{o.VillageName}</td>
-
-                      <td className="border border-gray-300 p-3">
-                        {editMode ? (
-                          <input
-                            type="number"
-                            className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            value={o.NoOfPumps}
-                            onChange={(e) => handleChange(o.OHTId, "NoOfPumps", Number(e.target.value))}
-                            min="0"
-                          />
-                        ) : (
-                          <span className="font-medium">{o.NoOfPumps}</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {filteredData.length === 0 && !loading && selectedVillageId && (
-            <div className="text-center py-12 text-gray-500">
-              <div className="text-4xl mb-4">🏗️</div>
-              <h3 className="text-lg font-medium mb-2">No OHT records found</h3>
-              <p className="text-sm">No overhead tanks found for the selected location or search criteria.</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Add OHT Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center px-4">
-          <div ref={modalRef} className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg relative">
-            <button 
-              onClick={() => setShowModal(false)} 
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl"
-            >
-              &times;
-            </button>
-
-            <h2 className="text-xl font-bold mb-4 text-gray-800">Add New OHT</h2>
-            <p className="text-sm text-gray-600 mb-6">
-              Create a new Overhead Tank record for the selected location.
-            </p>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">OHT Capacity (Liters)</label>
-                <input
-                  type="number"
-                  className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter capacity in liters"
-                  min="0"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Number of Pumps</label>
-                <input
-                  type="number"
-                  className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter number of pumps"
-                  min="0"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button 
-                onClick={() => setShowModal(false)} 
-                className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-md transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={() => {
-                  toast.success("OHT record would be added here");
-                  setShowModal(false);
-                }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
-              >
-                Add OHT
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Quick Stats Cards */}
+{/* Quick Stats Cards */}
       {selectedVillageId && ohtList.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
           <div className="bg-white rounded-lg shadow-sm p-4">
@@ -882,6 +764,91 @@ const ManageOHT = () => {
           </div>
         </div>
       )}
+
+      {/* FIXED: Data Table with correct columns */}
+      {selectedVillageId && (
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-blue-600 text-white">
+                  <th className="border border-gray-300 p-3 text-left font-medium">OHT ID</th>
+                  <th className="border border-gray-300 p-3 text-left font-medium">District</th>
+                  <th className="border border-gray-300 p-3 text-left font-medium">Block</th>
+                  <th className="border border-gray-300 p-3 text-left font-medium">Gram Panchayat</th>
+                  <th className="border border-gray-300 p-3 text-left font-medium">Village</th>
+                  <th className="border border-gray-300 p-3 text-left font-medium">Capacity (L)</th>
+                  <th className="border border-gray-300 p-3 text-left font-medium">No. of Pumps</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredData.map((o, index) => {
+                  const isEdited = editedOHTs.has(o.OHTId);
+                  
+                  return (
+                    <tr 
+                      key={o.OHTId} 
+                      className={`${
+                        index % 2 === 0 ? 'bg-gray-50' : 'bg-white'
+                      } hover:bg-blue-50 transition-colors ${
+                        isEdited ? 'ring-2 ring-orange-200 bg-orange-50' : ''
+                      }`}
+                    >
+                      <td className="border border-gray-300 p-3 font-medium text-blue-600">
+                        #{o.OHTId}
+                      </td>
+                      
+                      <td className="border border-gray-300 p-3">{o.DistrictName}</td>
+                      <td className="border border-gray-300 p-3">{o.BlockName}</td>
+                      <td className="border border-gray-300 p-3">{o.GramPanchayatName}</td>
+                      <td className="border border-gray-300 p-3">{o.VillageName}</td>
+
+                      {/* FIXED: 6th column - OHT Capacity */}
+                      <td className="border border-gray-300 p-3">
+                        {editMode ? (
+                          <input
+                            type="number"
+                            className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            value={o.OHTCapacity}
+                            onChange={(e) => handleChange(o.OHTId, "OHTCapacity", Number(e.target.value))}
+                            min="0"
+                          />
+                        ) : (
+                          <span className="font-medium">{o.OHTCapacity.toLocaleString()}L</span>
+                        )}
+                      </td>
+
+                      {/* FIXED: 7th column - No. of Pumps (was completely missing!) */}
+                      <td className="border border-gray-300 p-3">
+                        {editMode ? (
+                          <input
+                            type="number"
+                            className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            value={o.NoOfPumps}
+                            onChange={(e) => handleChange(o.OHTId, "NoOfPumps", Number(e.target.value))}
+                            min="0"
+                          />
+                        ) : (
+                          <span className="font-medium">{o.NoOfPumps}</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {filteredData.length === 0 && !loading && selectedVillageId && (
+            <div className="text-center py-12 text-gray-500">
+              <div className="text-4xl mb-4">🏗️</div>
+              <h3 className="text-lg font-medium mb-2">No OHT records found</h3>
+              <p className="text-sm">No overhead tanks found for the selected location or search criteria.</p>
+            </div>
+          )}
+        </div>
+      )}
+      
     </div>
   );
 };
