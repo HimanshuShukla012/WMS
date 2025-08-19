@@ -97,6 +97,16 @@ const UserManagement = () => {
   const [selectedBlockId, setSelectedBlockId] = useState<number | null>(null);
   const [selectedGramPanchayatId, setSelectedGramPanchayatId] = useState<number | null>(null);
 
+  // Search states for dropdowns
+  const [districtSearch, setDistrictSearch] = useState("");
+  const [blockSearch, setBlockSearch] = useState("");
+  const [gramPanchayatSearch, setGramPanchayatSearch] = useState("");
+  
+  // Dropdown open/close states
+  const [isDistrictOpen, setIsDistrictOpen] = useState(false);
+  const [isBlockOpen, setIsBlockOpen] = useState(false);
+  const [isGramPanchayatOpen, setIsGramPanchayatOpen] = useState(false);
+
   // modal
   const [showModal, setShowModal] = useState(false);
   const [newUser, setNewUser] = useState({
@@ -121,8 +131,12 @@ const UserManagement = () => {
       .then(res => res.json())
       .then(data => {
         if (data.Status && data.Data.length) {
-          setDistricts(data.Data);
-          setSelectedDistrictId(data.Data[0].DistrictId);
+          // Sort districts alphabetically by DistrictName
+          const sortedDistricts = data.Data.sort((a: District, b: District) => 
+            a.DistrictName.localeCompare(b.DistrictName)
+          );
+          setDistricts(sortedDistricts);
+          setSelectedDistrictId(sortedDistricts[0].DistrictId);
         }
       })
       .catch(err => console.error(err));
@@ -140,8 +154,12 @@ const UserManagement = () => {
       .then(res => res.json())
       .then(data => {
         if (data.Status && data.Data.length) {
-          setBlocks(data.Data);
-          setSelectedBlockId(data.Data[0]?.BlockId || null);
+          // Sort blocks alphabetically by BlockName
+          const sortedBlocks = data.Data.sort((a: Block, b: Block) => 
+            a.BlockName.localeCompare(b.BlockName)
+          );
+          setBlocks(sortedBlocks);
+          setSelectedBlockId(sortedBlocks[0]?.BlockId || null);
         } else {
           setBlocks([]);
           setSelectedBlockId(null);
@@ -162,8 +180,12 @@ const UserManagement = () => {
       .then(res => res.json())
       .then(data => {
         if (data.Status && data.Data.length) {
-          setGramPanchayats(data.Data);
-          setSelectedGramPanchayatId(data.Data[0]?.Id || null);
+          // Sort gram panchayats alphabetically by GramPanchayatName
+          const sortedGramPanchayats = data.Data.sort((a: GramPanchayat, b: GramPanchayat) => 
+            a.GramPanchayatName.localeCompare(b.GramPanchayatName)
+          );
+          setGramPanchayats(sortedGramPanchayats);
+          setSelectedGramPanchayatId(sortedGramPanchayats[0]?.Id || null);
         } else {
           setGramPanchayats([]);
           setSelectedGramPanchayatId(null);
@@ -252,9 +274,23 @@ const UserManagement = () => {
               password: "",
               confirmPassword: "",
             });
+            // Reset dropdown searches and states
+            setDistrictSearch("");
+            setBlockSearch("");
+            setGramPanchayatSearch("");
+            setIsDistrictOpen(false);
+            setIsBlockOpen(false);
+            setIsGramPanchayatOpen(false);
             setSelectedDistrictId(null);
             setSelectedBlockId(null);
             setSelectedGramPanchayatId(null);
+            // Reset dropdown searches and states
+            setDistrictSearch("");
+            setBlockSearch("");
+            setGramPanchayatSearch("");
+            setIsDistrictOpen(false);
+            setIsBlockOpen(false);
+            setIsGramPanchayatOpen(false);
             // Refresh the user list
             window.location.reload(); // Simple refresh, or you could re-fetch the data
           }
@@ -376,6 +412,28 @@ const UserManagement = () => {
       [u.role, u.username, u.password].join(" ").toLowerCase().includes(q)
     );
   }, [hqUsers, searchHq]);
+
+  // Filtered dropdown options
+  const filteredDistricts = useMemo(() => {
+    if (!districtSearch.trim()) return districts;
+    return districts.filter(d => 
+      d.DistrictName.toLowerCase().includes(districtSearch.toLowerCase())
+    );
+  }, [districts, districtSearch]);
+
+  const filteredBlocks = useMemo(() => {
+    if (!blockSearch.trim()) return blocks;
+    return blocks.filter(b => 
+      b.BlockName.toLowerCase().includes(blockSearch.toLowerCase())
+    );
+  }, [blocks, blockSearch]);
+
+  const filteredGramPanchayats = useMemo(() => {
+    if (!gramPanchayatSearch.trim()) return gramPanchayats;
+    return gramPanchayats.filter(gp => 
+      gp.GramPanchayatName.toLowerCase().includes(gramPanchayatSearch.toLowerCase())
+    );
+  }, [gramPanchayats, gramPanchayatSearch]);
 
   // actions
   const toggleUserStatus = (userId: number, currentStatus: boolean) => {
@@ -512,6 +570,94 @@ const UserManagement = () => {
     </div>
   );
 
+  // Custom searchable dropdown component
+  const SearchableDropdown = ({ 
+    label, 
+    options, 
+    selectedValue, 
+    onSelect, 
+    searchValue, 
+    onSearchChange, 
+    isOpen, 
+    setIsOpen, 
+    displayKey, 
+    valueKey, 
+    placeholder = "Select option" 
+  }: {
+    label: string;
+    options: any[];
+    selectedValue: number | null;
+    onSelect: (value: number) => void;
+    searchValue: string;
+    onSearchChange: (value: string) => void;
+    isOpen: boolean;
+    setIsOpen: (open: boolean) => void;
+    displayKey: string;
+    valueKey: string;
+    placeholder?: string;
+  }) => {
+    const selectedOption = options.find(opt => opt[valueKey] === selectedValue);
+    
+    return (
+      <div className="relative">
+        <label className="block text-sm mb-1">{label}</label>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setIsOpen(!isOpen)}
+            className="w-full border p-2 rounded text-sm text-left bg-white hover:bg-gray-50 flex justify-between items-center"
+          >
+            <span className={selectedOption ? "text-black" : "text-gray-500"}>
+              {selectedOption ? selectedOption[displayKey] : placeholder}
+            </span>
+            <svg className={`w-4 h-4 transform transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          
+          {isOpen && (
+            <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-hidden">
+              <div className="p-2 border-b">
+                <div className="relative">
+                  <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2" size={14} />
+                  <input
+                    type="text"
+                    placeholder={`Search ${label.toLowerCase()}...`}
+                    value={searchValue}
+                    onChange={(e) => onSearchChange(e.target.value)}
+                    className="w-full pl-7 pr-3 py-1 border rounded text-sm"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              </div>
+              <div className="max-h-48 overflow-y-auto">
+                {options.length > 0 ? (
+                  options.map((option) => (
+                    <button
+                      key={option[valueKey]}
+                      type="button"
+                      onClick={() => {
+                        onSelect(option[valueKey]);
+                        setIsOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 ${
+                        selectedValue === option[valueKey] ? 'bg-blue-50 text-blue-600' : ''
+                      }`}
+                    >
+                      {option[displayKey]}
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-3 py-2 text-sm text-gray-500">No results found</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   // column sets
   const locationColumns = ["District", "Block", "Grampanchayat", "Username", "Password"];
   const hqColumns = ["Role", "Username", "Password"];
@@ -641,49 +787,61 @@ const UserManagement = () => {
               {newUser.role === "Gram Panchayat" && (
                 <>
                   {/* District */}
-                  <div>
-                    <label className="block text-sm mb-1">District</label>
-                    <select
-                      value={selectedDistrictId || ""}
-                      onChange={(e) => setSelectedDistrictId(Number(e.target.value))}
-                      className="border p-2 rounded w-full text-sm"
-                    >
-                      <option value="">Select District</option>
-                      {districts.map(d => (
-                        <option key={d.DistrictId} value={d.DistrictId}>{d.DistrictName}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <SearchableDropdown
+                    label="District"
+                    options={filteredDistricts}
+                    selectedValue={selectedDistrictId}
+                    onSelect={(value) => {
+                      setSelectedDistrictId(value);
+                      setSelectedBlockId(null);
+                      setSelectedGramPanchayatId(null);
+                      setDistrictSearch("");
+                    }}
+                    searchValue={districtSearch}
+                    onSearchChange={setDistrictSearch}
+                    isOpen={isDistrictOpen}
+                    setIsOpen={setIsDistrictOpen}
+                    displayKey="DistrictName"
+                    valueKey="DistrictId"
+                    placeholder="Select District"
+                  />
 
                   {/* Block */}
-                  <div>
-                    <label className="block text-sm mb-1">Block</label>
-                    <select
-                      value={selectedBlockId || ""}
-                      onChange={(e) => setSelectedBlockId(Number(e.target.value))}
-                      className="border p-2 rounded w-full text-sm"
-                    >
-                      <option value="">Select Block</option>
-                      {blocks.map(b => (
-                        <option key={b.BlockId} value={b.BlockId}>{b.BlockName}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <SearchableDropdown
+                    label="Block"
+                    options={filteredBlocks}
+                    selectedValue={selectedBlockId}
+                    onSelect={(value) => {
+                      setSelectedBlockId(value);
+                      setSelectedGramPanchayatId(null);
+                      setBlockSearch("");
+                    }}
+                    searchValue={blockSearch}
+                    onSearchChange={setBlockSearch}
+                    isOpen={isBlockOpen}
+                    setIsOpen={setIsBlockOpen}
+                    displayKey="BlockName"
+                    valueKey="BlockId"
+                    placeholder="Select Block"
+                  />
 
                   {/* Gram Panchayat */}
-                  <div>
-                    <label className="block text-sm mb-1">Gram Panchayat</label>
-                    <select
-                      value={selectedGramPanchayatId || ""}
-                      onChange={(e) => setSelectedGramPanchayatId(Number(e.target.value))}
-                      className="border p-2 rounded w-full text-sm"
-                    >
-                      <option value="">Select Gram Panchayat</option>
-                      {gramPanchayats.map(gp => (
-                        <option key={gp.Id} value={gp.Id}>{gp.GramPanchayatName}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <SearchableDropdown
+                    label="Gram Panchayat"
+                    options={filteredGramPanchayats}
+                    selectedValue={selectedGramPanchayatId}
+                    onSelect={(value) => {
+                      setSelectedGramPanchayatId(value);
+                      setGramPanchayatSearch("");
+                    }}
+                    searchValue={gramPanchayatSearch}
+                    onSearchChange={setGramPanchayatSearch}
+                    isOpen={isGramPanchayatOpen}
+                    setIsOpen={setIsGramPanchayatOpen}
+                    displayKey="GramPanchayatName"
+                    valueKey="Id"
+                    placeholder="Select Gram Panchayat"
+                  />
                 </>
               )}
 

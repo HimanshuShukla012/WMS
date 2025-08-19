@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Download, RefreshCw, BarChart3, FileText, Users, MapPin, Zap, Droplets, AlertCircle, TrendingUp } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { useUserInfo } from "../utils/userInfo";
+
 
 // Interfaces
 interface PumpHouseData {
@@ -80,7 +82,7 @@ const MISReportingPage: React.FC = () => {
   const [error, setError] = useState<string>("");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [userId] = useState(5); // Get from localStorage or context
+const { userId, role, isLoading: userLoading } = useUserInfo();
   
   // Data states
   const [pumpHouses, setPumpHouses] = useState<PumpHouseData[]>([]);
@@ -197,7 +199,7 @@ const MISReportingPage: React.FC = () => {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          UserId: 0,
+          UserId: userId,
           VillageId: 0,
           Status: null
         })
@@ -220,7 +222,7 @@ const MISReportingPage: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           GPId: pumpId,
-          VillgeId: 1,
+          VillgeId: 0,
           Month: selectedMonth,
           Year: selectedYear
         })
@@ -568,7 +570,7 @@ const MISReportingPage: React.FC = () => {
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-2xl font-bold text-green-600">{(summary.totalCapacity / 1000).toFixed(0)}K L</div>
+                <div className="text-2xl font-bold text-green-600">{(summary.totalCapacity / 1000).toFixed(0)} KL</div>
                 <div className="text-sm font-medium text-gray-700">Total OHT Capacity</div>
               </div>
               <Droplets className="w-8 h-8 text-green-600 opacity-60" />
@@ -588,7 +590,7 @@ const MISReportingPage: React.FC = () => {
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-2xl font-bold text-purple-600">₹{(summary.totalCollection / 1000).toFixed(0)}K</div>
+                <div className="text-2xl font-bold text-purple-600">₹{(summary.totalCollection / 1000).toFixed(0)} K</div>
                 <div className="text-sm font-medium text-gray-700">Fee Collection</div>
               </div>
               <TrendingUp className="w-8 h-8 text-purple-600 opacity-60" />

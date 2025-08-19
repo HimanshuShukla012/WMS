@@ -479,9 +479,9 @@ const FeeManagementPage: React.FC = () => {
                 <th className="border px-4 py-3 text-left">Father/Husband Name</th>
                 <th className="border px-4 py-3 text-right">Base Fee (₹)</th>
                 <th className="border px-4 py-3 text-right">Previous Balance (₹)</th>
-                <th className="border px-4 py-3 text-right">Outstanding (₹)</th>
-                <th className="border px-4 py-3 text-right">Paid Amount (₹)</th>
-                <th className="border px-4 py-3 text-right">Balance (₹)</th>
+                <th className="border px-4 py-3 text-right">Cumulative Payable Amount (₹)</th>
+                <th className="border px-4 py-3 text-right">Cumulative Paid Amount (₹)</th>
+                <th className="border px-4 py-3 text-right">Cumulative Balance (₹)</th>
               </tr>
             </thead>
             <tbody className="bg-white">

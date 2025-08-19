@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { ToastContainer } from "react-toastify";
+import { useUserInfo } from "../utils/userInfo";
 
 /* --- API response shapes --- */
 interface DistrictApi {
@@ -99,8 +100,7 @@ interface LocationMapping {
 }
 
 const ManageBeneficiary = () => {
-  // Mock user info - replace with actual hook
-  const userId = 5; // You can replace this with useUserInfo() hook
+  const { userId, role, isLoading: userLoading } = useUserInfo();
 
   const [editMode, setEditMode] = useState(false);
   const [search, setSearch] = useState("");
@@ -128,40 +128,45 @@ const ManageBeneficiary = () => {
 
   const modalRef = useRef<HTMLDivElement>(null);
 
+  // Initialize data fetching - only when userId is available
   useEffect(() => {
-    fetchDistricts();
-  }, []);
+    if (!userLoading && userId) {
+      fetchDistricts();
+    }
+  }, [userId, userLoading]);
 
   useEffect(() => {
-    if (selectedDistrictId) {
+    if (selectedDistrictId && userId) {
       fetchBlocks(selectedDistrictId);
     } else {
       setBlocks([]);
       setSelectedBlockId(null);
     }
-  }, [selectedDistrictId]);
+  }, [selectedDistrictId, userId]);
 
   useEffect(() => {
-    if (selectedBlockId) {
+    if (selectedBlockId && userId) {
       fetchGramPanchayats(selectedBlockId);
     } else {
       setGramPanchayats([]);
       setSelectedGramPanchayatId(null);
     }
-  }, [selectedBlockId]);
+  }, [selectedBlockId, userId]);
 
   useEffect(() => {
-    if (selectedBlockId && selectedGramPanchayatId) {
+    if (selectedBlockId && selectedGramPanchayatId && userId) {
       fetchVillages(selectedBlockId, selectedGramPanchayatId);
     } else {
       setVillages([]);
       setSelectedVillageId(null);
     }
-  }, [selectedBlockId, selectedGramPanchayatId]);
+  }, [selectedBlockId, selectedGramPanchayatId, userId]);
 
   useEffect(() => {
-    fetchBeneficiaries();
-  }, [selectedVillageId, filterStatus]);
+    if (userId) {
+      fetchBeneficiaries();
+    }
+  }, [selectedVillageId, filterStatus, userId]);
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
@@ -176,6 +181,11 @@ const ManageBeneficiary = () => {
 
   // Fetch districts
   const fetchDistricts = async () => {
+    if (!userId) {
+      console.error("Cannot fetch districts: userId is null");
+      return;
+    }
+
     try {
       const res = await fetch(
         `https://wmsapi.kdsgroup.co.in/api/Master/GetDistrict?UserId=${userId}`,
@@ -194,6 +204,11 @@ const ManageBeneficiary = () => {
 
   // Fetch blocks
   const fetchBlocks = async (districtId: number) => {
+    if (!userId) {
+      console.error("Cannot fetch blocks: userId is null");
+      return;
+    }
+
     try {
       const res = await fetch(
         "https://wmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict",
@@ -219,6 +234,11 @@ const ManageBeneficiary = () => {
 
   // Fetch gram panchayats
   const fetchGramPanchayats = async (blockId: number) => {
+    if (!userId) {
+      console.error("Cannot fetch gram panchayats: userId is null");
+      return;
+    }
+
     try {
       const res = await fetch(
         "https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock",
@@ -292,29 +312,39 @@ const ManageBeneficiary = () => {
   };
 
   // Fetch beneficiaries
-  const fetchBeneficiaries = async () => {
-    setLoading(true);
-    setError(null);
+  // Fetch beneficiaries
+const fetchBeneficiaries = async () => {
+  if (!userId) {
+    console.error("Cannot fetch beneficiaries: userId is null");
+    return;
+  }
 
-    try {
-      const statusValue = filterStatus === "Active" ? 1 : filterStatus === "Inactive" ? 0 : 0;
-      
-      const res = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/Master/GetBeneficiaryListByUserIdVillageAndStatus",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            UserId: userId,
-            VillageId: selectedVillageId || 0,
-            Status: statusValue
-          }),
-        }
-      );
+  setLoading(true);
+  setError(null);
 
-      if (!res.ok) throw new Error("Failed to fetch beneficiaries");
-      const data = await res.json();
-      const benApiList = data.Data || [];
+  try {
+    const statusValue =
+      filterStatus === "Active" ? 1 : filterStatus === "Inactive" ? 0 : 0;
+
+    // 👇 Force userId = 0 for Admin role
+    const effectiveUserId = role === "Admin" ? 0 : userId;
+console.log("Fetching beneficiaries with userId:", effectiveUserId, "role:", role);
+    const res = await fetch(
+      "https://wmsapi.kdsgroup.co.in/api/Master/GetBeneficiaryListByUserIdVillageAndStatus",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: effectiveUserId,
+          VillageId: selectedVillageId || 0,
+          Status: statusValue,
+        }),
+      }
+    );
+
+    if (!res.ok) throw new Error("Failed to fetch beneficiaries");
+    const data = await res.json();
+    const benApiList = data.Data || [];
 
       const mapped = benApiList.map<BeneficiaryState>((b: BeneficiaryApi) => {
         const father = b.FatherOrHusbandName ?? b.FatherHusbandName ?? "";
@@ -377,6 +407,11 @@ const ManageBeneficiary = () => {
   const handleSaveChanges = async () => {
     if (editedBeneficiaries.size === 0) {
       toast.info("No changes to save");
+      return;
+    }
+
+    if (!userId) {
+      toast.error("User information not available");
       return;
     }
 
@@ -497,32 +532,42 @@ const ManageBeneficiary = () => {
   };
 
   const handleUpload = async () => {
-    if (!csvFile) {
-      toast.error("Please select a CSV file.");
-      return;
-    }
-    const formData = new FormData();
-    formData.append("file", csvFile);
+  if (!csvFile) {
+    toast.error("Please select a CSV file.");
+    return;
+  }
 
-    try {
-      const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Master/ImportBeneficiaryCSV", {
+  if (!userId) {
+    toast.error("User information not available");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", csvFile);
+
+  try {
+    const res = await fetch(
+      `https://wmsapi.kdsgroup.co.in/api/Master/ImportBeneficiaryCSV?userId=${userId}`,
+      {
         method: "POST",
         body: formData,
-      });
-      const json = await res.json();
-      if (json.Status) {
-        toast.success("Import successful");
-        setShowModal(false);
-        setCsvFile(null);
-        fetchBeneficiaries();
-      } else {
-        toast.error("Import error: " + (json.Message ?? "Unknown"));
       }
-    } catch (err) {
-      console.error("Upload error", err);
-      toast.error("Upload failed. Please check console.");
+    );
+    const json = await res.json();
+    if (json.Status) {
+      toast.success("Import successful");
+      setShowModal(false);
+      setCsvFile(null);
+      fetchBeneficiaries();
+    } else {
+      toast.error("Import error: " + (json.Message ?? "Unknown"));
     }
-  };
+  } catch (err) {
+    console.error("Upload error", err);
+    toast.error("Upload failed. Please check console.");
+  }
+};
+
 
   const clearFilters = () => {
     setSelectedDistrictId(null);
@@ -533,6 +578,26 @@ const ManageBeneficiary = () => {
     setSearch("");
   };
 
+  const getSelectedLocationName = () => {
+    if (selectedVillageId) {
+      const village = villages.find(v => v.Id === selectedVillageId);
+      return village?.VillageName || `Village ID: ${selectedVillageId}`;
+    }
+    if (selectedGramPanchayatId) {
+      const gp = gramPanchayats.find(gp => gp.Id === selectedGramPanchayatId);
+      return gp?.GramPanchayatName || "Selected Gram Panchayat";
+    }
+    if (selectedBlockId) {
+      const block = blocks.find(b => b.BlockId === selectedBlockId);
+      return block?.BlockName || "Selected Block";
+    }
+    if (selectedDistrictId) {
+      const district = districts.find(d => d.DistrictId === selectedDistrictId);
+      return district?.DistrictName || "Selected District";
+    }
+    return "All Areas";
+  };
+
   /* --- derived/filter data --- */
   const filteredData = beneficiaries.filter((b) => {
     return (
@@ -541,14 +606,30 @@ const ManageBeneficiary = () => {
     );
   });
 
-  const getLocation = (beneficiary: BeneficiaryState) => {
-    // Use location data directly from the beneficiary object
-    return {
-      district: beneficiary.districtName || "-",
-      block: beneficiary.blockName || "-",
-      gp: beneficiary.gramPanchayatName || "-",
-    };
-  };
+  // Show loading state while user info is being fetched
+  if (userLoading) {
+    return (
+      <div className="p-6 min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading user information...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if user info couldn't be loaded
+  if (!userLoading && !userId) {
+    return (
+      <div className="p-6 min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+          <div className="text-red-500 text-4xl mb-4">⚠️</div>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">Authentication Required</h2>
+          <p className="text-gray-600">Please log in to access the beneficiary management system.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 relative z-10 min-h-screen bg-gray-50">
@@ -580,9 +661,9 @@ const ManageBeneficiary = () => {
               value={selectedDistrictId || ""}
               onChange={(e) => setSelectedDistrictId(Number(e.target.value) || null)}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading}
+              disabled={loading || !userId}
             >
-              <option value="">All Districts</option>
+              <option value="">Select District</option>
               {districts.map((d) => (
                 <option key={d.DistrictId} value={d.DistrictId}>
                   {d.DistrictName}
@@ -597,9 +678,9 @@ const ManageBeneficiary = () => {
               value={selectedBlockId || ""}
               onChange={(e) => setSelectedBlockId(Number(e.target.value) || null)}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading || !selectedDistrictId}
+              disabled={loading || !selectedDistrictId || !userId}
             >
-              <option value="">All Blocks</option>
+              <option value="">Select Block</option>
               {blocks.map((b) => (
                 <option key={b.BlockId} value={b.BlockId}>
                   {b.BlockName}
@@ -614,9 +695,9 @@ const ManageBeneficiary = () => {
               value={selectedGramPanchayatId || ""}
               onChange={(e) => setSelectedGramPanchayatId(Number(e.target.value) || null)}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading || !selectedBlockId}
+              disabled={loading || !selectedBlockId || !userId}
             >
-              <option value="">All Gram Panchayats</option>
+              <option value="">Select Gram Panchayat</option>
               {gramPanchayats.map((gp) => (
                 <option key={gp.Id} value={gp.Id}>
                   {gp.GramPanchayatName}
@@ -631,7 +712,7 @@ const ManageBeneficiary = () => {
               value={selectedVillageId || ""}
               onChange={(e) => setSelectedVillageId(Number(e.target.value) || null)}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading || !selectedGramPanchayatId}
+              disabled={loading || !selectedGramPanchayatId || !userId}
             >
               <option value="">All Villages</option>
               {villages.map((v) => (
@@ -643,12 +724,12 @@ const ManageBeneficiary = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Status</label>
+            <label className="block text-sm font-medium mb-1">FHTC Status</label>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading}
+              disabled={loading || !userId}
             >
               <option value="">All Status</option>
               <option value="Active">Active</option>
@@ -691,7 +772,7 @@ const ManageBeneficiary = () => {
             <button 
               className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors" 
               onClick={() => setShowModal(true)} 
-              disabled={loading}
+              disabled={loading || !userId}
             >
               Bulk Import
             </button>
@@ -731,6 +812,7 @@ const ManageBeneficiary = () => {
       {/* Results Summary */}
       <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
         <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+          <span>Location: <strong>{getSelectedLocationName()}</strong></span>
           <span>Showing <strong>{filteredData.length}</strong> of <strong>{beneficiaries.length}</strong> beneficiaries</span>
           {editedBeneficiaries.size > 0 && (
             <span className="text-orange-600">
@@ -742,6 +824,67 @@ const ManageBeneficiary = () => {
 
       {/* Data Table */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        
+        {/* Quick Stats Cards */}
+      {beneficiaries.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-100 p-2 rounded-lg">
+                <span className="text-2xl">👥</span>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Total Beneficiaries</p>
+                <p className="text-xl font-bold text-gray-800">{beneficiaries.length}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-green-100 p-2 rounded-lg">
+                <span className="text-2xl">✅</span>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Active</p>
+                <p className="text-xl font-bold text-green-600">
+                  {beneficiaries.filter(b => b.status === 'Active').length}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-red-100 p-2 rounded-lg">
+                <span className="text-2xl">❌</span>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Inactive</p>
+                <p className="text-xl font-bold text-red-600">
+                  {beneficiaries.filter(b => b.status === 'Inactive').length}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-purple-100 p-2 rounded-lg">
+                <span className="text-2xl">👨‍👩‍👧‍👦</span>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Total Family Members</p>
+                <p className="text-xl font-bold text-purple-600">
+                  {beneficiaries.reduce((sum, b) => sum + b.familyCount, 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -754,7 +897,7 @@ const ManageBeneficiary = () => {
                 <th className="border border-gray-300 p-3 text-left font-medium">Father/Husband Name</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">Contact</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">Family Members</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Status</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">FHTC Status</th>
               </tr>
             </thead>
             <tbody>
@@ -919,7 +1062,8 @@ const ManageBeneficiary = () => {
           </div>
         </div>
       )}
-    </div>
+
+          </div>
   );
 };
 

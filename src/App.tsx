@@ -44,6 +44,7 @@ function App() {
             <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="user-management" element={<UserManagement />} />
             <Route path="fee-management" element={<FeeManagement />} />
+            <Route path="manage-beneficiary" element={<ManageBeneficiary />} />
             <Route path="manage-oht" element={<ManageOHT />} />
             <Route path="manage-pumphouse" element={<ManagePumpHouse />} />
             <Route path="view-roaster" element={<ViewRoaster />} />

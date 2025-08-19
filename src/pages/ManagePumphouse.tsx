@@ -493,7 +493,7 @@ const ManagePumpHouse = () => {
                   <th className="border border-gray-300 p-3 text-left font-medium">Operator Name</th>
                   <th className="border border-gray-300 p-3 text-left font-medium">Contact</th>
                   <th className="border border-gray-300 p-3 text-left font-medium">Pump #</th>
-                  <th className="border border-gray-300 p-3 text-left font-medium">Horsepower</th>
+                  <th className="border border-gray-300 p-3 text-left font-medium">Capacity (H.P.)</th>
                   <th className="border border-gray-300 p-3 text-left font-medium">Power Source</th>
                   <th className="border border-gray-300 p-3 text-left font-medium">Solar Output (kW)</th>
                   <th className="border border-gray-300 p-3 text-left font-medium">Status</th>

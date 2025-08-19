@@ -40,6 +40,7 @@ const getMenuLinks = (role: Role): MenuItem[] => {
       { name: "Dashboard", to: "/admin/dashboard", icon: <LayoutDashboard size={18} /> },
       { name: "User Management", to: "/admin/user-management", icon: <Users size={18} /> },
       { name: "Fee Management", to: "/admin/fee-management", icon: <BiMoney size={18} /> },
+      { name: "Manage Beneficiaries", to: "/admin/manage-beneficiary", icon: <Users2 size={16} /> },
       { name: "Manage OHT", to: "/admin/manage-oht", icon: <Calendar size={16} /> },
       { name: "Manage Pump House", to: "/admin/manage-pumphouse", icon: <ClipboardList size={16} /> },
       { name: "View Roaster", to: "/admin/view-roaster", icon: <ClipboardList size={16} /> },

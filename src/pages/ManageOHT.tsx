@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { ToastContainer } from "react-toastify";
+import { useUserInfo } from "../utils/userInfo";
 
 /* --- API response shapes --- */
 interface DistrictApi {
@@ -63,8 +64,7 @@ interface LocationMapping {
 }
 
 const ManageOHT = () => {
-  // Mock user info - replace with actual hook
-  const userId = 5; // You can replace this with useUserInfo() hook
+  const { userId, role, isLoading: userLoading } = useUserInfo();
 
   const [ohtList, setOhtList] = useState<OHTState[]>([]);
   const [loading, setLoading] = useState(false);
@@ -90,45 +90,47 @@ const ManageOHT = () => {
   const [showModal, setShowModal] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
-  // Initialize data fetching
+  // Initialize data fetching - only when userId is available
   useEffect(() => {
-    fetchDistricts();
-  }, []);
+    if (!userLoading && userId) {
+      fetchDistricts();
+    }
+  }, [userId, userLoading]);
 
   useEffect(() => {
-    if (selectedDistrictId) {
+    if (selectedDistrictId && userId) {
       fetchBlocks(selectedDistrictId);
     } else {
       setBlocks([]);
       setSelectedBlockId(null);
     }
-  }, [selectedDistrictId]);
+  }, [selectedDistrictId, userId]);
 
   useEffect(() => {
-    if (selectedBlockId) {
+    if (selectedBlockId && userId) {
       fetchGramPanchayats(selectedBlockId);
     } else {
       setGramPanchayats([]);
       setSelectedGramPanchayatId(null);
     }
-  }, [selectedBlockId]);
+  }, [selectedBlockId, userId]);
 
   useEffect(() => {
-    if (selectedBlockId && selectedGramPanchayatId) {
+    if (selectedBlockId && selectedGramPanchayatId && userId) {
       fetchVillages(selectedBlockId, selectedGramPanchayatId);
     } else {
       setVillages([]);
       setSelectedVillageId(null);
     }
-  }, [selectedBlockId, selectedGramPanchayatId]);
+  }, [selectedBlockId, selectedGramPanchayatId, userId]);
 
   useEffect(() => {
-    if (selectedVillageId) {
+    if (selectedVillageId && userId) {
       fetchOHTs(selectedVillageId);
     } else {
       setOhtList([]);
     }
-  }, [selectedVillageId]);
+  }, [selectedVillageId, userId]);
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
@@ -142,6 +144,11 @@ const ManageOHT = () => {
 
   // Fetch districts
   const fetchDistricts = async () => {
+    if (!userId) {
+      console.error("Cannot fetch districts: userId is null");
+      return;
+    }
+
     try {
       const res = await fetch(
         `https://wmsapi.kdsgroup.co.in/api/Master/GetDistrict?UserId=${userId}`,
@@ -160,13 +167,18 @@ const ManageOHT = () => {
 
   // Fetch blocks
   const fetchBlocks = async (districtId: number) => {
+    if (!userId) {
+      console.error("Cannot fetch blocks: userId is null");
+      return;
+    }
+
     try {
       const res = await fetch(
         "https://wmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ UserId: userId, DistrictId: districtId }),
+          body: JSON.stringify({ userId: userId, DistrictId: districtId }),
         }
       );
       if (!res.ok) throw new Error("Failed to fetch blocks");
@@ -185,6 +197,11 @@ const ManageOHT = () => {
 
   // Fetch gram panchayats
   const fetchGramPanchayats = async (blockId: number) => {
+    if (!userId) {
+      console.error("Cannot fetch gram panchayats: userId is null");
+      return;
+    }
+
     try {
       const res = await fetch(
         "https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock",
@@ -323,6 +340,11 @@ const ManageOHT = () => {
   const handleSaveChanges = async () => {
     if (editedOHTs.size === 0) {
       toast.info("No changes to save");
+      return;
+    }
+
+    if (!userId) {
+      toast.error("User information not available");
       return;
     }
 
@@ -466,6 +488,31 @@ const ManageOHT = () => {
     return "All Areas";
   };
 
+  // Show loading state while user info is being fetched
+  if (userLoading) {
+    return (
+      <div className="p-6 min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading user information...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if user info couldn't be loaded
+  if (!userLoading && !userId) {
+    return (
+      <div className="p-6 min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+          <div className="text-red-500 text-4xl mb-4">⚠️</div>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">Authentication Required</h2>
+          <p className="text-gray-600">Please log in to access the OHT management system.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 relative z-10 min-h-screen bg-gray-50">
       <ToastContainer position="top-right" autoClose={3000} />
@@ -496,7 +543,7 @@ const ManageOHT = () => {
               value={selectedDistrictId || ""}
               onChange={(e) => setSelectedDistrictId(Number(e.target.value) || null)}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading}
+              disabled={loading || !userId}
             >
               <option value="">Select District</option>
               {districts.map((d) => (
@@ -513,7 +560,7 @@ const ManageOHT = () => {
               value={selectedBlockId || ""}
               onChange={(e) => setSelectedBlockId(Number(e.target.value) || null)}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading || !selectedDistrictId}
+              disabled={loading || !selectedDistrictId || !userId}
             >
               <option value="">Select Block</option>
               {blocks.map((b) => (
@@ -530,7 +577,7 @@ const ManageOHT = () => {
               value={selectedGramPanchayatId || ""}
               onChange={(e) => setSelectedGramPanchayatId(Number(e.target.value) || null)}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading || !selectedBlockId}
+              disabled={loading || !selectedBlockId || !userId}
             >
               <option value="">Select Gram Panchayat</option>
               {gramPanchayats.map((gp) => (
@@ -547,7 +594,7 @@ const ManageOHT = () => {
               value={selectedVillageId || ""}
               onChange={(e) => setSelectedVillageId(Number(e.target.value) || null)}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading || !selectedGramPanchayatId}
+              disabled={loading || !selectedGramPanchayatId || !userId}
             >
               <option value="">Select Village</option>
               {villages.map((v) => (
@@ -691,20 +738,6 @@ const ManageOHT = () => {
                           <input
                             type="number"
                             className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            value={o.OHTCapacity}
-                            onChange={(e) => handleChange(o.OHTId, "OHTCapacity", Number(e.target.value))}
-                            min="0"
-                          />
-                        ) : (
-                          <span className="font-medium">{o.OHTCapacity.toLocaleString()}</span>
-                        )}
-                      </td>
-
-                      <td className="border border-gray-300 p-3">
-                        {editMode ? (
-                          <input
-                            type="number"
-                            className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             value={o.NoOfPumps}
                             onChange={(e) => handleChange(o.OHTId, "NoOfPumps", Number(e.target.value))}
                             min="0"
@@ -766,8 +799,6 @@ const ManageOHT = () => {
                   min="0"
                 />
               </div>
-
-              
             </div>
 
             <div className="flex justify-end gap-3 mt-6">
@@ -810,6 +841,14 @@ const ManageOHT = () => {
             <div className="flex items-center gap-3">
               <div className="bg-green-100 p-2 rounded-lg">
                 <span className="text-2xl">✅</span>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Average Capacity</p>
+                <p className="text-xl font-bold text-green-600">
+                  {ohtList.length > 0 ? 
+                    Math.round(ohtList.reduce((sum, o) => sum + o.OHTCapacity, 0) / ohtList.length).toLocaleString() : 0
+                  }L
+                </p>
               </div>
             </div>
           </div>

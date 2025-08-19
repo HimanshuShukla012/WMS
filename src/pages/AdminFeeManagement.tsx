@@ -11,6 +11,9 @@ import {
   CheckCircle,
 } from "lucide-react";
 
+import { useUserInfo } from "../utils/userInfo";
+
+
 const FeeManagement = () => {
 
   type LatestFeeItem = {
@@ -29,6 +32,9 @@ type DistrictFee = {
   totalCollected: number;
   applyFrom: string;
 };
+
+const { userId, role, isLoading: userLoading } = useUserInfo();
+
 
 const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
 
@@ -121,7 +127,7 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
         DistrictId: district.districtId,
         WaterFeeAmount: parseFloat(district.fee),
         ApplyFrom: new Date().toISOString(),
-        UserId: 1, // You may want to get this from user context
+        UserId: userId, // You may want to get this from user context
         DeviceToken: "web_app",
         IPAddress: "192.168.1.1" // You may want to get actual IP
       };
@@ -192,26 +198,41 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
   };
 
   // Save state-wide fee (applies to all districts)
-  const handleSaveStateFee = async () => {
-    if (!stateFee || stateFee === "0") {
-      setMessage({ type: "error", text: "Please enter a valid state fee amount" });
-      return;
-    }
+  // Fixed handleSaveStateFee function with improved error handling and debugging
 
-    setSaving(true);
-    setMessage({ type: "", text: "" });
+const handleSaveStateFee = async () => {
+  if (!stateFee || stateFee === "0") {
+    setMessage({ type: "error", text: "Please enter a valid state fee amount" });
+    return;
+  }
 
-    try {
-      // Update all districts with the same fee
-      for (const district of districtFees) {
+  // Validate userId is available
+  if (!userId) {
+    setMessage({ type: "error", text: "User ID not available. Please refresh the page and try again." });
+    return;
+  }
+
+  setSaving(true);
+  setMessage({ type: "", text: "" });
+
+  try {
+    let successCount = 0;
+    let errorCount = 0;
+    const errors = [];
+
+    // Update all districts with the same fee
+    for (const district of districtFees) {
+      try {
         const requestBody = {
           DistrictId: district.districtId,
           WaterFeeAmount: parseFloat(stateFee),
           ApplyFrom: new Date().toISOString(),
-          UserId: 1,
+          UserId: userId, // Use the actual userId from userInfo hook
           DeviceToken: "web_app",
           IPAddress: "192.168.1.1"
         };
+
+        console.log('Sending request for district:', district.name, requestBody);
 
         const response = await fetch(
           `${API_BASE}/UpdateStateAndDistrictWiseWaterFee`,
@@ -225,20 +246,42 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
           }
         );
 
+        console.log('Response status:', response.status);
+        
         if (!response.ok) {
-          throw new Error(`Failed to update ${district.name}`);
+          const errorText = await response.text();
+          console.error(`HTTP ${response.status} for ${district.name}:`, errorText);
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
 
         const data = await response.json();
+        console.log('Response data for', district.name, ':', data);
+        
         if (!data.Status) {
-          throw new Error(data.Message || `Failed to update ${district.name}`);
+          throw new Error(data.Message || data.Error || data.Errror || `Failed to update ${district.name}`);
         }
 
-        // Small delay between requests
+        successCount++;
+        
+        // Small delay between requests to avoid overwhelming the server
         await new Promise(resolve => setTimeout(resolve, 200));
+        
+      } catch (error) {
+        console.error(`Error updating ${district.name}:`, error);
+        errors.push(`${district.name}: ${error.message}`);
+        errorCount++;
+        
+        // Continue with other districts even if one fails
+        continue;
       }
+    }
 
-      setMessage({ type: "success", text: `State-wide fee of ₹${stateFee} applied to all districts successfully` });
+    // Show appropriate message based on results
+    if (successCount === districtFees.length) {
+      setMessage({ 
+        type: "success", 
+        text: `State-wide fee of ₹${stateFee} applied to all ${successCount} districts successfully` 
+      });
       
       // Refresh data and reset state fee input
       setTimeout(() => {
@@ -246,14 +289,118 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
         setStateFee("");
       }, 1000);
       
-    } catch (error) {
-      console.error("Error saving state fee:", error);
-      setMessage({ type: "error", text: `Error: ${error.message}` });
-    } finally {
-      setSaving(false);
+    } else if (successCount > 0) {
+      setMessage({ 
+        type: "error", 
+        text: `Partial success: ${successCount} districts updated, ${errorCount} failed. First error: ${errors[0] || 'Unknown error'}` 
+      });
+    } else {
+      setMessage({ 
+        type: "error", 
+        text: `Failed to update any districts. Errors: ${errors.slice(0, 3).join('; ')}${errors.length > 3 ? '...' : ''}` 
+      });
     }
-  };
+    
+  } catch (error) {
+    console.error("Error in handleSaveStateFee:", error);
+    setMessage({ type: "error", text: `Error: ${error.message}` });
+  } finally {
+    setSaving(false);
+  }
+};
 
+// Alternative version with batch processing (use this if you want to send all updates at once)
+const handleSaveStateFeeBatch = async () => {
+  if (!stateFee || stateFee === "0") {
+    setMessage({ type: "error", text: "Please enter a valid state fee amount" });
+    return;
+  }
+
+  if (!userId) {
+    setMessage({ type: "error", text: "User ID not available. Please refresh the page and try again." });
+    return;
+  }
+
+  setSaving(true);
+  setMessage({ type: "", text: "" });
+
+  try {
+    // Prepare all requests
+    const requests = districtFees.map(district => ({
+      DistrictId: district.districtId,
+      WaterFeeAmount: parseFloat(stateFee),
+      ApplyFrom: new Date().toISOString(),
+      UserId: userId,
+      DeviceToken: "web_app",
+      IPAddress: "192.168.1.1"
+    }));
+
+    console.log('Sending batch requests:', requests);
+
+    // Send all requests in parallel (but be careful not to overwhelm the server)
+    const responses = await Promise.allSettled(
+      requests.map(async (requestBody, index) => {
+        // Add small delay for each request
+        await new Promise(resolve => setTimeout(resolve, index * 100));
+        
+        const response = await fetch(
+          `${API_BASE}/UpdateStateAndDistrictWiseWaterFee`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "accept": "*/*"
+            },
+            body: JSON.stringify(requestBody)
+          }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
+        const data = await response.json();
+        if (!data.Status) {
+          throw new Error(data.Message || data.Error || data.Errror || "Failed to update");
+        }
+
+        return { district: districtFees[index].name, success: true, data };
+      })
+    );
+
+    // Process results
+    const successful = responses.filter(r => r.status === 'fulfilled');
+    const failed = responses.filter(r => r.status === 'rejected');
+
+    if (failed.length === 0) {
+      setMessage({ 
+        type: "success", 
+        text: `State-wide fee of ₹${stateFee} applied to all ${successful.length} districts successfully` 
+      });
+      
+      setTimeout(() => {
+        fetchWaterFeeData();
+        setStateFee("");
+      }, 1000);
+    } else {
+      const errorMessages = failed.map((r, i) => 
+        `${districtFees[responses.indexOf(r)].name}: ${r.reason.message}`
+      );
+      
+      setMessage({ 
+        type: "error", 
+        text: `${successful.length} successful, ${failed.length} failed. Errors: ${errorMessages.slice(0, 2).join('; ')}${errorMessages.length > 2 ? '...' : ''}` 
+      });
+    }
+
+  } catch (error) {
+    console.error("Error in batch save:", error);
+    setMessage({ type: "error", text: `Batch update error: ${error.message}` });
+  } finally {
+    setSaving(false);
+  }
+};
   const handleDownload = () => {
     // Create CSV content
     const csvHeaders = "District Name,Water Fee (₹),Total Amount Collected (₹),Apply From\n";
@@ -383,7 +530,6 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
                         <th className="p-3 border text-left">District</th>
                         <th className="p-3 border text-left">Water Fee Amount (₹)</th>
                         <th className="p-3 border text-left">Total Collected (₹)</th>
-                        <th className="p-3 border text-left">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -408,20 +554,7 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
                           <td className="p-3 border">
                             ₹ {district.totalCollected?.toLocaleString('en-IN') || '0'}
                           </td>
-                          <td className="p-3 border">
-                            <button
-                              onClick={() => saveDistrictFee(district)}
-                              disabled={saving || !district.fee}
-                              className="flex items-center gap-1 bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {saving ? (
-                                <RefreshCw className="w-3 h-3 animate-spin" />
-                              ) : (
-                                <Save className="w-3 h-3" />
-                              )}
-                              Save
-                            </button>
-                          </td>
+                          
                         </tr>
                       ))}
                     </tbody>
@@ -464,9 +597,11 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
             disabled={loading}
             className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
           >
-            <option value="2024">2024</option>
-            <option value="2023">2023</option>
-            <option value="2022">2022</option>
+            <option value="2025-26">2025-26</option>
+            <option value="2024-25">2024-25</option>
+            <option value="2023-24">2023-24</option>
+            <option value="2022-23">2022-23</option>
+            <option value="2021-22">2021-22</option>
           </select>
         </div>
         <button

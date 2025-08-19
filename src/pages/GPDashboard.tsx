@@ -266,7 +266,7 @@ export default function EnhancedGPDashboard() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          UserId: 0,
+          UserId: userId,
           VillageId: 0,
           Status: null
         })

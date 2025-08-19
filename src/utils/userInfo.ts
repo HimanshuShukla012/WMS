@@ -10,17 +10,34 @@ interface CachedUserInfo {
 }
 
 // Helper: Decode token
+// Helper: Decode token
 const decodeToken = (token: string) => {
   try {
     const payload = JSON.parse(atob(token.split(".")[1]));
+    const userId =
+      payload?.UserID !== undefined && payload?.UserID !== null
+        ? payload.UserID
+        : payload?.UserId !== undefined && payload?.UserId !== null
+        ? payload.UserId
+        : null;
+
+    const role =
+      payload?.Role ||
+      payload?.role ||
+      payload?.UserRole ||
+      payload?.UserRoll ||   // 👈 handles your case
+      "";
+
     return {
-      userId: payload?.UserID || payload?.UserId || null,
-      role: payload?.Role || "",
+      userId: Number(userId), // ensure it's a number
+      role,
     };
   } catch {
     return { userId: null, role: "" };
   }
 };
+
+
 
 // ✅ Get User Info (non-React)
 export const getUserInfo = (): { userId: number | null; role: string } => {
