@@ -207,7 +207,7 @@ const LandingPage = () => {
     <div className="flex h-full">
       <div className="bg-white/10 rounded-3xl backdrop-blur-xl shadow-xl border border-gray-300/20 p-4 w-full flex items-center justify-center hover:scale-105 transition-transform duration-300">
         <img
-          src="/public/pipeline.png"
+          src="/pipeline.png"
           alt="Water Management Illustration"
           className="rounded-2xl object-cover w-full h-full max-h-[500px]"
         />
