@@ -553,7 +553,7 @@ const PumpHouseMaster: React.FC = () => {
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Block</label>
+          <label className="block text-sm font-medium mb-1">Select Block</label>
           <select
             className="border rounded p-2 w-full"
             value={block}
@@ -650,7 +650,7 @@ const PumpHouseMaster: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">
-                Horsepower (HP)
+                Capacity (HP)
               </label>
               <input
                 className={`border rounded p-2 w-full ${errors.pumps[index]?.horsepower ? 'border-red-500' : 'border-gray-300'}`}

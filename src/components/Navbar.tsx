@@ -48,7 +48,7 @@ const Navbar = () => {
         <div className="hidden md:flex gap-3 flex-shrink-0">
           <Link to="/login">
             <button className="bg-blue-700 px-5 py-2 rounded-full hover:bg-blue-800 transition font-semibold text-sm">
-              लॉगिन
+              Login
             </button>
           </Link>
           <Link to="/complaint">

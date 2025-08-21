@@ -673,7 +673,7 @@ useEffect(() => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Block</label>
+            <label className="block text-sm font-medium mb-1">Select Block</label>
             <select
               value={selectedBlockId || ""}
               onChange={(e) => setSelectedBlockId(Number(e.target.value) || null)}
@@ -847,7 +847,7 @@ useEffect(() => {
               <tr className="bg-blue-600 text-white">
                 <th className="border border-gray-300 p-3 text-left font-medium">Complaint ID</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">District</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Block</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Block Name</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">Gram Panchayat</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">Village</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">Beneficiary Name</th>

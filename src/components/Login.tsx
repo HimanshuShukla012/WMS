@@ -115,7 +115,7 @@ if (data.uparm) {
         <div className="relative z-10 w-full md:w-1/2 max-w-xl flex flex-col gap-6 bg-gray-900/80 p-10 md:p-14 rounded-3xl shadow-2xl">
           <img src="/logo.png" alt="logo" className="w-24 md:w-28 mx-auto" />
           <h1 className="text-3xl md:text-4xl font-extrabold text-center">
-            WELCOME BACK!
+            WELCOME!
           </h1>
 
           <div className="flex flex-col gap-5 mt-4">

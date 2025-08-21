@@ -92,6 +92,10 @@ interface OHTData {
   NoOfPumps: number;
 }
 
+interface OHTCountData {
+  TotalOHTCount: number;
+}
+
 interface ComplaintData {
   ComplaintID: number;
   District: string;
@@ -139,6 +143,7 @@ export default function EnhancedGPDashboard() {
   // Real API Data States
   const [pumpHouses, setPumpHouses] = useState<PumpHouseData[]>([]);
   const [ohtData, setOHTData] = useState<OHTData[]>([]);
+  const [ohtCount, setOHTCount] = useState<number>(0);
   const [complaints, setComplaints] = useState<ComplaintData[]>([]);
   const [feeData, setFeeData] = useState<FeeCollectionData[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
@@ -206,9 +211,8 @@ export default function EnhancedGPDashboard() {
       
       if (data.Status && Array.isArray(data.Data)) {
         setVillages(data.Data);
-        // Fetch dependent data
+        // Fetch dependent data - only fee data now since OHT uses count API
         await Promise.all(data.Data.slice(0, 5).map(async (village) => {
-          await fetchOHTData(village.VillageId);
           await fetchFeeData(village.VillageId);
         }));
       } else {
@@ -219,6 +223,27 @@ export default function EnhancedGPDashboard() {
       setVillages([]);
     } finally {
       setIsLoading(prev => ({ ...prev, villages: false }));
+    }
+  };
+
+  // NEW: Fetch OHT Count using the new API
+  const fetchOHTCount = async (currentUserId: number) => {
+    setIsLoading(prev => ({ ...prev, ohts: true }));
+    try {
+      // Use VillageId=0 to get total count for all villages under the user
+      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetOHTCountByVillage?VillageId=0&UserId=${currentUserId}`);
+      const data: ApiResponse<OHTCountData> = await response.json();
+      
+      if (data.Status && data.Data?.TotalOHTCount !== undefined) {
+        setOHTCount(data.Data.TotalOHTCount);
+      } else {
+        setOHTCount(0);
+      }
+    } catch (error) {
+      console.error('Error fetching OHT count:', error);
+      setOHTCount(0);
+    } finally {
+      setIsLoading(prev => ({ ...prev, ohts: false }));
     }
   };
 
@@ -406,7 +431,7 @@ export default function EnhancedGPDashboard() {
       setVillageFeeData([]);
     } finally {
       setIsLoading(prev => ({ ...prev, villageFee: false }));
-      setIsLoading(prev => ({ ...prev, fees: false, ohts: false }));
+      setIsLoading(prev => ({ ...prev, fees: false }));
     }
   };
 
@@ -422,16 +447,17 @@ export default function EnhancedGPDashboard() {
         fetchActiveConnections(userId),
         fetchPendingComplaints(userId),
         fetchComplaintStatusDistribution(userId),
-        fetchWaterConnectionStatus(userId), // Now includes userId
-        fetchVillageFeeCollectionData(userId), // Now includes userId
+        fetchWaterConnectionStatus(userId),
+        fetchVillageFeeCollectionData(userId),
         fetchPumpHouses(userId),
         fetchVillages(userId),
-        fetchComplaints()
+        fetchComplaints(),
+        fetchOHTCount(userId) // NEW: Added OHT count API call
       ]);
     };
 
     initializeDashboard();
-  }, [userId, userLoading, role]); // Dependencies include userId and userLoading
+  }, [userId, userLoading, role]);
 
   // Modified refresh function
   const handleRefresh = async () => {
@@ -458,17 +484,19 @@ export default function EnhancedGPDashboard() {
     setPumpHouses([]);
     setOHTData([]);
     setFeeData([]);
+    setOHTCount(0); // NEW: Clear OHT count
 
     await Promise.all([
       fetchTotalBeneficiaries(userId),
       fetchActiveConnections(userId),
       fetchPendingComplaints(userId),
       fetchComplaintStatusDistribution(userId),
-      fetchWaterConnectionStatus(userId), // Now includes userId
-      fetchVillageFeeCollectionData(userId), // Now includes userId
+      fetchWaterConnectionStatus(userId),
+      fetchVillageFeeCollectionData(userId),
       fetchPumpHouses(userId),
       fetchVillages(userId),
-      fetchComplaints()
+      fetchComplaints(),
+      fetchOHTCount(userId) // NEW: Added OHT count API call
     ]);
 
     setRefreshing(false);
@@ -502,7 +530,7 @@ export default function EnhancedGPDashboard() {
   // Calculate real-time metrics from API data
   const activePumps = pumpHouses.filter(p => p.Status === 1).length;
   const totalPumps = pumpHouses.length;
-  const totalOHTs = ohtData.length;
+  const totalOHTs = ohtCount; // UPDATED: Use the new API count instead of array length
   const totalCapacity = ohtData.reduce((sum, oht) => sum + (oht.OHTCapacity || 0), 0);
   const totalComplaintsFromData = complaints.length;
   const resolvedComplaints = complaints.filter(c => c.Status === true).length;
@@ -627,7 +655,7 @@ export default function EnhancedGPDashboard() {
           <StatCard
             title="OHT Infrastructure"
             value={totalOHTs}
-            subtitle={totalCapacity > 0 ? `${(totalCapacity / 1000).toFixed(0)}K L capacity` : "No OHT data"}
+            subtitle={totalCapacity > 0 ? `${(totalCapacity / 1000).toFixed(0)}K L capacity` : `${totalOHTs} overhead tanks`}
             icon={Icons.Tank}
             gradient="bg-gradient-to-br from-cyan-800 via-cyan-700 to-cyan-600"
             isLoading={isLoading.ohts}
@@ -1039,16 +1067,17 @@ export default function EnhancedGPDashboard() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+
+<div className="bg-gradient-to-br from-amber-800 to-amber-900 p-6 rounded-xl text-white shadow-lg">
+                <div className="text-sm opacity-90 font-medium uppercase tracking-wider">Cumulative Payable Fee</div>
+                <div className="text-3xl font-bold mt-2">₹{totalOutstanding.toLocaleString()}</div>
+                <div className="text-xs opacity-75 mt-1">Pending collection</div>
+              </div>
+
               <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-xl text-white shadow-lg">
                 <div className="text-sm opacity-90 font-medium uppercase tracking-wider">Total Collection</div>
                 <div className="text-3xl font-bold mt-2">₹{totalCollection.toLocaleString()}</div>
                 <div className="text-xs opacity-75 mt-1">From {uniqueBeneficiaries} beneficiaries</div>
-              </div>
-              
-              <div className="bg-gradient-to-br from-amber-800 to-amber-900 p-6 rounded-xl text-white shadow-lg">
-                <div className="text-sm opacity-90 font-medium uppercase tracking-wider">Outstanding Amount</div>
-                <div className="text-3xl font-bold mt-2">₹{totalOutstanding.toLocaleString()}</div>
-                <div className="text-xs opacity-75 mt-1">Pending collection</div>
               </div>
               
               <div className="bg-gradient-to-br from-emerald-800 to-emerald-900 p-6 rounded-xl text-white shadow-lg">
@@ -1069,9 +1098,9 @@ export default function EnhancedGPDashboard() {
                   <tr className="border-b border-slate-200 bg-slate-50">
                     <th className="text-left p-4 font-semibold text-slate-700 uppercase tracking-wide">Beneficiary</th>
                     <th className="text-left p-4 font-semibold text-slate-700 uppercase tracking-wide">Village</th>
+                    <th className="text-right p-4 font-semibold text-slate-700 uppercase tracking-wide">Payable Fee</th>
                     <th className="text-right p-4 font-semibold text-slate-700 uppercase tracking-wide">Paid Amount</th>
-                    <th className="text-right p-4 font-semibold text-slate-700 uppercase tracking-wide">Outstanding</th>
-                    <th className="text-right p-4 font-semibold text-slate-700 uppercase tracking-wide">Balance</th>
+                    <th className="text-right p-4 font-semibold text-slate-700 uppercase tracking-wide">Balance Amount</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1082,11 +1111,11 @@ export default function EnhancedGPDashboard() {
                         <div className="text-xs text-slate-500 mt-1">{fee.FatherHusbandName}</div>
                       </td>
                       <td className="p-4 text-slate-600 font-medium">{fee.VillageName}</td>
-                      <td className="p-4 text-right font-semibold text-emerald-600">
-                        ₹{fee.PaidAmount.toLocaleString()}
-                      </td>
                       <td className="p-4 text-right font-semibold text-amber-600">
                         ₹{fee.OutstandingAmount.toLocaleString()}
+                      </td>
+                      <td className="p-4 text-right font-semibold text-emerald-600">
+                        ₹{fee.PaidAmount.toLocaleString()}
                       </td>
                       <td className="p-4 text-right font-semibold text-rose-600">
                         ₹{fee.BalanceAmount.toLocaleString()}

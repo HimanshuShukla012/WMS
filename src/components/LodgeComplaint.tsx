@@ -400,7 +400,7 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
 
         {/* Block */}
         <div className="flex flex-col">
-          <label className="text-sm font-medium mb-1 text-gray-700">Block</label>
+          <label className="text-sm font-medium mb-1 text-gray-700">Select Block</label>
           <select
             value={selectedBlockId || ""}
             onChange={(e) => setSelectedBlockId(Number(e.target.value))}

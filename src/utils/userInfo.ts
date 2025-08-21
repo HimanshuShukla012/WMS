@@ -1,3 +1,5 @@
+import { useState, useEffect } from "react";
+
 // Shared constants
 const CACHE_KEY = "cachedUserInfo";
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
@@ -5,11 +7,10 @@ const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 interface CachedUserInfo {
   userId: number | null;
   role: string;
-  token: string;      // ✅ new
+  token: string;
   timestamp: number;
 }
 
-// Helper: Decode token
 // Helper: Decode token
 const decodeToken = (token: string) => {
   try {
@@ -25,7 +26,7 @@ const decodeToken = (token: string) => {
       payload?.Role ||
       payload?.role ||
       payload?.UserRole ||
-      payload?.UserRoll ||   // 👈 handles your case
+      payload?.UserRoll ||   // handles your case
       "";
 
     return {
@@ -36,8 +37,6 @@ const decodeToken = (token: string) => {
     return { userId: null, role: "" };
   }
 };
-
-
 
 // ✅ Get User Info (non-React)
 export const getUserInfo = (): { userId: number | null; role: string } => {
@@ -70,18 +69,36 @@ export const getUserInfo = (): { userId: number | null; role: string } => {
   return { userId, role };
 };
 
-// ✅ React hook version
-import { useState, useEffect } from "react";
-
+// ✅ Fixed React hook version with loading state
 export const useUserInfo = () => {
   const [userId, setUserId] = useState<number | null>(null);
   const [role, setRole] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(true); // ✅ Add loading state
+  const [error, setError] = useState<string | null>(null); // ✅ Add error state
 
   useEffect(() => {
-    const { userId, role } = getUserInfo();
-    setUserId(userId);
-    setRole(role);
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const { userId, role } = getUserInfo();
+      
+      setUserId(userId);
+      setRole(role);
+      
+      // If no userId found, set error
+      if (!userId) {
+        setError("User ID not found. Please login again.");
+      }
+    } catch (err) {
+      console.error("Error getting user info:", err);
+      setError("Error retrieving user information");
+      setUserId(null);
+      setRole("");
+    } finally {
+      setLoading(false); // ✅ Set loading to false when done
+    }
   }, []);
 
-  return { userId, role };
+  return { userId, role, loading, error }; // ✅ Return loading and error states
 };

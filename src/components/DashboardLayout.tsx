@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { BiBuildingHouse, BiDroplet, BiMoney } from "react-icons/bi";
 
+
 type Role = "admin" | "gp" | "callcenter";
 
 type MenuItem = {
@@ -186,16 +187,20 @@ const DashboardLayout = ({ role }: { children?: React.ReactNode; role: Role }) =
   return (
     <div className="relative h-screen overflow-visible">
       <BubblesBackground />
+      
 
       {/* Main Layout */}
       <div className="flex h-full bg-gradient-to-br from-blue-50 to-blue-100">
         {/* Sidebar */}
         <div className="w-72 bg-gradient-to-b from-sky-900 to-indigo-900 text-white shadow-xl flex flex-col p-6 overflow-y-auto relative">
+          
 
           <div className="flex flex-col items-center mb-10">
             <img src="/logo.png" alt="Logo" className="h-16 w-24 rounded-lg object-cover" />
             <h1 className="text-2xl font-bold tracking-wide text-center">IWMS</h1>
             <span className="text-sm text-indigo-200 mt-1">{roleLabels[role]}</span>
+          </div>
+          <div className="flex flex-col items-center mb-10">
           </div>
 
           {/* Menu items */}

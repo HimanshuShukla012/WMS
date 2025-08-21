@@ -6,3 +6,91 @@ body {
   @apply bg-no-repeat bg-cover bg-center min-h-screen;
   background-image: url("/wallpaper.png");
 }
+
+/* Google Translate Styling */
+.translate-bar-container {
+  margin-bottom: 1rem;
+}
+
+/* Style the Google Translate dropdown */
+.goog-te-combo {
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: white !important;
+  font-size: 12px !important;
+  outline: none !important;
+  min-width: 100px !important;
+}
+
+.goog-te-combo:focus {
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.goog-te-combo:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Hide Google Translate banner that appears at top */
+.goog-te-banner-frame {
+  display: none !important;
+}
+
+body {
+  top: 0 !important;
+}
+
+.goog-te-menu-value {
+  color: white !important;
+}
+
+/* Style the translate element container */
+#google_translate_element {
+  display: inline-block;
+}
+
+#google_translate_element .goog-te-gadget {
+  font-family: inherit !important;
+  font-size: 12px !important;
+}
+
+#google_translate_element .goog-te-gadget-simple {
+  background: transparent !important;
+  border: none !important;
+  font-size: 12px !important;
+  color: white !important;
+}
+
+#google_translate_element .goog-te-gadget-simple .goog-te-menu-value {
+  color: white !important;
+}
+
+#google_translate_element .goog-te-gadget-simple .goog-te-menu-value span {
+  color: white !important;
+}
+
+/* Remove Google Translate styling that conflicts */
+#google_translate_element .goog-te-gadget-icon {
+  display: none !important;
+}
+
+/* Fix positioning issues */
+body.goog-te-hl {
+  top: 0 !important;
+}
+
+.goog-te-balloon-frame {
+  display: none !important;
+}
+
+/* Custom dropdown arrow */
+.goog-te-combo {
+  appearance: none !important;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 8px center !important;
+  background-size: 12px !important;
+  padding-right: 28px !important;
+}

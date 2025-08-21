@@ -335,13 +335,13 @@ const AddBeneficiary = () => {
 
         {/* Block */}
         <div>
-          <label className="block font-medium mb-1">Block</label>
+          <label className="block font-medium mb-1">Select Block</label>
           <select
             value={selectedBlockId || ""}
             onChange={(e) => setSelectedBlockId(Number(e.target.value))}
             className="w-full border rounded-md px-3 py-2"
           >
-            <option value="">Select Block</option>
+            <option value="">Select Block Name</option>
             {blocks.map((b) => (
               <option key={b.BlockId} value={b.BlockId}>
                 {b.BlockName}

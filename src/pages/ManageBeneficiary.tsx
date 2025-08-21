@@ -6,33 +6,6 @@ import { ToastContainer } from "react-toastify";
 import { useUserInfo } from "../utils/userInfo";
 
 /* --- API response shapes --- */
-interface DistrictApi {
-  DistrictId: number;
-  DistrictName: string;
-  DistrictNameHidi?: string;
-}
-
-interface BlockApi {
-  BlockId: number;
-  DistrictId: number;
-  BlockName: string;
-  BlockNameHindi?: string;
-  Code?: string;
-}
-
-interface GramPanchayatApi {
-  Id: number;
-  BlockId: number;
-  GramPanchayatName: string;
-  GramPanchayatHindi?: string;
-  Code?: string;
-}
-
-interface VillageApi {
-  Id: number;
-  VillageName: string;
-}
-
 interface BeneficiaryApi {
   BeneficiaryId: number;
   BeneficiaryName: string;
@@ -89,16 +62,6 @@ interface BeneficiaryState {
   gramPanchayatName: string;
 }
 
-interface LocationMapping {
-  villageName: string;
-  gramPanchayatId: number;
-  gramPanchayatName: string;
-  blockId: number;
-  blockName: string;
-  districtId: number;
-  districtName: string;
-}
-
 const ManageBeneficiary = () => {
   const { userId, role, isLoading: userLoading } = useUserInfo();
 
@@ -109,19 +72,18 @@ const ManageBeneficiary = () => {
   const [downloading, setDownloading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Location filters
-  const [districts, setDistricts] = useState<DistrictApi[]>([]);
-  const [selectedDistrictId, setSelectedDistrictId] = useState<number | null>(null);
-  const [blocks, setBlocks] = useState<BlockApi[]>([]);
-  const [selectedBlockId, setSelectedBlockId] = useState<number | null>(null);
-  const [gramPanchayats, setGramPanchayats] = useState<GramPanchayatApi[]>([]);
-  const [selectedGramPanchayatId, setSelectedGramPanchayatId] = useState<number | null>(null);
-  const [villages, setVillages] = useState<VillageApi[]>([]);
-  const [selectedVillageId, setSelectedVillageId] = useState<number | null>(null);
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+
+  // Client-side filters - no longer tied to API calls
+  const [selectedDistrict, setSelectedDistrict] = useState<string>("");
+  const [selectedBlock, setSelectedBlock] = useState<string>("");
+  const [selectedGramPanchayat, setSelectedGramPanchayat] = useState<string>("");
+  const [selectedVillage, setSelectedVillage] = useState<string>("");
   const [filterStatus, setFilterStatus] = useState("");
 
   const [beneficiaries, setBeneficiaries] = useState<BeneficiaryState[]>([]);
-  const [locationMap, setLocationMap] = useState<Record<number, LocationMapping>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editedBeneficiaries, setEditedBeneficiaries] = useState<Set<number>>(new Set());
@@ -131,42 +93,9 @@ const ManageBeneficiary = () => {
   // Initialize data fetching - only when userId is available
   useEffect(() => {
     if (!userLoading && userId) {
-      fetchDistricts();
-    }
-  }, [userId, userLoading]);
-
-  useEffect(() => {
-    if (selectedDistrictId && userId) {
-      fetchBlocks(selectedDistrictId);
-    } else {
-      setBlocks([]);
-      setSelectedBlockId(null);
-    }
-  }, [selectedDistrictId, userId]);
-
-  useEffect(() => {
-    if (selectedBlockId && userId) {
-      fetchGramPanchayats(selectedBlockId);
-    } else {
-      setGramPanchayats([]);
-      setSelectedGramPanchayatId(null);
-    }
-  }, [selectedBlockId, userId]);
-
-  useEffect(() => {
-    if (selectedBlockId && selectedGramPanchayatId && userId) {
-      fetchVillages(selectedBlockId, selectedGramPanchayatId);
-    } else {
-      setVillages([]);
-      setSelectedVillageId(null);
-    }
-  }, [selectedBlockId, selectedGramPanchayatId, userId]);
-
-  useEffect(() => {
-    if (userId) {
       fetchBeneficiaries();
     }
-  }, [selectedVillageId, filterStatus, userId]);
+  }, [userId, userLoading]);
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
@@ -179,172 +108,42 @@ const ManageBeneficiary = () => {
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [showModal]);
 
-  // Fetch districts
-  const fetchDistricts = async () => {
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, selectedDistrict, selectedBlock, selectedGramPanchayat, selectedVillage, filterStatus]);
+
+  // Fetch ALL beneficiaries at once
+  const fetchBeneficiaries = async () => {
     if (!userId) {
-      console.error("Cannot fetch districts: userId is null");
+      console.error("Cannot fetch beneficiaries: userId is null");
       return;
     }
 
-    try {
-      const res = await fetch(
-        `https://wmsapi.kdsgroup.co.in/api/Master/GetDistrict?UserId=${userId}`,
-        { method: "POST" }
-      );
-      if (!res.ok) throw new Error("Failed to fetch districts");
-      const data = await res.json();
-      if (data.Status && data.Data) {
-        setDistricts(data.Data);
-      }
-    } catch (err) {
-      console.error("Error fetching districts:", err);
-      toast.error("Failed to fetch districts");
-    }
-  };
-
-  // Fetch blocks
-  const fetchBlocks = async (districtId: number) => {
-    if (!userId) {
-      console.error("Cannot fetch blocks: userId is null");
-      return;
-    }
+    setLoading(true);
+    setError(null);
 
     try {
-      const res = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ UserId: userId, DistrictId: districtId }),
-        }
-      );
-      if (!res.ok) throw new Error("Failed to fetch blocks");
-      const data = await res.json();
-      if (data.Status && data.Data) {
-        setBlocks(data.Data);
-      } else {
-        setBlocks([]);
-      }
-    } catch (err) {
-      console.error("Error fetching blocks:", err);
-      toast.error("Failed to fetch blocks");
-      setBlocks([]);
-    }
-  };
+      // Force userId = 0 for Admin role to get all beneficiaries
+      const effectiveUserId = role === "Admin" ? 0 : userId;
+      console.log("Fetching all beneficiaries with userId:", effectiveUserId, "role:", role);
 
-  // Fetch gram panchayats
-  const fetchGramPanchayats = async (blockId: number) => {
-    if (!userId) {
-      console.error("Cannot fetch gram panchayats: userId is null");
-      return;
-    }
-
-    try {
       const res = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ UserId: userId, BlockId: blockId }),
-        }
-      );
-      if (!res.ok) throw new Error("Failed to fetch gram panchayats");
-      const data = await res.json();
-      if (data.Status && data.Data) {
-        setGramPanchayats(data.Data);
-      } else {
-        setGramPanchayats([]);
-      }
-    } catch (err) {
-      console.error("Error fetching gram panchayats:", err);
-      toast.error("Failed to fetch gram panchayats");
-      setGramPanchayats([]);
-    }
-  };
-
-  // Fetch villages
-  const fetchVillages = async (blockId: number, gramPanchayatId: number) => {
-    try {
-      const res = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/Master/GetVillegeByGramPanchayat",
+        "https://wmsapi.kdsgroup.co.in/api/Master/GetBeneficiaryListByUserIdVillageAndStatus",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            BlockId: blockId,
-            GramPanchayatId: gramPanchayatId,
+            userId: effectiveUserId,
+            VillageId: 0, // Get all villages
+            Status: 0, // Get all statuses (both active and inactive)
           }),
         }
       );
-      if (!res.ok) throw new Error("Failed to fetch villages");
+
+      if (!res.ok) throw new Error("Failed to fetch beneficiaries");
       const data = await res.json();
-      if (data.Status && data.Data) {
-        setVillages(data.Data);
-        
-        // Build location mapping for current villages
-        const currentDistrict = districts.find(d => d.DistrictId === selectedDistrictId);
-        const currentBlock = blocks.find(b => b.BlockId === selectedBlockId);
-        const currentGP = gramPanchayats.find(gp => gp.Id === selectedGramPanchayatId);
-        
-        if (currentDistrict && currentBlock && currentGP) {
-          const newLocationMap: Record<number, LocationMapping> = {};
-          data.Data.forEach((village: VillageApi) => {
-            newLocationMap[village.Id] = {
-              villageName: village.VillageName,
-              gramPanchayatId: currentGP.Id,
-              gramPanchayatName: currentGP.GramPanchayatName,
-              blockId: currentBlock.BlockId,
-              blockName: currentBlock.BlockName,
-              districtId: currentDistrict.DistrictId,
-              districtName: currentDistrict.DistrictName,
-            };
-          });
-          setLocationMap(prev => ({ ...prev, ...newLocationMap }));
-        }
-      } else {
-        setVillages([]);
-      }
-    } catch (err) {
-      console.error("Error fetching villages:", err);
-      toast.error("Failed to fetch villages");
-      setVillages([]);
-    }
-  };
-
-  // Fetch beneficiaries
-  // Fetch beneficiaries
-const fetchBeneficiaries = async () => {
-  if (!userId) {
-    console.error("Cannot fetch beneficiaries: userId is null");
-    return;
-  }
-
-  setLoading(true);
-  setError(null);
-
-  try {
-    const statusValue =
-      filterStatus === "Active" ? 1 : filterStatus === "Inactive" ? 0 : 0;
-
-    // 👇 Force userId = 0 for Admin role
-    const effectiveUserId = role === "Admin" ? 0 : userId;
-console.log("Fetching beneficiaries with userId:", effectiveUserId, "role:", role);
-    const res = await fetch(
-      "https://wmsapi.kdsgroup.co.in/api/Master/GetBeneficiaryListByUserIdVillageAndStatus",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: effectiveUserId,
-          VillageId: selectedVillageId || 0,
-          Status: statusValue,
-        }),
-      }
-    );
-
-    if (!res.ok) throw new Error("Failed to fetch beneficiaries");
-    const data = await res.json();
-    const benApiList = data.Data || [];
+      const benApiList = data.Data || [];
 
       const mapped = benApiList.map<BeneficiaryState>((b: BeneficiaryApi) => {
         const father = b.FatherOrHusbandName ?? b.FatherHusbandName ?? "";
@@ -390,6 +189,48 @@ console.log("Fetching beneficiaries with userId:", effectiveUserId, "role:", rol
     } finally {
       setLoading(false);
     }
+  };
+
+  // Get unique values for filter dropdowns from the fetched data
+  const getUniqueDistricts = () => {
+    const districts = beneficiaries
+      .filter(b => b.districtName)
+      .map(b => b.districtName)
+      .filter((value, index, self) => self.indexOf(value) === index)
+      .sort();
+    return districts;
+  };
+
+  const getUniqueBlocks = () => {
+    const blocks = beneficiaries
+      .filter(b => b.blockName && (!selectedDistrict || b.districtName === selectedDistrict))
+      .map(b => b.blockName)
+      .filter((value, index, self) => self.indexOf(value) === index)
+      .sort();
+    return blocks;
+  };
+
+  const getUniqueGramPanchayats = () => {
+    const gramPanchayats = beneficiaries
+      .filter(b => b.gramPanchayatName && 
+        (!selectedDistrict || b.districtName === selectedDistrict) &&
+        (!selectedBlock || b.blockName === selectedBlock))
+      .map(b => b.gramPanchayatName)
+      .filter((value, index, self) => self.indexOf(value) === index)
+      .sort();
+    return gramPanchayats;
+  };
+
+  const getUniqueVillages = () => {
+    const villages = beneficiaries
+      .filter(b => b.village && 
+        (!selectedDistrict || b.districtName === selectedDistrict) &&
+        (!selectedBlock || b.blockName === selectedBlock) &&
+        (!selectedGramPanchayat || b.gramPanchayatName === selectedGramPanchayat))
+      .map(b => b.village)
+      .filter((value, index, self) => self.indexOf(value) === index)
+      .sort();
+    return villages;
   };
 
   const handleEditToggle = () => {
@@ -532,79 +373,112 @@ console.log("Fetching beneficiaries with userId:", effectiveUserId, "role:", rol
   };
 
   const handleUpload = async () => {
-  if (!csvFile) {
-    toast.error("Please select a CSV file.");
-    return;
-  }
-
-  if (!userId) {
-    toast.error("User information not available");
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append("file", csvFile);
-
-  try {
-    const res = await fetch(
-      `https://wmsapi.kdsgroup.co.in/api/Master/ImportBeneficiaryCSV?userId=${userId}`,
-      {
-        method: "POST",
-        body: formData,
-      }
-    );
-    const json = await res.json();
-    if (json.Status) {
-      toast.success("Import successful");
-      setShowModal(false);
-      setCsvFile(null);
-      fetchBeneficiaries();
-    } else {
-      toast.error("Import error: " + (json.Message ?? "Unknown"));
+    if (!csvFile) {
+      toast.error("Please select a CSV file.");
+      return;
     }
-  } catch (err) {
-    console.error("Upload error", err);
-    toast.error("Upload failed. Please check console.");
-  }
-};
 
+    if (!userId) {
+      toast.error("User information not available");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", csvFile);
+
+    try {
+      const res = await fetch(
+        `https://wmsapi.kdsgroup.co.in/api/Master/ImportBeneficiaryCSV?userId=${userId}`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+      const json = await res.json();
+      if (json.Status) {
+        toast.success("Import successful");
+        setShowModal(false);
+        setCsvFile(null);
+        fetchBeneficiaries(); // Refresh all data
+      } else {
+        toast.error("Import error: " + (json.Message ?? "Unknown"));
+      }
+    } catch (err) {
+      console.error("Upload error", err);
+      toast.error("Upload failed. Please check console.");
+    }
+  };
 
   const clearFilters = () => {
-    setSelectedDistrictId(null);
-    setSelectedBlockId(null);
-    setSelectedGramPanchayatId(null);
-    setSelectedVillageId(null);
+    setSelectedDistrict("");
+    setSelectedBlock("");
+    setSelectedGramPanchayat("");
+    setSelectedVillage("");
     setFilterStatus("");
     setSearch("");
   };
 
   const getSelectedLocationName = () => {
-    if (selectedVillageId) {
-      const village = villages.find(v => v.Id === selectedVillageId);
-      return village?.VillageName || `Village ID: ${selectedVillageId}`;
-    }
-    if (selectedGramPanchayatId) {
-      const gp = gramPanchayats.find(gp => gp.Id === selectedGramPanchayatId);
-      return gp?.GramPanchayatName || "Selected Gram Panchayat";
-    }
-    if (selectedBlockId) {
-      const block = blocks.find(b => b.BlockId === selectedBlockId);
-      return block?.BlockName || "Selected Block";
-    }
-    if (selectedDistrictId) {
-      const district = districts.find(d => d.DistrictId === selectedDistrictId);
-      return district?.DistrictName || "Selected District";
-    }
+    if (selectedVillage) return selectedVillage;
+    if (selectedGramPanchayat) return selectedGramPanchayat;
+    if (selectedBlock) return selectedBlock;
+    if (selectedDistrict) return selectedDistrict;
     return "All Areas";
   };
 
-  /* --- derived/filter data --- */
+  // Client-side filtering of all beneficiaries
   const filteredData = beneficiaries.filter((b) => {
-    return (
-      b.name.toLowerCase().includes(search.toLowerCase()) &&
-      (filterStatus ? b.status === filterStatus : true)
-    );
+    const matchesSearch = b.name.toLowerCase().includes(search.toLowerCase());
+    const matchesDistrict = !selectedDistrict || b.districtName === selectedDistrict;
+    const matchesBlock = !selectedBlock || b.blockName === selectedBlock;
+    const matchesGramPanchayat = !selectedGramPanchayat || b.gramPanchayatName === selectedGramPanchayat;
+    const matchesVillage = !selectedVillage || b.village === selectedVillage;
+    const matchesStatus = !filterStatus || b.status === filterStatus;
+
+    return matchesSearch && matchesDistrict && matchesBlock && matchesGramPanchayat && matchesVillage && matchesStatus;
   });
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const paginatedData = filteredData.slice(startIndex, endIndex);
+
+  // Pagination controls
+  const handleRowsPerPageChange = (newRowsPerPage: number) => {
+    setRowsPerPage(newRowsPerPage);
+    setCurrentPage(1); // Reset to first page
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const getVisiblePageNumbers = () => {
+    const delta = 2;
+    const range = [];
+    const rangeWithDots = [];
+
+    for (let i = Math.max(2, currentPage - delta); i <= Math.min(totalPages - 1, currentPage + delta); i++) {
+      range.push(i);
+    }
+
+    if (currentPage - delta > 2) {
+      rangeWithDots.push(1, '...');
+    } else {
+      rangeWithDots.push(1);
+    }
+
+    rangeWithDots.push(...range);
+
+    if (currentPage + delta < totalPages - 1) {
+      rangeWithDots.push('...', totalPages);
+    } else if (totalPages > 1) {
+      rangeWithDots.push(totalPages);
+    }
+
+    return rangeWithDots;
+  };
 
   // Show loading state while user info is being fetched
   if (userLoading) {
@@ -653,37 +527,52 @@ console.log("Fetching beneficiaries with userId:", effectiveUserId, "role:", rol
           </div>
         )}
 
-        {/* Location Filters */}
+        {/* Location Filters - Now client-side only */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
           <div>
             <label className="block text-sm font-medium mb-1">District</label>
             <select
-              value={selectedDistrictId || ""}
-              onChange={(e) => setSelectedDistrictId(Number(e.target.value) || null)}
+              value={selectedDistrict}
+              onChange={(e) => {
+                setSelectedDistrict(e.target.value);
+                // Reset dependent filters when district changes
+                if (e.target.value !== selectedDistrict) {
+                  setSelectedBlock("");
+                  setSelectedGramPanchayat("");
+                  setSelectedVillage("");
+                }
+              }}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading || !userId}
+              disabled={loading}
             >
-              <option value="">Select District</option>
-              {districts.map((d) => (
-                <option key={d.DistrictId} value={d.DistrictId}>
-                  {d.DistrictName}
+              <option value="">All Districts</option>
+              {getUniqueDistricts().map((district) => (
+                <option key={district} value={district}>
+                  {district}
                 </option>
               ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Block</label>
+            <label className="block text-sm font-medium mb-1">Select Block</label>
             <select
-              value={selectedBlockId || ""}
-              onChange={(e) => setSelectedBlockId(Number(e.target.value) || null)}
+              value={selectedBlock}
+              onChange={(e) => {
+                setSelectedBlock(e.target.value);
+                // Reset dependent filters when block changes
+                if (e.target.value !== selectedBlock) {
+                  setSelectedGramPanchayat("");
+                  setSelectedVillage("");
+                }
+              }}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading || !selectedDistrictId || !userId}
+              disabled={loading}
             >
-              <option value="">Select Block</option>
-              {blocks.map((b) => (
-                <option key={b.BlockId} value={b.BlockId}>
-                  {b.BlockName}
+              <option value="">All Block</option>
+              {getUniqueBlocks().map((block) => (
+                <option key={block} value={block}>
+                  {block}
                 </option>
               ))}
             </select>
@@ -692,15 +581,21 @@ console.log("Fetching beneficiaries with userId:", effectiveUserId, "role:", rol
           <div>
             <label className="block text-sm font-medium mb-1">Gram Panchayat</label>
             <select
-              value={selectedGramPanchayatId || ""}
-              onChange={(e) => setSelectedGramPanchayatId(Number(e.target.value) || null)}
+              value={selectedGramPanchayat}
+              onChange={(e) => {
+                setSelectedGramPanchayat(e.target.value);
+                // Reset village filter when gram panchayat changes
+                if (e.target.value !== selectedGramPanchayat) {
+                  setSelectedVillage("");
+                }
+              }}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading || !selectedBlockId || !userId}
+              disabled={loading}
             >
-              <option value="">Select Gram Panchayat</option>
-              {gramPanchayats.map((gp) => (
-                <option key={gp.Id} value={gp.Id}>
-                  {gp.GramPanchayatName}
+              <option value="">All Gram Panchayats</option>
+              {getUniqueGramPanchayats().map((gp) => (
+                <option key={gp} value={gp}>
+                  {gp}
                 </option>
               ))}
             </select>
@@ -709,15 +604,15 @@ console.log("Fetching beneficiaries with userId:", effectiveUserId, "role:", rol
           <div>
             <label className="block text-sm font-medium mb-1">Village</label>
             <select
-              value={selectedVillageId || ""}
-              onChange={(e) => setSelectedVillageId(Number(e.target.value) || null)}
+              value={selectedVillage}
+              onChange={(e) => setSelectedVillage(e.target.value)}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading || !selectedGramPanchayatId || !userId}
+              disabled={loading}
             >
               <option value="">All Villages</option>
-              {villages.map((v) => (
-                <option key={v.Id} value={v.Id}>
-                  {v.VillageName}
+              {getUniqueVillages().map((village) => (
+                <option key={village} value={village}>
+                  {village}
                 </option>
               ))}
             </select>
@@ -729,7 +624,7 @@ console.log("Fetching beneficiaries with userId:", effectiveUserId, "role:", rol
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading || !userId}
+              disabled={loading}
             >
               <option value="">All Status</option>
               <option value="Active">Active</option>
@@ -813,7 +708,8 @@ console.log("Fetching beneficiaries with userId:", effectiveUserId, "role:", rol
       <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
         <div className="flex flex-wrap gap-4 text-sm text-gray-600">
           <span>Location: <strong>{getSelectedLocationName()}</strong></span>
-          <span>Showing <strong>{filteredData.length}</strong> of <strong>{beneficiaries.length}</strong> beneficiaries</span>
+          <span>Showing <strong>{startIndex + 1}-{Math.min(endIndex, filteredData.length)}</strong> of <strong>{filteredData.length}</strong> beneficiaries</span>
+          <span>Total records: <strong>{beneficiaries.length}</strong></span>
           {editedBeneficiaries.size > 0 && (
             <span className="text-orange-600">
               <strong>{editedBeneficiaries.size}</strong> records modified
@@ -826,71 +722,131 @@ console.log("Fetching beneficiaries with userId:", effectiveUserId, "role:", rol
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         
         {/* Quick Stats Cards */}
-      {beneficiaries.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-100 p-2 rounded-lg">
-                <span className="text-2xl">👥</span>
+        {beneficiaries.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6 px-6">
+            <div className="bg-white rounded-lg shadow-sm p-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-100 p-2 rounded-lg">
+                  <span className="text-2xl">👥</span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Total Beneficiaries</p>
+                  <p className="text-xl font-bold text-gray-800">{filteredData.length}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-600">Total Beneficiaries</p>
-                <p className="text-xl font-bold text-gray-800">{beneficiaries.length}</p>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-green-100 p-2 rounded-lg">
+                  <span className="text-2xl">✅</span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Active</p>
+                  <p className="text-xl font-bold text-green-600">
+                    {filteredData.filter(b => b.status === 'Active').length}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-red-100 p-2 rounded-lg">
+                  <span className="text-2xl">❌</span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Inactive</p>
+                  <p className="text-xl font-bold text-red-600">
+                    {filteredData.filter(b => b.status === 'Inactive').length}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-purple-100 p-2 rounded-lg">
+                  <span className="text-2xl">👨‍👩‍👧‍👦</span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Total Family Members</p>
+                  <p className="text-xl font-bold text-purple-600">
+                    {filteredData.reduce((sum, b) => sum + b.familyCount, 0)}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
+        )}
 
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-green-100 p-2 rounded-lg">
-                <span className="text-2xl">✅</span>
+        {/* Pagination Controls - Top */}
+        {filteredData.length > 0 && (
+          <div className="flex flex-col sm:flex-row justify-between items-center px-6 py-4 border-b border-gray-200 gap-4">
+            <div className="flex items-center gap-4">
+              <label className="text-sm font-medium text-gray-700">
+                Rows per page:
+              </label>
+              <select
+                value={rowsPerPage}
+                onChange={(e) => handleRowsPerPageChange(Number(e.target.value))}
+                className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={250}>250</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+
+              <div className="flex items-center gap-1">
+                {getVisiblePageNumbers().map((page, index) => (
+                  <span key={index}>
+                    {page === '...' ? (
+                      <span className="px-3 py-1 text-sm text-gray-500">...</span>
+                    ) : (
+                      <button
+                        onClick={() => handlePageChange(page as number)}
+                        className={`px-3 py-1 border rounded-md text-sm ${
+                          currentPage === page
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    )}
+                  </span>
+                ))}
               </div>
-              <div>
-                <p className="text-sm text-gray-600">Active</p>
-                <p className="text-xl font-bold text-green-600">
-                  {beneficiaries.filter(b => b.status === 'Active').length}
-                </p>
-              </div>
+
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
             </div>
           </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-red-100 p-2 rounded-lg">
-                <span className="text-2xl">❌</span>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Inactive</p>
-                <p className="text-xl font-bold text-red-600">
-                  {beneficiaries.filter(b => b.status === 'Inactive').length}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-purple-100 p-2 rounded-lg">
-                <span className="text-2xl">👨‍👩‍👧‍👦</span>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Total Family Members</p>
-                <p className="text-xl font-bold text-purple-600">
-                  {beneficiaries.reduce((sum, b) => sum + b.familyCount, 0)}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-blue-600 text-white">
                 <th className="border border-gray-300 p-3 text-left font-medium">District</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Block</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Block Name</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">Gram Panchayat</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">Village</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">Beneficiary Name</th>
@@ -901,7 +857,7 @@ console.log("Fetching beneficiaries with userId:", effectiveUserId, "role:", rol
               </tr>
             </thead>
             <tbody>
-              {filteredData.map((b, index) => {
+              {paginatedData.map((b, index) => {
                 const isEdited = editedBeneficiaries.has(b.BeneficiaryId);
                 
                 return (
@@ -994,6 +950,70 @@ console.log("Fetching beneficiaries with userId:", effectiveUserId, "role:", rol
           </table>
         </div>
 
+        {/* Pagination Controls - Bottom */}
+        {filteredData.length > 0 && totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row justify-between items-center px-6 py-4 border-t border-gray-200 gap-4">
+            <div className="text-sm text-gray-600">
+              Showing {startIndex + 1} to {Math.min(endIndex, filteredData.length)} of {filteredData.length} entries
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handlePageChange(1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                First
+              </button>
+
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+
+              <div className="flex items-center gap-1">
+                {getVisiblePageNumbers().map((page, index) => (
+                  <span key={index}>
+                    {page === '...' ? (
+                      <span className="px-3 py-1 text-sm text-gray-500">...</span>
+                    ) : (
+                      <button
+                        onClick={() => handlePageChange(page as number)}
+                        className={`px-3 py-1 border rounded-md text-sm ${
+                          currentPage === page
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+
+              <button
+                onClick={() => handlePageChange(totalPages)}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Last
+              </button>
+            </div>
+          </div>
+        )}
+
         {filteredData.length === 0 && !loading && (
           <div className="text-center py-12 text-gray-500">
             <div className="text-4xl mb-4">📋</div>
@@ -1062,8 +1082,7 @@ console.log("Fetching beneficiaries with userId:", effectiveUserId, "role:", rol
           </div>
         </div>
       )}
-
-          </div>
+    </div>
   );
 };
 

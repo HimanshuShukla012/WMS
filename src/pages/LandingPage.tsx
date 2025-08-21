@@ -10,43 +10,43 @@ import { Map, Layers, Building2, PhoneCall,
 
 const stages = [
   {
-    title: "चरण 1",
-    desc: "लाभार्थी द्वारा कॉल सेंटर या निकटतम ग्राम पंचायत सचिवालय जाकर शिकायत दर्ज करना।",
+    title: "Stage 1",
+    desc: "Beneficiary registers complaint by calling the call center or visiting the nearest gram panchayat secretariat.",
     icon: <PhoneCall size={28} />,
     colorFrom: "from-indigo-500",
     colorTo: "to-purple-600",
   },
   {
-    title: "चरण 2",
-    desc: "शिकायत जल निगम को अग्रसारित करना।",
+    title: "Stage 2",
+    desc: "Complaint is forwarded to the water corporation.",
     icon: <Send size={28} />,
     colorFrom: "from-blue-500",
     colorTo: "to-cyan-500",
   },
   {
-    title: "चरण 3",
-    desc: "जल निगम द्वारा शिकायत निराकरण के उपरांत पोर्टल पर अपडेट करना।",
+    title: "Stage 3",
+    desc: "Water corporation updates the portal after resolving the complaint.",
     icon: <Wrench size={28} />,
     colorFrom: "from-green-500",
     colorTo: "to-emerald-500",
   },
   {
-    title: "चरण 4",
-    desc: "ग्राम पंचायत द्वारा पूर्ण किए गए कार्य की पुष्टि किया जाना।",
+    title: "Stage 4",
+    desc: "Gram panchayat confirms the completion of the work done.",
     icon: <CheckCircle2 size={28} />,
     colorFrom: "from-yellow-500",
     colorTo: "to-orange-500",
   },
   {
-    title: "चरण 5",
-    desc: "कॉल सेंटर द्वारा लाभार्थी से कार्य समापन की पुष्टि करना।",
+    title: "Stage 5",
+    desc: "Call center confirms work completion with the beneficiary.",
     icon: <UserCheck size={28} />,
     colorFrom: "from-pink-500",
     colorTo: "to-rose-500",
   },
   {
-    title: "चरण 6",
-    desc: "अंततः कॉल सेंटर द्वारा शिकायत की स्थिति को 'बंद' के रूप में चिह्नित करना।",
+    title: "Stage 6",
+    desc: "Finally, call center marks the complaint status as 'closed'.",
     icon: <Archive size={28} />,
     colorFrom: "from-slate-500",
     colorTo: "to-gray-600",
@@ -55,32 +55,38 @@ const stages = [
 
 const dignitaries = [
   {
-    name: "माननीय मुख्यमंत्री उ०प्र०",
-    designation: "योगी आदित्यनाथ",
+    name: "Honorable Chief Minister U.P.",
+    designation: "Yogi Adityanath",
     image: "CM-Yogi.png",
   },
   {
-    name: "माननीय मंत्री पंचायती राज विभाग",
-    designation: "श्री ओम प्रकाश राजभर",
+    name: "Honorable Minister Panchayati Raj U.P.",
+    designation: "Shri Om Prakash Rajbhar",
     image: "Minister-PRD.png",
   },
   {
-    name: "प्रमुख सचिव पंचायती राज विभाग",
-    designation: "श्री अनिल कुमार (आई०ए०एस०)",
+    name: "Principal Secretary Panchayati Raj U.P.",
+    designation: "Shri Anil Kumar (I.A.S.)",
     image: "ps.png",
   },
   {
-    name: "निदेशक पंचायती राज, उत्तर प्रदेश",
-    designation: "श्री अमित कुमार सिंह (आई०ए०एस०)",
+    name: "Director Panchayati Raj U.P.",
+    designation: "Shri Amit Kumar Singh (I.A.S.)",
     image: "director.png",
   },
+  {
+    name: "Deputy Director Panchayati Raj U.P.",
+    designation: "Shri Raghvendra Kumar Dwivedi",
+    image: "ddsir.png",
+  },
+  
 ];
 
 const stats = [
   {
-    label: "जनपद (Districts)",
+    label: "Districts",
     value: "75",
-    description: "उत्तर प्रदेश के सभी जिलों में कार्य का विस्तार",
+    description: "Work expansion across all districts of Uttar Pradesh",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0-3.866-1.343-7-3-7s-3 3.134-3 7c0 3.866 1.343 7 3 7s3-3.134 3-7z" />
@@ -89,9 +95,9 @@ const stats = [
     ),
   },
   {
-    label: "ब्लॉक पंचायतें",
+    label: "Block Panchayats",
     value: "826",
-    description: "प्रत्येक ब्लॉक में जल प्रबंधन की निगरानी",
+    description: "Water management monitoring in every block",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M9 21V3m6 18V3" />
@@ -99,9 +105,9 @@ const stats = [
     ),
   },
   {
-    label: "ग्राम पंचायतें",
+    label: "Gram Panchayats",
     value: "57,695",
-    description: "हर पंचायत तक पानी पहुंचाने का लक्ष्य",
+    description: "Goal to deliver water to every panchayat",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
@@ -109,9 +115,9 @@ const stats = [
     ),
   },
   {
-    label: "राजस्व ग्राम",
+    label: "Revenue Villages",
     value: "1,08,935",
-    description: "सभी राजस्व ग्रामों में प्रस्तावित जल सेवा की उपलब्धता",
+    description: "Proposed water service availability in all revenue villages",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6l4 2" />
@@ -142,10 +148,10 @@ const LandingPage = () => {
         
         <div className="relative z-10 flex flex-col items-center justify-center h-full text-center px-6">
           <h1 className="text-5xl md:text-7xl font-extrabold leading-tight drop-shadow-xl">
-            एकीकृत जल प्रबंधन प्रणाली (IWMS)
+             Water Management System (WMS)
           </h1>
           <p className="text-xl md:text-2xl mt-4 max-w-2xl text-gray-200 drop-shadow-lg">
-            उत्तर प्रदेश की ग्रामीण जल आपूर्ति कार्य की निगरानी हेतु डिजिटल समाधान
+            Digital solution for monitoring rural water supply operations in Uttar Pradesh
           </p>
         </div>
       </div>
@@ -153,9 +159,9 @@ const LandingPage = () => {
       {/* Dignitaries */}
 <section className="py-20 text-center bg-gradient-to-br from-[#0a2540] via-[#103c63] to-[#144e77]">
         <h2 className="text-4xl font-bold mb-16 text-white tracking-wide">
-          सम्माननीय जनप्रतिनिधि
+          Honorable Representatives
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-10 px-8 md:px-20">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-10 px-8 md:px-20">
           {dignitaries.map((person, idx) => (
             <div
               key={idx}
@@ -181,19 +187,19 @@ const LandingPage = () => {
     {/* Left Column */}
     <div className="flex flex-col leading-tight justify-center">
       <h2 className="text-4xl leading-tight font-extrabold bg-gradient-to-r from-blue-900 to-purple-700 bg-clip-text text-transparent tracking-tight mb-4">
-        क्यों ज़रूरी है जल प्रबंधन का यह कार्य?
+        Why is this Water Management Project Essential?
       </h2>
       <h3 className="text-2xl text-blue-700 font-semibold mb-6">
-        ग्रामीण उत्तर प्रदेश में जल आपूर्ति का डिजिटल रूपांतरण
+        Digital Transformation of Water Supply in Rural Uttar Pradesh
       </h3>
       <p className="text-lg text-gray-900 leading-relaxed">
-        जल ही जीवन है — और इसी जीवन को संरक्षित व सुव्यवस्थित करने हेतु पंचायती राज विभाग उत्तर प्रदेश ने 
-        एकीकृत जल प्रबंधन प्रणाली (IWMS) की शुरुआत की है। यह कार्य केवल पाइपलाइन और 
-        पंप हाउस तक सीमित नहीं है; यह एक डिजिटल प्लेटफ़ॉर्म है जो ग्राम पंचायत स्तर पर जल 
-        आपूर्ति की हर प्रक्रिया को सशक्त, पारदर्शी और उत्तरदायी बनाता है। <br /><br />
-        प्रणाली रियल टाइम मॉनिटरिंग, नागरिक शिकायत निवारण, जल कर संग्रहण, पंप संचालन और 
-        रिपोर्टिंग जैसे प्रमुख पहलुओं को एकीकृत करती है। इससे न केवल प्रशासनिक दक्षता बढ़ती है, 
-        बल्कि नागरिकों को निर्बाध और समय पर जल सेवा प्राप्त होती है। यह कार्य उत्तर प्रदेश के ग्रामीण क्षेत्रों की बुनियादी ज़रूरतों को तकनीक से जोड़ते हुए जल प्रबंधन के भविष्य की नींव रखती है।
+        Water is life — and to preserve and organize this life, the Panchayati Raj Department of Uttar Pradesh has launched 
+        the Water Management System (WMS). This initiative is not limited to pipelines and 
+        pump houses; it is a digital platform that makes every water supply process at the gram panchayat level 
+        empowered, transparent, and accountable. <br /><br />
+        The system integrates key aspects such as real-time monitoring, citizen complaint resolution, water tax collection, pump operation, and 
+        reporting. This not only increases administrative efficiency, 
+        but also provides citizens with seamless and timely water services. This project lays the foundation for the future of water management by connecting the basic needs of rural areas of Uttar Pradesh with technology.
       </p>
     </div>
 
@@ -214,7 +220,7 @@ const LandingPage = () => {
 
   <h2 className="text-5xl leading-tight font-extrabold text-center mb-20 z-10 relative text-blue-200">
     <span className="inline-block bg-clip-text text-white">
-      सांख्यिकीय अवलोकन
+      Statistical Overview
     </span>
   </h2>
 
@@ -244,7 +250,7 @@ const LandingPage = () => {
       {/* Project Objective - Bento Style */}
 <section className="bg-white py-24 px-6 md:px-24 text-gray-900">
   <h2 className="text-4xl font-extrabold text-center mb-16 tracking-tight text-gray-900">
-    कार्य का उद्देश्य
+    Project Objectives
   </h2>
 
   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -253,9 +259,9 @@ const LandingPage = () => {
       <div className="w-12 h-12 flex items-center justify-center rounded-full bg-blue-600 text-white mb-4">
         <Map size={20} />
       </div>
-      <h3 className="text-xl font-semibold mb-2">जल आपूर्ति की सुव्यवस्थित निगरानी </h3>
+      <h3 className="text-xl font-semibold mb-2">Systematic Water Supply Monitoring</h3>
       <p className="text-gray-700 text-base leading-relaxed">
-        ग्रामीण क्षेत्रों में जल की आपूर्ति को सुचारु व तकनीकी रूप से सक्षम बनाना।
+        Making water supply in rural areas smooth and technically efficient.
       </p>
     </div>
 
@@ -264,9 +270,9 @@ const LandingPage = () => {
       <div className="w-12 h-12 flex items-center justify-center rounded-full bg-purple-600 text-white mb-4">
         <Building2 size={20} />
       </div>
-      <h3 className="text-xl font-semibold mb-2">शिकायत निवारण प्रबंधन </h3>
+      <h3 className="text-xl font-semibold mb-2">Complaint Resolution Management</h3>
       <p className="text-gray-700 text-base leading-relaxed">
-        नागरिकों की शिकायतों का त्वरित समाधान एक प्लेटफ़ॉर्म पर।
+        Quick resolution of citizens' complaints on one platform.
       </p>
     </div>
 
@@ -275,9 +281,9 @@ const LandingPage = () => {
       <div className="w-12 h-12 flex items-center justify-center rounded-full bg-green-600 text-white mb-4">
         <Layers size={20} />
       </div>
-      <h3 className="text-xl font-semibold mb-2">जल कर संग्रहण</h3>
+      <h3 className="text-xl font-semibold mb-2">Water Tax Collection</h3>
       <p className="text-gray-700 text-base leading-relaxed">
-        पारदर्शी और कुशल रूप से जल कर का संग्रहण।
+        Transparent and efficient water tax collection.
       </p>
     </div>
 
@@ -289,9 +295,9 @@ const LandingPage = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7h4a4 4 0 010 8h-1a4 4 0 00-4-4v-2a4 4 0 014-4z" />
         </svg>
       </div>
-      <h3 className="text-xl font-semibold mb-2">वाटर सप्लाई रोस्टर एवं पंप संचालन की निगरानी</h3>
+      <h3 className="text-xl font-semibold mb-2">Water Supply Roster & Pump Operation Monitoring</h3>
       <p className="text-gray-700 text-base leading-relaxed">
-        जलापूर्ति का रोस्टर तैयार कर पंप हाउस संचालन की वास्तविक समय में निगरानी।
+        Preparing water supply rosters and real-time monitoring of pump house operations.
       </p>
     </div>
 
@@ -302,9 +308,9 @@ const LandingPage = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6m4 0h2m-2 0v-2a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m-4 0H5m4 0v-2a2 2 0 00-2-2H3a2 2 0 00-2 2v2" />
         </svg>
       </div>
-      <h3 className="text-xl font-semibold mb-2">रियल टाइम MIS रिपोर्टिंग</h3>
+      <h3 className="text-xl font-semibold mb-2">Real-Time MIS Reporting</h3>
       <p className="text-gray-700 text-base leading-relaxed">
-        रिपोर्टिंग और डैशबोर्ड के माध्यम से निगरानी और मूल्यांकन।
+        Monitoring and evaluation through reporting and dashboard.
       </p>
     </div>
 
@@ -316,9 +322,9 @@ const LandingPage = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h16v16H4z" />
         </svg>
       </div>
-      <h3 className="text-xl font-semibold mb-2">VWSC का सशक्तिकरण</h3>
+      <h3 className="text-xl font-semibold mb-2">VWSC Empowerment</h3>
       <p className="text-gray-700 text-base leading-relaxed">
-        VWSC के माध्यम से जलापूर्ति योजनायों का सुचारू रूप से रख-रखाव का कार्य।
+        Smooth maintenance of water supply schemes through VWSC.
       </p>
     </div>
   </div>
@@ -330,10 +336,10 @@ const LandingPage = () => {
 
   <div className="relative z-10 text-center mb-20">
     <h2 className="text-5xl font-extrabold mb-6 tracking-tight text-white drop-shadow-xl">
-      शिकायत दर्ज करने की प्रक्रिया
+      Complaint Registration Process
     </h2>
     <p className="text-lg text-blue-100 max-w-3xl mx-auto font-medium">
-      जल संबंधित समस्याओं के समाधान हेतु पारदर्शी और चरणबद्ध प्रक्रिया
+      Transparent and step-by-step process for resolving water-related problems
     </p>
   </div>
 

@@ -58,7 +58,7 @@ type APIPayload = {
 
 // ---------- Component ----------
 const FeeCollectionPage: React.FC = () => {
-  const { userId } = useUserInfo();
+  const { userId, role, loading: userLoading, error: userError } = useUserInfo();
 
   // ---------- State ----------
   const [villages, setVillages] = useState<Village[]>([]);
@@ -77,15 +77,26 @@ const FeeCollectionPage: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
 
-  const [apiConfig] = useState({
-    uploadBy: userId ? parseInt(userId) : 0,
-    createdBy: userId ? parseInt(userId) : 0,
+  const [apiConfig, setApiConfig] = useState({
+    uploadBy: 0,
+    createdBy: 0,
     fileName: "fee_collection_data",
     logBookRemark: "Fee collection entry",
     deviceToken: "device_token_123",
     ipAddress: "192.168.1.1",
     imagePath: ""
   });
+
+  // Update apiConfig when userId changes
+  useEffect(() => {
+    if (userId) {
+      setApiConfig(prev => ({
+        ...prev,
+        uploadBy: userId,
+        createdBy: userId
+      }));
+    }
+  }, [userId]);
 
   // ---------- API Functions ----------
   const fetchVillages = async () => {
@@ -150,13 +161,12 @@ const FeeCollectionPage: React.FC = () => {
 
   // ---------- Effects ----------
   useEffect(() => {
-    if (userId) {
+    // Only fetch data when user loading is complete and userId exists
+    if (!userLoading && userId) {
       fetchVillages();
       fetchBeneficiaries();
-    } else {
-      setError("User ID not found");
     }
-  }, [userId]);
+  }, [userId, userLoading]);
 
   useEffect(() => {
     if (filters.villageId && beneficiaries.length > 0) {
@@ -171,7 +181,7 @@ const FeeCollectionPage: React.FC = () => {
         beneficiary_Father: beneficiary.FatherHusbandName,
         amountPaid: 0,
         previousbalance: beneficiary.PreviousBalance,
-        baseFee: beneficiary.BaseFee || 0, // Use API data or fallback to 100
+        baseFee: beneficiary.BaseFee || 0,
         villId: beneficiary.VillageId,
         beneficiaryId: beneficiary.BeneficiaryId,
         paymentMode: "Cash",
@@ -293,9 +303,7 @@ const FeeCollectionPage: React.FC = () => {
 
       if (allSuccess) {
         setSaveMessage("✅ All entries saved successfully!");
-        // Reset amount paid to 0 after successful save
         setEntries(prev => prev.map(entry => ({ ...entry, amountPaid: 0 })));
-        // Refresh beneficiary data to get updated balances
         await fetchBeneficiaries();
       } else {
         setSaveMessage("⚠️ Some entries failed to save. Check console for details.");
@@ -371,11 +379,24 @@ const FeeCollectionPage: React.FC = () => {
   };
 
   // ---------- Render ----------
-  if (!userId) {
+  
+  // Show loading spinner while checking user info
+  if (userLoading) {
+    return (
+      <div className="p-6 relative z-10">
+        <div className="bg-blue-100 text-blue-700 p-3 rounded">
+          Loading user information...
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if user info couldn't be loaded or no userId
+  if (userError || !userId) {
     return (
       <div className="p-6 relative z-10">
         <div className="bg-red-100 text-red-700 p-3 rounded">
-          User ID not found. Please login again.
+          {userError || "User ID not found. Please login again."}
         </div>
       </div>
     );
@@ -398,6 +419,11 @@ const FeeCollectionPage: React.FC = () => {
           Loading data...
         </div>
       )}
+
+      {/* User Info Debug (remove in production) */}
+      <div className="mb-4 p-3 rounded bg-gray-100 text-gray-700 text-sm">
+        User ID: {userId} | Role: {role}
+      </div>
 
       {/* Filters & Buttons */}
       <div className="flex flex-wrap gap-4 mb-6">

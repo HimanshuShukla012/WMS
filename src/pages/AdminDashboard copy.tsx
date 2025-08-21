@@ -92,10 +92,6 @@ interface OHTData {
   NoOfPumps: number;
 }
 
-interface OHTCountData {
-  TotalOHTCount: number;
-}
-
 interface ComplaintData {
   ComplaintID: number;
   District: string;
@@ -136,14 +132,12 @@ interface ApiResponse<T> {
   Status: boolean;
 }
 
-export default function EnhancedGPDashboard() {
+export default function AdminDashboard() {
   // Get userId from the authentication hook
   const { userId, role, isLoading: userLoading } = useUserInfo();
   
   // Real API Data States
   const [pumpHouses, setPumpHouses] = useState<PumpHouseData[]>([]);
-  const [ohtData, setOHTData] = useState<OHTData[]>([]);
-  const [ohtCount, setOHTCount] = useState<number>(0);
   const [complaints, setComplaints] = useState<ComplaintData[]>([]);
   const [feeData, setFeeData] = useState<FeeCollectionData[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
@@ -154,7 +148,10 @@ export default function EnhancedGPDashboard() {
   const [totalPendingComplaints, setTotalPendingComplaints] = useState(0);
   const [complaintStatusData, setComplaintStatusData] = useState([]);
   const [waterConnectionData, setWaterConnectionData] = useState([]);
-  const [villageFeeData, setVillageFeeData] = useState([]);
+const [villageFeeData, setVillageFeeData] = useState<{ villages: any[]; totalCollected: number }>({
+  villages: [],
+  totalCollected: 0,
+});
   
   // Loading states
   const [isLoading, setIsLoading] = useState({
@@ -174,6 +171,14 @@ export default function EnhancedGPDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear] = useState(new Date().getFullYear());
+  const [pumpHouseCount, setPumpHouseCount] = useState(0);
+const [ohtCount, setOHTCount] = useState(0);
+const [ohtData, setOhtData] = useState<OHTData[]>([]);
+// --- Add state at top ---
+const [totalVillageCount, setTotalVillageCount] = useState(0);
+
+
+
 
   // Time update effect
   useEffect(() => {
@@ -182,6 +187,69 @@ export default function EnhancedGPDashboard() {
     }, 1000);
     return () => clearInterval(interval);
   }, []);
+
+const fetchPumpHouseCount = async () => {
+  setIsLoading(prev => ({ ...prev, pumps: true }));
+  try {
+    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalActivePumphouseCountforAdmin", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "*/*",
+      },
+      body: JSON.stringify({ InputType: "string" })
+    });
+
+    if (!res.ok) throw new Error("Network error");
+
+    const data = await res.json();
+    console.log("Pump House Count API response:", data);
+
+    if (data?.Status && data?.Data?.TotalActivePumphouseCount !== undefined) {
+  setPumpHouseCount(Number(data.Data.TotalActivePumphouseCount) || 0);
+} else {
+  setPumpHouseCount(0);
+}
+
+  } catch (error) {
+    console.error("Error fetching pump house count:", error);
+    setPumpHouseCount(0);
+  } finally {
+    setIsLoading(prev => ({ ...prev, pumps: false }));
+  }
+};
+
+const fetchOHTCount = async () => {
+  setIsLoading(prev => ({ ...prev, ohts: true }));
+  try {
+    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalOverHeadTankCountforAdmin", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "*/*",
+      },
+      body: JSON.stringify({ InputType: "string" }),
+    });
+
+    if (!res.ok) throw new Error("Network error");
+    const data = await res.json();
+    console.log("OHT Count API response:", data);
+
+    if (data?.Status && data?.Data?.TotalOverHeadTankCount !== undefined) {
+      setOHTCount(Number(data.Data.TotalOverHeadTankCount) || 0);
+    } else {
+      setOHTCount(0);
+    }
+  } catch (err) {
+    console.error("Error fetching OHT count:", err);
+    setOHTCount(0);
+  } finally {
+    setIsLoading(prev => ({ ...prev, ohts: false }));
+  }
+};
+
+
+
 
   // Real API Functions
   const fetchPumpHouses = async (currentUserId: number) => {
@@ -203,6 +271,36 @@ export default function EnhancedGPDashboard() {
     }
   };
 
+
+// --- New API function ---
+const fetchTotalVillageCount = async (currentUserId: number) => {
+  setIsLoading(prev => ({ ...prev, villages: true }));
+  try {
+    const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalVillageCountforAdmin?UserId=${currentUserId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "*/*"
+      }
+    });
+    const data = await res.json();
+    console.log("Village Count API response:", data);
+
+    if (data?.Status && data?.Data?.TotalVillageCount !== undefined) {
+      setTotalVillageCount(Number(data.Data.TotalVillageCount) || 0);
+    } else {
+      setTotalVillageCount(0);
+    }
+  } catch (error) {
+    console.error("Error fetching total village count:", error);
+    setTotalVillageCount(0);
+  } finally {
+    setIsLoading(prev => ({ ...prev, villages: false }));
+  }
+};
+
+
+
   const fetchVillages = async (currentUserId: number) => {
     setIsLoading(prev => ({ ...prev, villages: true }));
     try {
@@ -211,10 +309,10 @@ export default function EnhancedGPDashboard() {
       
       if (data.Status && Array.isArray(data.Data)) {
         setVillages(data.Data);
-        // Fetch dependent data - only fee data now since OHT uses count API
-        await Promise.all(data.Data.slice(0, 5).map(async (village) => {
-          await fetchFeeData(village.VillageId);
-        }));
+        // Fetch dependent data
+        await Promise.all(
+  data.Data.slice(0, 5).map(village => fetchFeeData(village.VillageId))
+);
       } else {
         setVillages([]);
       }
@@ -226,39 +324,32 @@ export default function EnhancedGPDashboard() {
     }
   };
 
-  // NEW: Fetch OHT Count using the new API
-  const fetchOHTCount = async (currentUserId: number) => {
-    setIsLoading(prev => ({ ...prev, ohts: true }));
-    try {
-      // Use VillageId=0 to get total count for all villages under the user
-      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetOHTCountByVillage?VillageId=0&UserId=${currentUserId}`);
-      const data: ApiResponse<OHTCountData> = await response.json();
-      
-      if (data.Status && data.Data?.TotalOHTCount !== undefined) {
-        setOHTCount(data.Data.TotalOHTCount);
-      } else {
-        setOHTCount(0);
-      }
-    } catch (error) {
-      console.error('Error fetching OHT count:', error);
-      setOHTCount(0);
-    } finally {
-      setIsLoading(prev => ({ ...prev, ohts: false }));
-    }
-  };
+  const fetchOHTData = async () => {
+  try {
+    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetOverHeadTankDetailsforAdmin", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "*/*",
+      },
+      body: JSON.stringify({ InputType: "string" }),
+    });
 
-  const fetchOHTData = async (villageId: number) => {
-    try {
-      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetOHTListByVillage?VillageId=${villageId}`);
-      const data: ApiResponse<OHTData[]> = await response.json();
-      
-      if (data.Status && Array.isArray(data.Data)) {
-        setOHTData(prev => [...prev, ...data.Data]);
-      }
-    } catch (error) {
-      console.error(`Error fetching OHT data for village ${villageId}:`, error);
+    const data = await res.json();
+    console.log("OHT List API response:", data);
+
+    if (data?.Status && Array.isArray(data?.Data)) {
+      setOhtData(data.Data);
+    } else {
+      setOhtData([]);
     }
-  };
+  } catch (err) {
+    console.error("Error fetching OHT list:", err);
+    setOhtData([]);
+  }
+};
+
+
 
   const fetchFeeData = async (villageId: number) => {
     try {
@@ -339,6 +430,9 @@ export default function EnhancedGPDashboard() {
     setIsLoading(prev => ({ ...prev, beneficiaries: false }));
   }
 };
+
+
+
   const fetchActiveConnections = async () => {
   setIsLoading(prev => ({ ...prev, connections: true }));
   try {
@@ -367,32 +461,20 @@ export default function EnhancedGPDashboard() {
   }
 };
 
-  const fetchPendingComplaints = async () => {
-    setIsLoading(prev => ({ ...prev, complaints: true }));
-  try {
-    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalPendingComplaintCountforAdmin", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        accept: "*/*",
-      },
-      body: JSON.stringify({ InputType: "string" }) // ✅ required body
-    });
 
-    const data = await res.json();
-    console.log("Active connections API response:", data); // debug
-
-    if (data?.Status && data?.Data?.TotalPendingComplaintCount !== undefined) {
-      setTotalPendingComplaints(data.Data.TotalPendingComplaintCount);
-    } else {
+  const fetchPendingComplaints = async (currentUserId: number) => {
+    try {
+      const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalPendingComplaintCount?UserId=${currentUserId}`);
+      const data = await res.json();
+      if (data?.Status && data?.Data?.TotalPendingComplaintCount !== undefined) {
+        setTotalPendingComplaints(data.Data.TotalPendingComplaintCount);
+      } else {
+        setTotalPendingComplaints(0);
+      }
+    } catch (error) {
+      console.error("Error fetching complaints:", error);
       setTotalPendingComplaints(0);
     }
-  } catch (error) {
-    console.error("Error fetching connections:", error);
-    setTotalPendingComplaints(0);
-  } finally {
-    setIsLoading(prev => ({ ...prev, complaints: false }));
-  }
   };
 
   const fetchComplaintStatusDistribution = async () => {
@@ -428,11 +510,10 @@ export default function EnhancedGPDashboard() {
   }
 };
 
-  // Updated to include userId parameter
-  const fetchWaterConnectionStatus = async (currentUserId: number) => {
+  const fetchWaterConnectionStatus = async () => {
     setIsLoading(prev => ({ ...prev, waterConnection: true }));
     try {
-      const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetWaterConnectionStatus?UserId=${currentUserId}`);
+      const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetWaterConnectionStatus");
       const data = await res.json();
       if (data?.Status && data?.Data) {
         const statusMap = {};
@@ -457,25 +538,40 @@ export default function EnhancedGPDashboard() {
     }
   };
 
-  // Updated to include userId parameter
-  const fetchVillageFeeCollectionData = async (currentUserId: number) => {
-    setIsLoading(prev => ({ ...prev, villageFee: true }));
-    try {
-      const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetVillageFeeCollectionVSTargetStatus?UserId=${currentUserId}`);
-      const data = await res.json();
-      if (data?.Status && data?.Data) {
-        setVillageFeeData(data.Data);
-      } else {
-        setVillageFeeData([]);
-      }
-    } catch (error) {
-      console.error("Error fetching village fee collection:", error);
-      setVillageFeeData([]);
-    } finally {
-      setIsLoading(prev => ({ ...prev, villageFee: false }));
-      setIsLoading(prev => ({ ...prev, fees: false }));
-    }
-  };
+  const fetchVillageFeeCollectionData = async () => {
+  setIsLoading(prev => ({ ...prev, villageFee: true }));
+  try {
+    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetVillageFeeCollectionVSTargetStatus");
+    const data = await res.json();
+    console.log("Village Fee Collection API response:", data);
+
+    if (data?.Status && Array.isArray(data.Data)) {
+  const totalCollected = data.Data.reduce(
+    (sum: number, v: any) => sum + (v.TotalCollectedAmount || 0),
+    0
+  );
+
+  setVillageFeeData({
+    villages: data.Data,
+    totalCollected,
+  });
+} else {
+  setVillageFeeData({
+    villages: [],
+    totalCollected: 0,
+  });
+}
+
+  } catch (error) {
+    console.error("Error fetching village fee collection:", error);
+    setVillageFeeData([]);
+    setFeeCollection(0);
+  } finally {
+    setIsLoading(prev => ({ ...prev, villageFee: false }));
+    setIsLoading(prev => ({ ...prev, fees: false, ohts: false }));
+  }
+};
+
 
   // Modified initialization effect that waits for userId
   useEffect(() => {
@@ -485,21 +581,27 @@ export default function EnhancedGPDashboard() {
       console.log('Initializing dashboard with userId:', userId, 'role:', role);
 
       await Promise.all([
-        fetchTotalBeneficiaries(userId),
-        fetchActiveConnections(userId),
-        fetchPendingComplaints(userId),
-        fetchComplaintStatusDistribution(userId),
-        fetchWaterConnectionStatus(userId),
-        fetchVillageFeeCollectionData(userId),
-        fetchPumpHouses(userId),
-        fetchVillages(userId),
-        fetchComplaints(),
-        fetchOHTCount(userId) // NEW: Added OHT count API call
-      ]);
+  fetchTotalBeneficiaries(),
+  fetchActiveConnections(),
+  fetchPendingComplaints(userId),
+  fetchComplaintStatusDistribution(userId),
+  fetchWaterConnectionStatus(),
+  fetchVillageFeeCollectionData(),
+  fetchPumpHouseCount(),  // ✅ number
+  fetchOHTCount(),        // ✅ number
+  fetchPumpHouses(),      // ✅ array
+  fetchOHTData(),         // ✅ array
+  fetchVillages(userId),
+  fetchComplaints(),
+    fetchTotalVillageCount(userId)   // ✅ add here
+
+]);
+
+
     };
 
     initializeDashboard();
-  }, [userId, userLoading, role]);
+  }, [userId, userLoading, role]); // Dependencies include userId and userLoading
 
   // Modified refresh function
   const handleRefresh = async () => {
@@ -524,22 +626,27 @@ export default function EnhancedGPDashboard() {
 
     // Clear existing data
     setPumpHouses([]);
-    setOHTData([]);
+    setOhtData([]);
     setFeeData([]);
-    setOHTCount(0); // NEW: Clear OHT count
 
     await Promise.all([
-      fetchTotalBeneficiaries(userId),
-      fetchActiveConnections(userId),
-      fetchPendingComplaints(userId),
-      fetchComplaintStatusDistribution(userId),
-      fetchWaterConnectionStatus(userId),
-      fetchVillageFeeCollectionData(userId),
-      fetchPumpHouses(userId),
-      fetchVillages(userId),
-      fetchComplaints(),
-      fetchOHTCount(userId) // NEW: Added OHT count API call
-    ]);
+  fetchTotalBeneficiaries(),
+  fetchActiveConnections(),
+  fetchPendingComplaints(userId),
+  fetchComplaintStatusDistribution(userId),
+  fetchWaterConnectionStatus(),
+  fetchVillageFeeCollectionData(),
+  fetchPumpHouseCount(),  // ✅ number
+  fetchOHTCount(),        // ✅ number
+  fetchPumpHouses(),      // ✅ array
+  fetchOHTData(),         // ✅ array
+  fetchVillages(userId),
+  fetchComplaints(),
+    fetchTotalVillageCount(userId)   // ✅ add here
+
+]);
+
+
 
     setRefreshing(false);
   };
@@ -572,7 +679,7 @@ export default function EnhancedGPDashboard() {
   // Calculate real-time metrics from API data
   const activePumps = pumpHouses.filter(p => p.Status === 1).length;
   const totalPumps = pumpHouses.length;
-  const totalOHTs = ohtCount; // UPDATED: Use the new API count instead of array length
+  const totalOHTs = ohtData.length;
   const totalCapacity = ohtData.reduce((sum, oht) => sum + (oht.OHTCapacity || 0), 0);
   const totalComplaintsFromData = complaints.length;
   const resolvedComplaints = complaints.filter(c => c.Status === true).length;
@@ -583,8 +690,16 @@ export default function EnhancedGPDashboard() {
   const electricPumps = pumpHouses.filter(p => p.PowerSource === '1').length;
 
   // Collection efficiency from API data
-  const totalCollectedVillage = villageFeeData.reduce((sum, item) => sum + (item.TotalCollectedAmount || 0), 0);
-  const totalTargetVillage = villageFeeData.reduce((sum, item) => sum + (item.TotalTargetedAmount || 0), 0);
+  const totalCollectedVillage = villageFeeData.villages.reduce(
+  (sum, item) => sum + (item.TotalCollectedAmount || 0),
+  0
+);
+
+const totalTargetVillage = villageFeeData.villages.reduce(
+  (sum, item) => sum + (item.TotalTargetedAmount || 0),
+  0
+);
+
   const collectionEfficiency = totalTargetVillage > 0 ? ((totalCollectedVillage / totalTargetVillage) * 100).toFixed(1) : '0.0';
 
   // Professional color schemes
@@ -666,7 +781,7 @@ export default function EnhancedGPDashboard() {
           
           <StatCard
             title="Pump Infrastructure"
-            value={totalPumps}
+            value={pumpHouseCount}
             subtitle={totalPumps > 0 ? `${activePumps} active, ${solarPumps} solar` : "No pump data"}
             icon={Icons.Pump}
             gradient="bg-gradient-to-br from-amber-800 via-amber-700 to-amber-600"
@@ -696,8 +811,8 @@ export default function EnhancedGPDashboard() {
           
           <StatCard
             title="OHT Infrastructure"
-            value={totalOHTs}
-            subtitle={totalCapacity > 0 ? `${(totalCapacity / 1000).toFixed(0)}K L capacity` : `${totalOHTs} overhead tanks`}
+            value={ohtCount}
+            subtitle={totalCapacity > 0 ? `${(totalCapacity / 1000).toFixed(0)}K L capacity` : "No OHT data"}
             icon={Icons.Tank}
             gradient="bg-gradient-to-br from-cyan-800 via-cyan-700 to-cyan-600"
             isLoading={isLoading.ohts}
@@ -714,7 +829,7 @@ export default function EnhancedGPDashboard() {
           
           <StatCard
             title="Villages"
-            value={villages.length}
+            value={totalVillageCount}
             subtitle="Under management"
             icon={Icons.Users}
             gradient="bg-gradient-to-br from-indigo-800 via-indigo-700 to-indigo-600"
@@ -951,13 +1066,13 @@ export default function EnhancedGPDashboard() {
             ) : (
               <ResponsiveContainer width="100%" height={400}>
                 <BarChart 
-                  data={villageFeeData} 
+                  data={villageFeeData.totalCollected} 
                   margin={{ top: 20, right: 30, left: 40, bottom: 60 }}
                   barGap={10}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis 
-                    dataKey="Village_Name" 
+                    dataKey="VillageName" 
                     stroke="#64748b"
                     fontSize={11}
                     fontWeight="500"
@@ -1130,6 +1245,41 @@ export default function EnhancedGPDashboard() {
                 </div>
                 <div className="text-xs opacity-75 mt-1">Payment efficiency</div>
               </div>
+            </div>
+
+            {/* Fee Collection Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="text-left p-4 font-semibold text-slate-700 uppercase tracking-wide">Beneficiary</th>
+                    <th className="text-left p-4 font-semibold text-slate-700 uppercase tracking-wide">Village</th>
+                    <th className="text-right p-4 font-semibold text-slate-700 uppercase tracking-wide">Paid Amount</th>
+                    <th className="text-right p-4 font-semibold text-slate-700 uppercase tracking-wide">Outstanding</th>
+                    <th className="text-right p-4 font-semibold text-slate-700 uppercase tracking-wide">Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {feeData.slice(0, 8).map((fee) => (
+                    <tr key={fee.FeeCollectionId} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                      <td className="p-4">
+                        <div className="font-semibold text-slate-800">{fee.BeneficiaryName}</div>
+                        <div className="text-xs text-slate-500 mt-1">{fee.FatherHusbandName}</div>
+                      </td>
+                      <td className="p-4 text-slate-600 font-medium">{fee.VillageName}</td>
+                      <td className="p-4 text-right font-semibold text-emerald-600">
+                        ₹{fee.PaidAmount.toLocaleString()}
+                      </td>
+                      <td className="p-4 text-right font-semibold text-amber-600">
+                        ₹{fee.OutstandingAmount.toLocaleString()}
+                      </td>
+                      <td className="p-4 text-right font-semibold text-rose-600">
+                        ₹{fee.BalanceAmount.toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         ) : (

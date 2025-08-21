@@ -6,33 +6,6 @@ import { ToastContainer } from "react-toastify";
 import { useUserInfo } from "../utils/userInfo";
 
 /* --- API response shapes --- */
-interface DistrictApi {
-  DistrictId: number;
-  DistrictName: string;
-  DistrictNameHidi?: string;
-}
-
-interface BlockApi {
-  BlockId: number;
-  DistrictId: number;
-  BlockName: string;
-  BlockNameHindi?: string;
-  Code?: string;
-}
-
-interface GramPanchayatApi {
-  Id: number;
-  BlockId: number;
-  GramPanchayatName: string;
-  GramPanchayatHindi?: string;
-  Code?: string;
-}
-
-interface VillageApi {
-  Id: number;
-  VillageName: string;
-}
-
 interface OHTApiItem {
   OhtId: number;
   Districtname: string;
@@ -53,16 +26,6 @@ interface OHTState {
   NoOfPumps: number;
 }
 
-interface LocationMapping {
-  villageName: string;
-  gramPanchayatId: number;
-  gramPanchayatName: string;
-  blockId: number;
-  blockName: string;
-  districtId: number;
-  districtName: string;
-}
-
 const ManageOHT = () => {
   const { userId, role, isLoading: userLoading } = useUserInfo();
 
@@ -76,61 +39,21 @@ const ManageOHT = () => {
   const [editMode, setEditMode] = useState(false);
   const [editedOHTs, setEditedOHTs] = useState<Set<number>>(new Set());
 
-  // Location hierarchy
-  const [districts, setDistricts] = useState<DistrictApi[]>([]);
-  const [selectedDistrictId, setSelectedDistrictId] = useState<number | null>(null);
-  const [blocks, setBlocks] = useState<BlockApi[]>([]);
-  const [selectedBlockId, setSelectedBlockId] = useState<number | null>(null);
-  const [gramPanchayats, setGramPanchayats] = useState<GramPanchayatApi[]>([]);
-  const [selectedGramPanchayatId, setSelectedGramPanchayatId] = useState<number | null>(null);
-  const [villages, setVillages] = useState<VillageApi[]>([]);
-  const [selectedVillageId, setSelectedVillageId] = useState<number | null>(null);
+  // Client-side filters - no longer tied to API calls
+  const [selectedDistrict, setSelectedDistrict] = useState<string>("");
+  const [selectedBlock, setSelectedBlock] = useState<string>("");
+  const [selectedGramPanchayat, setSelectedGramPanchayat] = useState<string>("");
+  const [selectedVillage, setSelectedVillage] = useState<string>("");
 
-  const [locationMap, setLocationMap] = useState<Record<number, LocationMapping>>({});
   const [showModal, setShowModal] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
   // Initialize data fetching - only when userId is available
   useEffect(() => {
     if (!userLoading && userId) {
-      fetchDistricts();
+      fetchOHTs();
     }
   }, [userId, userLoading]);
-
-  useEffect(() => {
-    if (selectedDistrictId && userId) {
-      fetchBlocks(selectedDistrictId);
-    } else {
-      setBlocks([]);
-      setSelectedBlockId(null);
-    }
-  }, [selectedDistrictId, userId]);
-
-  useEffect(() => {
-    if (selectedBlockId && userId) {
-      fetchGramPanchayats(selectedBlockId);
-    } else {
-      setGramPanchayats([]);
-      setSelectedGramPanchayatId(null);
-    }
-  }, [selectedBlockId, userId]);
-
-  useEffect(() => {
-    if (selectedBlockId && selectedGramPanchayatId && userId) {
-      fetchVillages(selectedBlockId, selectedGramPanchayatId);
-    } else {
-      setVillages([]);
-      setSelectedVillageId(null);
-    }
-  }, [selectedBlockId, selectedGramPanchayatId, userId]);
-
-  useEffect(() => {
-    if (selectedVillageId && userId) {
-      fetchOHTs(selectedVillageId);
-    } else {
-      setOhtList([]);
-    }
-  }, [selectedVillageId, userId]);
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
@@ -142,140 +65,8 @@ const ManageOHT = () => {
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [showModal]);
 
-  // Fetch districts
-  const fetchDistricts = async () => {
-    if (!userId) {
-      console.error("Cannot fetch districts: userId is null");
-      return;
-    }
-
-    try {
-      const res = await fetch(
-        `https://wmsapi.kdsgroup.co.in/api/Master/GetDistrict?UserId=${userId}`,
-        { method: "POST" }
-      );
-      if (!res.ok) throw new Error("Failed to fetch districts");
-      const data = await res.json();
-      if (data.Status && data.Data) {
-        setDistricts(data.Data);
-      }
-    } catch (err) {
-      console.error("Error fetching districts:", err);
-      toast.error("Failed to fetch districts");
-    }
-  };
-
-  // Fetch blocks
-  const fetchBlocks = async (districtId: number) => {
-    if (!userId) {
-      console.error("Cannot fetch blocks: userId is null");
-      return;
-    }
-
-    try {
-      const res = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: userId, DistrictId: districtId }),
-        }
-      );
-      if (!res.ok) throw new Error("Failed to fetch blocks");
-      const data = await res.json();
-      if (data.Status && data.Data) {
-        setBlocks(data.Data);
-      } else {
-        setBlocks([]);
-      }
-    } catch (err) {
-      console.error("Error fetching blocks:", err);
-      toast.error("Failed to fetch blocks");
-      setBlocks([]);
-    }
-  };
-
-  // Fetch gram panchayats
-  const fetchGramPanchayats = async (blockId: number) => {
-    if (!userId) {
-      console.error("Cannot fetch gram panchayats: userId is null");
-      return;
-    }
-
-    try {
-      const res = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ UserId: userId, BlockId: blockId }),
-        }
-      );
-      if (!res.ok) throw new Error("Failed to fetch gram panchayats");
-      const data = await res.json();
-      if (data.Status && data.Data) {
-        setGramPanchayats(data.Data);
-      } else {
-        setGramPanchayats([]);
-      }
-    } catch (err) {
-      console.error("Error fetching gram panchayats:", err);
-      toast.error("Failed to fetch gram panchayats");
-      setGramPanchayats([]);
-    }
-  };
-
-  // Fetch villages
-  const fetchVillages = async (blockId: number, gramPanchayatId: number) => {
-    try {
-      const res = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/Master/GetVillegeByGramPanchayat",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            BlockId: blockId,
-            GramPanchayatId: gramPanchayatId,
-          }),
-        }
-      );
-      if (!res.ok) throw new Error("Failed to fetch villages");
-      const data = await res.json();
-      if (data.Status && data.Data) {
-        setVillages(data.Data);
-        
-        // Build location mapping for current villages
-        const currentDistrict = districts.find(d => d.DistrictId === selectedDistrictId);
-        const currentBlock = blocks.find(b => b.BlockId === selectedBlockId);
-        const currentGP = gramPanchayats.find(gp => gp.Id === selectedGramPanchayatId);
-        
-        if (currentDistrict && currentBlock && currentGP) {
-          const newLocationMap: Record<number, LocationMapping> = {};
-          data.Data.forEach((village: VillageApi) => {
-            newLocationMap[village.Id] = {
-              villageName: village.VillageName,
-              gramPanchayatId: currentGP.Id,
-              gramPanchayatName: currentGP.GramPanchayatName,
-              blockId: currentBlock.BlockId,
-              blockName: currentBlock.BlockName,
-              districtId: currentDistrict.DistrictId,
-              districtName: currentDistrict.DistrictName,
-            };
-          });
-          setLocationMap(prev => ({ ...prev, ...newLocationMap }));
-        }
-      } else {
-        setVillages([]);
-      }
-    } catch (err) {
-      console.error("Error fetching villages:", err);
-      toast.error("Failed to fetch villages");
-      setVillages([]);
-    }
-  };
-
-  // FIXED: Fetch OHT data with UserId parameter
-  const fetchOHTs = async (villageId: number) => {
+  // Fetch ALL OHT data at once with VillageId = 0
+  const fetchOHTs = async () => {
     if (!userId) {
       console.error("Cannot fetch OHTs: userId is null");
       return;
@@ -285,8 +76,10 @@ const ManageOHT = () => {
     setError(null);
     
     try {
+      console.log("Fetching all OHT records with userId:", userId, "role:", role);
+      
       const res = await fetch(
-        `https://wmsapi.kdsgroup.co.in/api/Master/GetOHTListByVillage?VillageId=${villageId}&UserId=${userId}`,
+        `https://wmsapi.kdsgroup.co.in/api/Master/GetOHTListByVillage?VillageId=0&UserId=${userId}`,
         { 
           method: "GET", 
           headers: { 
@@ -330,6 +123,48 @@ const ManageOHT = () => {
     }
   };
 
+  // Get unique values for filter dropdowns from the fetched data
+  const getUniqueDistricts = () => {
+    const districts = ohtList
+      .filter(o => o.DistrictName)
+      .map(o => o.DistrictName)
+      .filter((value, index, self) => self.indexOf(value) === index)
+      .sort();
+    return districts;
+  };
+
+  const getUniqueBlocks = () => {
+    const blocks = ohtList
+      .filter(o => o.BlockName && (!selectedDistrict || o.DistrictName === selectedDistrict))
+      .map(o => o.BlockName)
+      .filter((value, index, self) => self.indexOf(value) === index)
+      .sort();
+    return blocks;
+  };
+
+  const getUniqueGramPanchayats = () => {
+    const gramPanchayats = ohtList
+      .filter(o => o.GramPanchayatName && 
+        (!selectedDistrict || o.DistrictName === selectedDistrict) &&
+        (!selectedBlock || o.BlockName === selectedBlock))
+      .map(o => o.GramPanchayatName)
+      .filter((value, index, self) => self.indexOf(value) === index)
+      .sort();
+    return gramPanchayats;
+  };
+
+  const getUniqueVillages = () => {
+    const villages = ohtList
+      .filter(o => o.VillageName && 
+        (!selectedDistrict || o.DistrictName === selectedDistrict) &&
+        (!selectedBlock || o.BlockName === selectedBlock) &&
+        (!selectedGramPanchayat || o.GramPanchayatName === selectedGramPanchayat))
+      .map(o => o.VillageName)
+      .filter((value, index, self) => self.indexOf(value) === index)
+      .sort();
+    return villages;
+  };
+
   const handleEditToggle = () => {
     if (editMode) {
       setEditedOHTs(new Set());
@@ -367,7 +202,7 @@ const ManageOHT = () => {
           OHTCapacity: oht.OHTCapacity,
           NoOfPumps: oht.NoOfPumps,
           UpdatedBy: userId,
-          IPAddress: "127.0.0.1" // You can get real IP if needed
+          IPAddress: "127.0.0.1"
         };
 
         try {
@@ -397,9 +232,7 @@ const ManageOHT = () => {
         toast.success(`Successfully updated ${successCount} OHT records`);
         setEditedOHTs(new Set());
         setEditMode(false);
-        if (selectedVillageId) {
-          fetchOHTs(selectedVillageId); // Refresh data
-        }
+        fetchOHTs(); // Refresh all data
       }
       
       if (errorCount > 0) {
@@ -457,42 +290,33 @@ const ManageOHT = () => {
   };
 
   const clearFilters = () => {
-    setSelectedDistrictId(null);
-    setSelectedBlockId(null);
-    setSelectedGramPanchayatId(null);
-    setSelectedVillageId(null);
+    setSelectedDistrict("");
+    setSelectedBlock("");
+    setSelectedGramPanchayat("");
+    setSelectedVillage("");
     setSearch("");
   };
 
+  // Client-side filtering of all OHT records
   const filteredData = ohtList.filter((o) => {
     const matchesSearch = o.DistrictName.toLowerCase().includes(search.toLowerCase()) ||
                          o.BlockName.toLowerCase().includes(search.toLowerCase()) ||
                          o.GramPanchayatName.toLowerCase().includes(search.toLowerCase()) ||
                          o.VillageName.toLowerCase().includes(search.toLowerCase());
     
-    return matchesSearch;
+    const matchesDistrict = !selectedDistrict || o.DistrictName === selectedDistrict;
+    const matchesBlock = !selectedBlock || o.BlockName === selectedBlock;
+    const matchesGramPanchayat = !selectedGramPanchayat || o.GramPanchayatName === selectedGramPanchayat;
+    const matchesVillage = !selectedVillage || o.VillageName === selectedVillage;
+
+    return matchesSearch && matchesDistrict && matchesBlock && matchesGramPanchayat && matchesVillage;
   });
 
   const getSelectedLocationName = () => {
-    if (selectedVillageId) {
-      const village = villages.find(v => v.Id === selectedVillageId);
-      return village?.VillageName || `Village ID: ${selectedVillageId}`;
-    }
-    if (selectedVillageId === 0) {
-    return "All Villages";
-  }
-    if (selectedGramPanchayatId) {
-      const gp = gramPanchayats.find(gp => gp.Id === selectedGramPanchayatId);
-      return gp?.GramPanchayatName || "Selected Gram Panchayat";
-    }
-    if (selectedBlockId) {
-      const block = blocks.find(b => b.BlockId === selectedBlockId);
-      return block?.BlockName || "Selected Block";
-    }
-    if (selectedDistrictId) {
-      const district = districts.find(d => d.DistrictId === selectedDistrictId);
-      return district?.DistrictName || "Selected District";
-    }
+    if (selectedVillage) return selectedVillage;
+    if (selectedGramPanchayat) return selectedGramPanchayat;
+    if (selectedBlock) return selectedBlock;
+    if (selectedDistrict) return selectedDistrict;
     return "All Areas";
   };
 
@@ -543,37 +367,52 @@ const ManageOHT = () => {
           </div>
         )}
 
-        {/* Location Filters */}
+        {/* Location Filters - Now client-side only */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div>
             <label className="block text-sm font-medium mb-1">District</label>
             <select
-              value={selectedDistrictId || ""}
-              onChange={(e) => setSelectedDistrictId(Number(e.target.value) || null)}
+              value={selectedDistrict}
+              onChange={(e) => {
+                setSelectedDistrict(e.target.value);
+                // Reset dependent filters when district changes
+                if (e.target.value !== selectedDistrict) {
+                  setSelectedBlock("");
+                  setSelectedGramPanchayat("");
+                  setSelectedVillage("");
+                }
+              }}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading || !userId}
+              disabled={loading}
             >
-              <option value="">Select District</option>
-              {districts.map((d) => (
-                <option key={d.DistrictId} value={d.DistrictId}>
-                  {d.DistrictName}
+              <option value="">All Districts</option>
+              {getUniqueDistricts().map((district) => (
+                <option key={district} value={district}>
+                  {district}
                 </option>
               ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Block</label>
+            <label className="block text-sm font-medium mb-1">Select Block</label>
             <select
-              value={selectedBlockId || ""}
-              onChange={(e) => setSelectedBlockId(Number(e.target.value) || null)}
+              value={selectedBlock}
+              onChange={(e) => {
+                setSelectedBlock(e.target.value);
+                // Reset dependent filters when block changes
+                if (e.target.value !== selectedBlock) {
+                  setSelectedGramPanchayat("");
+                  setSelectedVillage("");
+                }
+              }}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading || !selectedDistrictId || !userId}
+              disabled={loading}
             >
-              <option value="">Select Block</option>
-              {blocks.map((b) => (
-                <option key={b.BlockId} value={b.BlockId}>
-                  {b.BlockName}
+              <option value="">All Blocks</option>
+              {getUniqueBlocks().map((block) => (
+                <option key={block} value={block}>
+                  {block}
                 </option>
               ))}
             </select>
@@ -582,15 +421,21 @@ const ManageOHT = () => {
           <div>
             <label className="block text-sm font-medium mb-1">Gram Panchayat</label>
             <select
-              value={selectedGramPanchayatId || ""}
-              onChange={(e) => setSelectedGramPanchayatId(Number(e.target.value) || null)}
+              value={selectedGramPanchayat}
+              onChange={(e) => {
+                setSelectedGramPanchayat(e.target.value);
+                // Reset village filter when gram panchayat changes
+                if (e.target.value !== selectedGramPanchayat) {
+                  setSelectedVillage("");
+                }
+              }}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading || !selectedBlockId || !userId}
+              disabled={loading}
             >
-              <option value="">Select Gram Panchayat</option>
-              {gramPanchayats.map((gp) => (
-                <option key={gp.Id} value={gp.Id}>
-                  {gp.GramPanchayatName}
+              <option value="">All Gram Panchayats</option>
+              {getUniqueGramPanchayats().map((gp) => (
+                <option key={gp} value={gp}>
+                  {gp}
                 </option>
               ))}
             </select>
@@ -599,19 +444,18 @@ const ManageOHT = () => {
           <div>
             <label className="block text-sm font-medium mb-1">Village</label>
             <select
-  value={selectedVillageId || ""}
-  onChange={(e) => setSelectedVillageId(Number(e.target.value) || null)}
-  className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-  disabled={loading || !selectedGramPanchayatId || !userId}
->
-  <option value="">Select Village</option>
-  <option value={0}>All Villages</option>
-  {villages.map((v) => (
-    <option key={v.Id} value={v.Id}>
-      {v.VillageName}
-    </option>
-  ))}
-</select>
+              value={selectedVillage}
+              onChange={(e) => setSelectedVillage(e.target.value)}
+              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              disabled={loading}
+            >
+              <option value="">All Villages</option>
+              {getUniqueVillages().map((village) => (
+                <option key={village} value={village}>
+                  {village}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -691,22 +535,9 @@ const ManageOHT = () => {
         </div>
       </div>
 
-      {/* Selection Notice */}
-      {!selectedVillageId && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">⚠️</span>
-            <div>
-              <h3 className="font-medium text-yellow-800">Select a village to view OHT records</h3>
-              <p className="text-sm text-yellow-600">Please use the location filters above to select a specific village.</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-{/* Quick Stats Cards */}
-      {selectedVillageId && ohtList.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
+      {/* Quick Stats Cards */}
+      {ohtList.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-lg shadow-sm p-4">
             <div className="flex items-center gap-3">
               <div className="bg-blue-100 p-2 rounded-lg">
@@ -714,7 +545,7 @@ const ManageOHT = () => {
               </div>
               <div>
                 <p className="text-sm text-gray-600">Total OHTs</p>
-                <p className="text-xl font-bold text-gray-800">{ohtList.length}</p>
+                <p className="text-xl font-bold text-gray-800">{filteredData.length}</p>
               </div>
             </div>
           </div>
@@ -727,8 +558,8 @@ const ManageOHT = () => {
               <div>
                 <p className="text-sm text-gray-600">Average Capacity</p>
                 <p className="text-xl font-bold text-green-600">
-                  {ohtList.length > 0 ? 
-                    Math.round(ohtList.reduce((sum, o) => sum + o.OHTCapacity, 0) / ohtList.length).toLocaleString() : 0
+                  {filteredData.length > 0 ? 
+                    Math.round(filteredData.reduce((sum, o) => sum + o.OHTCapacity, 0) / filteredData.length).toLocaleString() : 0
                   }L
                 </p>
               </div>
@@ -743,7 +574,7 @@ const ManageOHT = () => {
               <div>
                 <p className="text-sm text-gray-600">Total Capacity</p>
                 <p className="text-xl font-bold text-blue-600">
-                  {ohtList.reduce((sum, o) => sum + o.OHTCapacity, 0).toLocaleString()}L
+                  {filteredData.reduce((sum, o) => sum + o.OHTCapacity, 0).toLocaleString()}L
                 </p>
               </div>
             </div>
@@ -757,7 +588,7 @@ const ManageOHT = () => {
               <div>
                 <p className="text-sm text-gray-600">Total Pumps</p>
                 <p className="text-xl font-bold text-purple-600">
-                  {ohtList.reduce((sum, o) => sum + o.NoOfPumps, 0)}
+                  {filteredData.reduce((sum, o) => sum + o.NoOfPumps, 0)}
                 </p>
               </div>
             </div>
@@ -765,90 +596,85 @@ const ManageOHT = () => {
         </div>
       )}
 
-      {/* FIXED: Data Table with correct columns */}
-      {selectedVillageId && (
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-blue-600 text-white">
-                  <th className="border border-gray-300 p-3 text-left font-medium">OHT ID</th>
-                  <th className="border border-gray-300 p-3 text-left font-medium">District</th>
-                  <th className="border border-gray-300 p-3 text-left font-medium">Block</th>
-                  <th className="border border-gray-300 p-3 text-left font-medium">Gram Panchayat</th>
-                  <th className="border border-gray-300 p-3 text-left font-medium">Village</th>
-                  <th className="border border-gray-300 p-3 text-left font-medium">Capacity (L)</th>
-                  <th className="border border-gray-300 p-3 text-left font-medium">No. of Pumps</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredData.map((o, index) => {
-                  const isEdited = editedOHTs.has(o.OHTId);
-                  
-                  return (
-                    <tr 
-                      key={o.OHTId} 
-                      className={`${
-                        index % 2 === 0 ? 'bg-gray-50' : 'bg-white'
-                      } hover:bg-blue-50 transition-colors ${
-                        isEdited ? 'ring-2 ring-orange-200 bg-orange-50' : ''
-                      }`}
-                    >
-                      <td className="border border-gray-300 p-3 font-medium text-blue-600">
-                        #{o.OHTId}
-                      </td>
-                      
-                      <td className="border border-gray-300 p-3">{o.DistrictName}</td>
-                      <td className="border border-gray-300 p-3">{o.BlockName}</td>
-                      <td className="border border-gray-300 p-3">{o.GramPanchayatName}</td>
-                      <td className="border border-gray-300 p-3">{o.VillageName}</td>
+      {/* Data Table */}
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-blue-600 text-white">
+                <th className="border border-gray-300 p-3 text-left font-medium">OHT ID</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">District</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Block Name</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Gram Panchayat</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Village</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Capacity (L)</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">No. of Pumps</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredData.map((o, index) => {
+                const isEdited = editedOHTs.has(o.OHTId);
+                
+                return (
+                  <tr 
+                    key={o.OHTId} 
+                    className={`${
+                      index % 2 === 0 ? 'bg-gray-50' : 'bg-white'
+                    } hover:bg-blue-50 transition-colors ${
+                      isEdited ? 'ring-2 ring-orange-200 bg-orange-50' : ''
+                    }`}
+                  >
+                    <td className="border border-gray-300 p-3 font-medium text-blue-600">
+                      #{o.OHTId}
+                    </td>
+                    
+                    <td className="border border-gray-300 p-3">{o.DistrictName}</td>
+                    <td className="border border-gray-300 p-3">{o.BlockName}</td>
+                    <td className="border border-gray-300 p-3">{o.GramPanchayatName}</td>
+                    <td className="border border-gray-300 p-3">{o.VillageName}</td>
 
-                      {/* FIXED: 6th column - OHT Capacity */}
-                      <td className="border border-gray-300 p-3">
-                        {editMode ? (
-                          <input
-                            type="number"
-                            className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            value={o.OHTCapacity}
-                            onChange={(e) => handleChange(o.OHTId, "OHTCapacity", Number(e.target.value))}
-                            min="0"
-                          />
-                        ) : (
-                          <span className="font-medium">{o.OHTCapacity.toLocaleString()}L</span>
-                        )}
-                      </td>
+                    <td className="border border-gray-300 p-3">
+                      {editMode ? (
+                        <input
+                          type="number"
+                          className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          value={o.OHTCapacity}
+                          onChange={(e) => handleChange(o.OHTId, "OHTCapacity", Number(e.target.value))}
+                          min="0"
+                        />
+                      ) : (
+                        <span className="font-medium">{o.OHTCapacity.toLocaleString()}L</span>
+                      )}
+                    </td>
 
-                      {/* FIXED: 7th column - No. of Pumps (was completely missing!) */}
-                      <td className="border border-gray-300 p-3">
-                        {editMode ? (
-                          <input
-                            type="number"
-                            className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            value={o.NoOfPumps}
-                            onChange={(e) => handleChange(o.OHTId, "NoOfPumps", Number(e.target.value))}
-                            min="0"
-                          />
-                        ) : (
-                          <span className="font-medium">{o.NoOfPumps}</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {filteredData.length === 0 && !loading && selectedVillageId && (
-            <div className="text-center py-12 text-gray-500">
-              <div className="text-4xl mb-4">🏗️</div>
-              <h3 className="text-lg font-medium mb-2">No OHT records found</h3>
-              <p className="text-sm">No overhead tanks found for the selected location or search criteria.</p>
-            </div>
-          )}
+                    <td className="border border-gray-300 p-3">
+                      {editMode ? (
+                        <input
+                          type="number"
+                          className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          value={o.NoOfPumps}
+                          onChange={(e) => handleChange(o.OHTId, "NoOfPumps", Number(e.target.value))}
+                          min="0"
+                        />
+                      ) : (
+                        <span className="font-medium">{o.NoOfPumps}</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      )}
-      
+
+        {filteredData.length === 0 && !loading && (
+          <div className="text-center py-12 text-gray-500">
+            <div className="text-4xl mb-4">🏗️</div>
+            <h3 className="text-lg font-medium mb-2">No OHT records found</h3>
+            <p className="text-sm">Try adjusting your filters or search criteria.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

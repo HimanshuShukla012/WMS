@@ -24,8 +24,26 @@ interface MonthlyRoasterData {
   ActivityType: string;
   StartDate: string;
   EndDate: string;
+  Remark: string;
+  PumpId: number;
+  Shift1DistributionFrom: string | null;
+  Shift1DistributionTo: string | null;
+  Shift2DistributionFrom: string | null;
+  Shift2DistributionTo: string | null;
+  Shift3DistributionFrom: string | null;
+  Shift3DistributionTo: string | null;
+  Shift1FillingFrom: string | null;
+  Shift1FillingTo: string | null;
+  Shift2FillingFrom: string | null;
+  Shift2FillingTo: string | null;
+  Shift3FillingFrom: string | null;
+  Shift3FillingTo: string | null;
+  DeviceToken: string;
+  IPAddress: string;
   Status: number;
+  UpdatedDate: string;
 }
+
 
 interface OHTData {
   OhtId: number;
@@ -94,47 +112,77 @@ const { userId, role, isLoading: userLoading } = useUserInfo();
 
   // Summary states
   const [summary, setSummary] = useState({
-    totalPumps: 0,
-    activePumps: 0,
-    totalOHTs: 0,
-    totalCapacity: 0,
-    totalComplaints: 0,
-    resolvedComplaints: 0,
-    totalCollection: 0,
-    totalOutstanding: 0,
-    totalBeneficiaries: 0
-  });
+  totalPumps: 0,
+  activePumps: 0,
+  totalOHTs: 0,
+  totalCapacity: 0,
+  totalComplaints: 0,
+  resolvedComplaints: 0,
+  totalCollection: 0,
+  totalOutstanding: 0,
+  totalBeneficiaries: 0,
+  activeConnections: 0,       // ✅ add this
+  pendingComplaints: 0        // ✅ add this
+});
+
+const [isLoading, setIsLoading] = useState(false);
 
   // Fetch all data
   const fetchAllData = async () => {
-    setLoading(true);
-    setError("");
+  if (!userId) {
+    console.warn('UserId not available yet');
+    return;
+  }
+  
+  setLoading(true);
+  setError("");
+  
+  try {
+    // Fetch basic data first
+    await Promise.all([
+      fetchPumpHouses(),
+      fetchComplaints(),
+      fetchTotalBeneficiaries(),
+      fetchActiveConnections(),
+      fetchPendingComplaints(),
+      fetchOHTCount(userId)
+    ]);
     
-    try {
-      await Promise.all([
-        fetchPumpHouses(),
-        fetchVillages(),
-        fetchComplaints(),
-      ]);
-    } catch (err: any) {
-      setError(err.message || "Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
+    // Then fetch villages and their dependent data
+    await fetchVillages();
+    
+  } catch (err) {
+    console.error('Error in fetchAllData:', err);
+    setError(err.message || "Failed to load data");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fetchPumpHouses = async () => {
-    try {
-      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetPumpHouseListByUserId?UserId=${userId}`);
-      const data: ApiResponse<PumpHouseData[]> = await response.json();
-      
-      if (data.Status && Array.isArray(data.Data)) {
-        setPumpHouses(data.Data);
-      }
-    } catch (error) {
-      console.error('Error fetching pump houses:', error);
+  try {
+    if (!userId) return; // Add userId check
+    
+    const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetPumpHouseListByUserId?UserId=${userId}`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+    
+    const data = await response.json();
+    console.log('Pump Houses Data:', data); // Add logging for debugging
+    
+    if (data.Status && Array.isArray(data.Data)) {
+      setPumpHouses(data.Data);
+    } else {
+      console.warn('Invalid pump houses response:', data);
+      setPumpHouses([]);
+    }
+  } catch (error) {
+    console.error('Error fetching pump houses:', error);
+    setPumpHouses([]);
+  }
+};
 
   const fetchVillages = async () => {
     try {
@@ -154,18 +202,31 @@ const { userId, role, isLoading: userLoading } = useUserInfo();
     }
   };
 
-  const fetchOHTData = async (villageId: number) => {
+  const fetchOHTData = async (currentUserId: number) => {
     try {
-      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetOHTListByVillage?VillageId=${villageId}`);
-      const data: ApiResponse<OHTData[]> = await response.json();
-      
-      if (data.Status && Array.isArray(data.Data)) {
-        setOHTData(prev => [...prev, ...data.Data]);
-      }
-    } catch (error) {
-      console.error(`Error fetching OHT data for village ${villageId}:`, error);
+    const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetOHTCountByVillage?VillageId=0&UserId=${currentUserId}`);
+    const data: ApiResponse<{ TotalOHTCount: number }> = await response.json();
+    if (data.Status && data.Data?.TotalOHTCount !== undefined) {
+      setSummary(prev => ({ ...prev, totalOHTs: data.Data.TotalOHTCount }));
     }
-  };
+  } catch (error) {
+    console.error("Error fetching OHT count:", error);
+  }
+};
+
+const fetchOHTCount = async (currentUserId: number) => {
+  try {
+    const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetOHTCountByVillage?VillageId=0&UserId=${currentUserId}`);
+    const data: ApiResponse<{ TotalOHTCount: number }> = await response.json();
+
+    if (data.Status && data.Data?.TotalOHTCount !== undefined) {
+      setSummary(prev => ({ ...prev, totalOHTs: data.Data.TotalOHTCount }));
+    }
+  } catch (error) {
+    console.error("Error fetching OHT count:", error);
+  }
+};
+
 
   const fetchFeeData = async (villageId: number) => {
     try {
@@ -190,16 +251,15 @@ const { userId, role, isLoading: userLoading } = useUserInfo();
   };
 
   const fetchComplaints = async () => {
+    setIsLoading(prev => ({ ...prev, complaints: true }));
     try {
-      const token = localStorage.getItem("authToken") || "";
       const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Complain/GetComplaintListByUserIdVillageAndStatus', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          UserId: userId,
+          UserId: 0,
           VillageId: 0,
           Status: null
         })
@@ -209,11 +269,77 @@ const { userId, role, isLoading: userLoading } = useUserInfo();
       
       if (data.Status && Array.isArray(data.Data)) {
         setComplaints(data.Data);
+      } else {
+        setComplaints([]);
       }
     } catch (error) {
       console.error('Error fetching complaints:', error);
+      setComplaints([]);
+    } finally {
+      setIsLoading(prev => ({ ...prev, complaints: false }));
     }
   };
+
+const fetchTotalBeneficiaries = async () => {
+  try {
+    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalBeneficiaryCountforAdmin", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "*/*",
+      },
+      body: JSON.stringify({ InputType: "string" })
+    });
+
+    const data = await res.json();
+    if (data?.Status && data?.Data?.TotalBeneficiaryCount !== undefined) {
+      setSummary(prev => ({ ...prev, totalBeneficiaries: data.Data.TotalBeneficiaryCount }));
+    }
+  } catch (error) {
+    console.error("Error fetching total beneficiaries:", error);
+  }
+};
+
+const fetchActiveConnections = async () => {
+  try {
+    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalActiveWaterConnectionCountforAdmin", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "*/*",
+      },
+      body: JSON.stringify({ InputType: "string" })
+    });
+
+    const data = await res.json();
+    if (data?.Status && data?.Data?.TotalActiveWaterConnectionCount !== undefined) {
+      setSummary(prev => ({ ...prev, activeConnections: data.Data.TotalActiveWaterConnectionCount }));
+    }
+  } catch (error) {
+    console.error("Error fetching active connections:", error);
+  }
+};
+
+const fetchPendingComplaints = async () => {
+  try {
+    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalPendingComplaintCountforAdmin", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "*/*",
+      },
+      body: JSON.stringify({ InputType: "string" })
+    });
+
+    const data = await res.json();
+    if (data?.Status && data?.Data?.TotalPendingComplaintCount !== undefined) {
+      setSummary(prev => ({ ...prev, pendingComplaints: data.Data.TotalPendingComplaintCount }));
+    }
+  } catch (error) {
+    console.error("Error fetching pending complaints:", error);
+  }
+};
+
 
   const fetchRoasterData = async (pumpId: number) => {
     try {
@@ -240,33 +366,34 @@ const { userId, role, isLoading: userLoading } = useUserInfo();
 
   // Calculate summary statistics
   useEffect(() => {
-    const totalPumps = pumpHouses.length;
-    const activePumps = pumpHouses.filter(p => p.Status === 1).length;
-    const totalOHTs = ohtData.length;
-    const totalCapacity = ohtData.reduce((sum, oht) => sum + oht.OHTCapacity, 0);
-    const totalComplaints = complaints.length;
-    const resolvedComplaints = complaints.filter(c => c.Status === true).length;
-    const totalCollection = feeData.reduce((sum, fee) => sum + fee.PaidAmount, 0);
-    const totalOutstanding = feeData.reduce((sum, fee) => sum + fee.OutstandingAmount, 0);
-    const totalBeneficiaries = new Set(feeData.map(f => f.BeneficiaryId)).size;
+  const totalPumps = pumpHouses.length;
+  const activePumps = pumpHouses.filter(p => p.Status === 1).length;
+  const totalCapacity = ohtData.reduce((sum, oht) => sum + oht.OHTCapacity, 0);
+  const totalComplaints = complaints.length;
+  const resolvedComplaints = complaints.filter(c => c.Status === true).length;
+  const totalCollection = feeData.reduce((sum, fee) => sum + fee.PaidAmount, 0);
+  const totalOutstanding = feeData.reduce((sum, fee) => sum + fee.OutstandingAmount, 0);
+  const totalBeneficiaries = new Set(feeData.map(f => f.BeneficiaryId)).size;
 
-    setSummary({
-      totalPumps,
-      activePumps,
-      totalOHTs,
-      totalCapacity,
-      totalComplaints,
-      resolvedComplaints,
-      totalCollection,
-      totalOutstanding,
-      totalBeneficiaries
-    });
-  }, [pumpHouses, ohtData, complaints, feeData]);
+    setSummary(prev => ({
+    ...prev, // Keep existing values like totalOHTs, activeConnections, pendingComplaints
+    totalPumps,
+    activePumps,
+    totalCapacity,
+    totalComplaints,
+    resolvedComplaints,
+    totalCollection,
+    totalOutstanding,
+    totalBeneficiaries
+  }));
+}, [pumpHouses, ohtData, complaints, feeData]);
 
   // Initialize data on component mount
   useEffect(() => {
+  if (userId) {  // Add this check
     fetchAllData();
-  }, []);
+  }
+}, [userId]);
 
   // Fetch roaster data when pump houses are loaded
   useEffect(() => {
@@ -280,11 +407,49 @@ const { userId, role, isLoading: userLoading } = useUserInfo();
   }, [pumpHouses, selectedMonth, selectedYear]);
 
   const handleRefresh = () => {
-    setOHTData([]);
-    setFeeData([]);
-    setRoasterData([]);
-    fetchAllData();
-  };
+  // Clear all data states
+  setPumpHouses([]);
+  setOHTData([]);
+  setFeeData([]);
+  setRoasterData([]);
+  setComplaints([]);
+  
+  // Reset summary to initial state
+  setSummary({
+    totalPumps: 0,
+    activePumps: 0,
+    totalOHTs: 0,
+    totalCapacity: 0,
+    totalComplaints: 0,
+    resolvedComplaints: 0,
+    totalCollection: 0,
+    totalOutstanding: 0,
+    totalBeneficiaries: 0,
+    activeConnections: 0,
+    pendingComplaints: 0
+  });
+  
+  fetchAllData();
+};
+
+
+const DataDebugInfo = () => {
+  if (!userId) return <div className="text-red-500">UserId not loaded</div>;
+  
+  return (
+    <div className="bg-yellow-50 p-4 rounded border text-sm">
+      <h4 className="font-semibold mb-2">Debug Info:</h4>
+      <div>UserId: {userId}</div>
+      <div>Pump Houses: {pumpHouses.length}</div>
+      <div>Villages: {villages.length}</div>
+      <div>OHT Data: {ohtData.length}</div>
+      <div>Fee Data: {feeData.length}</div>
+      <div>Complaints: {complaints.length}</div>
+      <div>Loading: {loading ? 'Yes' : 'No'}</div>
+    </div>
+  );
+};
+
 
   const handleDownloadReport = (reportType: string) => {
     let exportData: any[] = [];
