@@ -47,6 +47,7 @@ const getMenuLinks = (role: Role): MenuItem[] => {
       { name: "View Roaster", to: "/admin/view-roaster", icon: <ClipboardList size={16} /> },
       { name: "View Water Quality", to: "/admin/view-water-quality", icon: <BiDroplet size={16} /> },
       { name: "MIS Reports", to: "/admin/reporting", icon: <BarChart3 size={18} /> },
+      { name: "G.O. & Guidelines", to: "/admin/go_guidelines", icon: <BarChart3 size={18} /> },
     ];
   } else if (role === "gp") {
     return [

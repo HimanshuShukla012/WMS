@@ -23,6 +23,8 @@ import FeeManagement from "./pages/AdminFeeManagement";
 import UpdateRoaster from "./pages/UpdateRoaster";
 import MISReportingPage from "./pages/GPReporting";
 import PrivateRoute from "./components/PrivateRoute";
+import GuidelinesPage from "./pages/guidelines";
+import About from "./pages/AboutPage";
 
 // Declare global types for Google Translate
 declare global {
@@ -37,7 +39,8 @@ const TranslateBar = () => {
   const location = useLocation();
   
   // Check if we're on landing page or login page
-  const isLandingOrLogin = location.pathname === "/" || location.pathname === "/login";
+  const isLandingOrLogin = location.pathname === "/" || location.pathname === "/login"|| 
+                      location.pathname === "/guidelines" || location.pathname === "/about";
   
   // Adjust positioning for landing/login pages vs dashboard pages
   const translateBarStyle = {
@@ -109,6 +112,16 @@ function App() {
           <Route path="/login" element={
             <div style={{ marginTop: '120px' }}>
               <Login />
+            </div>
+          } />
+          <Route path="/guidelines" element={
+            <div style={{ marginTop: '120px' }}>
+              <GuidelinesPage />
+            </div>
+          } />
+          <Route path="/about" element={
+            <div style={{ marginTop: '120px' }}>
+              <About />
             </div>
           } />
           <Route path="/unauthorized" element={

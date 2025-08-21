@@ -38,10 +38,9 @@ const Navbar = () => {
 
         {/* Center: Navigation Links */}
         <ul className="hidden md:flex gap-10 font-semibold text-base xl:text-lg text-white">
-          <li><a href="#home" className="hover:text-cyan-400 transition">होम</a></li>
-          <li><a href="#about" className="hover:text-cyan-400 transition">योजना</a></li>
-          <li><a href="#contact" className="hover:text-cyan-400 transition">संपर्क</a></li>
-          <li><a href="#info" className="hover:text-cyan-400 transition">जानकारी</a></li>
+          <li><a href="/" className="hover:text-cyan-400 transition">Home Page</a></li>
+          <li><a href="/about" className="hover:text-cyan-400 transition">About Scheme</a></li>
+          <li><a href="/guidelines" className="hover:text-cyan-400 transition">Guidelines</a></li>
         </ul>
 
         {/* Right: Buttons */}
@@ -53,7 +52,7 @@ const Navbar = () => {
           </Link>
           <Link to="/complaint">
             <button className="bg-red-600 px-5 py-2 rounded-full hover:bg-red-700 transition font-semibold text-sm">
-              शिकायत दर्ज करें
+              Lodge Complaint
             </button>
           </Link>
         </div>
@@ -95,7 +94,7 @@ const Navbar = () => {
                 onClick={toggleNav}
                 className="w-full mt-3 bg-red-600 text-white px-6 py-2 rounded-full hover:bg-red-700 transition"
               >
-                शिकायत दर्ज करें
+                Lodge Complaint
               </button>
             </Link>
           </li>

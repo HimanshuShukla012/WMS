@@ -82,7 +82,7 @@ const Sidebar = () => {
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-2xl font-bold text-center flex-1">IWMS</h1>
+          <h1 className="text-2xl font-bold text-center flex-1">WMS</h1>
           {/* Close button for mobile - only visible when sidebar is open */}
           <button
             onClick={() => setIsOpen(false)}
