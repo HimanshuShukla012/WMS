@@ -25,6 +25,7 @@ import MISReportingPage from "./pages/GPReporting";
 import PrivateRoute from "./components/PrivateRoute";
 import GuidelinesPage from "./pages/guidelines";
 import About from "./pages/AboutPage";
+import PDFFlipbook from "./pages/gpusermanual";
 
 // Declare global types for Google Translate
 declare global {
@@ -171,6 +172,7 @@ function App() {
               <Route path="view-water-quality" element={<ViewWaterQuality />} />
               <Route path="update-roaster" element={<UpdateRoaster />} />
               <Route path="reporting" element={<MISReportingPage />} />
+              <Route path="user-manual" element={<PDFFlipbook />} />
             </Route>
           </Route>
 

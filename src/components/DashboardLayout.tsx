@@ -16,6 +16,7 @@ import {
   Building2 as Building2Icon,
   Droplet,
   DropletIcon,
+  BookAIcon,
 } from "lucide-react";
 import { BiBuildingHouse, BiDroplet, BiMoney } from "react-icons/bi";
 
@@ -114,6 +115,7 @@ const getMenuLinks = (role: Role): MenuItem[] => {
         ],
       },
       { name: "Reporting", to: "/gp/reporting", icon: <FileText size={18} /> },
+      { name: "User Manual", to: "/gp/user-manual", icon: <BookAIcon size={18} /> },
     ];
   } else {
     return [
