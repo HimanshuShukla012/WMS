@@ -14,7 +14,7 @@ const guidelines = [
     uploadDate: "2025-05-21",
     category: "Government Order (GO)",
     version: "v1.0",
-    downloadUrl: "/dist/Rural Water Supply GO_21-May-25.pdf"
+    downloadUrl: "/Rural Water Supply GO_21-May-25.pdf"
   },
   {
     id: 2,
@@ -25,7 +25,7 @@ const guidelines = [
     uploadDate: "2025-07-01",
     category: "Guidelines",
     version: "v1.0",
-    downloadUrl: "/dist/GO-VWSC.pdf"
+    downloadUrl: "/GO-VWSC.pdf"
   },
   
 ];
@@ -93,7 +93,7 @@ const GuidelinesPage = () => {
             Government Order (G.O.) & Guidelines
           </h1>
           <p className="text-xl md:text-2xl text-blue-100 max-w-4xl mx-auto leading-relaxed">
-            Comprehensive guidelines and documentation following Government of India's Guidelines for Water Management accross the state of Uttar Pradesh
+            Comprehensive guidelines and documentation following Government of India's Guidelines for Water Management across the state of Uttar Pradesh
           </p>
         </div>
       </div>

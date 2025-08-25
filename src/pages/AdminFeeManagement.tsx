@@ -27,7 +27,7 @@ const FeeManagement = () => {
 type DistrictFee = {
   id: number;
   name: string;
-  fee: string;  // as you’re editing in an <input/>
+  fee: string;  // as you're editing in an <input/>
   districtId: number;
   totalCollected: number;
   applyFrom: string;
@@ -45,11 +45,34 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
-
+  const [validationErrors, setValidationErrors] = useState({});
 
   
   // Base API URL
   const API_BASE = "https://wmsapi.kdsgroup.co.in/api/Master";
+
+  // Validation functions
+  const validateFeeAmount = (value) => {
+    const numValue = parseFloat(value);
+    if (isNaN(numValue) || numValue < 0) {
+      return "Fee amount cannot be negative";
+    }
+    return null;
+  };
+
+  const validateStateFee = (value) => {
+    if (!value || value.trim() === "") {
+      return "Please enter a fee amount";
+    }
+    return validateFeeAmount(value);
+  };
+
+  const validateDistrictFee = (value) => {
+    if (!value || value.trim() === "") {
+      return null; // Allow empty for district fees
+    }
+    return validateFeeAmount(value);
+  };
 
   // Fetch water fee data
   const fetchWaterFeeData = async () => {
@@ -90,6 +113,9 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
         setDistrictFees(formattedFees);
         setOriginalDistrictFees(JSON.parse(JSON.stringify(formattedFees)));
         setMessage({ type: "success", text: `Loaded ${formattedFees.length} districts successfully` });
+        
+        // Clear validation errors when new data is loaded
+        setValidationErrors({});
       } else {
         throw new Error(data.Message || "Failed to fetch data");
       }
@@ -107,13 +133,49 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
   }, [financialYear]);
 
   const handleDistrictFeeChange = (id, value) => {
+    // Update the fee value
     setDistrictFees((prev) =>
       prev.map((d) => (d.id === id ? { ...d, fee: value } : d))
     );
+
+    // Validate the fee
+    const error = validateDistrictFee(value);
+    setValidationErrors(prev => ({
+      ...prev,
+      [`district_${id}`]: error
+    }));
+
+    // Clear general message when user starts typing
+    if (message.type === "error" && message.text.includes("negative")) {
+      setMessage({ type: "", text: "" });
+    }
+  };
+
+  const handleStateFeeChange = (value) => {
+    setStateFee(value);
+    
+    // Validate state fee
+    const error = validateStateFee(value);
+    setValidationErrors(prev => ({
+      ...prev,
+      stateFee: error
+    }));
+
+    // Clear general message when user starts typing
+    if (message.type === "error" && message.text.includes("negative")) {
+      setMessage({ type: "", text: "" });
+    }
   };
 
   // Save individual district fee
   const saveDistrictFee = async (district) => {
+    // Validate before saving
+    const feeError = validateDistrictFee(district.fee);
+    if (feeError) {
+      setMessage({ type: "error", text: `${district.name}: ${feeError}` });
+      return;
+    }
+
     if (!district.fee || district.fee === "0") {
       setMessage({ type: "error", text: "Please enter a valid fee amount" });
       return;
@@ -169,6 +231,7 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
 
   // Save all districts with changed fees
   const handleSaveAll = async () => {
+    // First validate all changed districts
     const changedDistricts = districtFees.filter((district, index) => {
       const original = originalDistrictFees[index];
       return original && district.fee !== original.fee && district.fee !== "";
@@ -176,6 +239,24 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
 
     if (changedDistricts.length === 0) {
       setMessage({ type: "error", text: "No changes to save" });
+      return;
+    }
+
+    // Check for validation errors in changed districts
+    const hasValidationErrors = changedDistricts.some(district => {
+      const error = validateDistrictFee(district.fee);
+      if (error) {
+        setValidationErrors(prev => ({
+          ...prev,
+          [`district_${district.id}`]: error
+        }));
+        return true;
+      }
+      return false;
+    });
+
+    if (hasValidationErrors) {
+      setMessage({ type: "error", text: "Please fix validation errors before saving" });
       return;
     }
 
@@ -198,209 +279,216 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
   };
 
   // Save state-wide fee (applies to all districts)
-  // Fixed handleSaveStateFee function with improved error handling and debugging
+  const handleSaveStateFee = async () => {
+    // Validate state fee first
+    const stateError = validateStateFee(stateFee);
+    if (stateError) {
+      setValidationErrors(prev => ({ ...prev, stateFee: stateError }));
+      setMessage({ type: "error", text: stateError });
+      return;
+    }
 
-const handleSaveStateFee = async () => {
-  if (!stateFee || stateFee === "0") {
-    setMessage({ type: "error", text: "Please enter a valid state fee amount" });
-    return;
-  }
+    // Validate userId is available
+    if (!userId) {
+      setMessage({ type: "error", text: "User ID not available. Please refresh the page and try again." });
+      return;
+    }
 
-  // Validate userId is available
-  if (!userId) {
-    setMessage({ type: "error", text: "User ID not available. Please refresh the page and try again." });
-    return;
-  }
+    setSaving(true);
+    setMessage({ type: "", text: "" });
 
-  setSaving(true);
-  setMessage({ type: "", text: "" });
+    try {
+      let successCount = 0;
+      let errorCount = 0;
+      const errors = [];
 
-  try {
-    let successCount = 0;
-    let errorCount = 0;
-    const errors = [];
+      // Update all districts with the same fee
+      for (const district of districtFees) {
+        try {
+          const requestBody = {
+            DistrictId: district.districtId,
+            WaterFeeAmount: parseFloat(stateFee),
+            ApplyFrom: new Date().toISOString(),
+            UserId: userId, // Use the actual userId from userInfo hook
+            DeviceToken: "web_app",
+            IPAddress: "192.168.1.1"
+          };
 
-    // Update all districts with the same fee
-    for (const district of districtFees) {
-      try {
-        const requestBody = {
-          DistrictId: district.districtId,
-          WaterFeeAmount: parseFloat(stateFee),
-          ApplyFrom: new Date().toISOString(),
-          UserId: userId, // Use the actual userId from userInfo hook
-          DeviceToken: "web_app",
-          IPAddress: "192.168.1.1"
-        };
+          console.log('Sending request for district:', district.name, requestBody);
 
-        console.log('Sending request for district:', district.name, requestBody);
+          const response = await fetch(
+            `${API_BASE}/UpdateStateAndDistrictWiseWaterFee`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "accept": "*/*"
+              },
+              body: JSON.stringify(requestBody)
+            }
+          );
 
-        const response = await fetch(
-          `${API_BASE}/UpdateStateAndDistrictWiseWaterFee`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "accept": "*/*"
-            },
-            body: JSON.stringify(requestBody)
+          console.log('Response status:', response.status);
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`HTTP ${response.status} for ${district.name}:`, errorText);
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
           }
-        );
 
-        console.log('Response status:', response.status);
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`HTTP ${response.status} for ${district.name}:`, errorText);
-          throw new Error(`HTTP ${response.status}: ${errorText}`);
+          const data = await response.json();
+          console.log('Response data for', district.name, ':', data);
+          
+          if (!data.Status) {
+            throw new Error(data.Message || data.Error || data.Errror || `Failed to update ${district.name}`);
+          }
+
+          successCount++;
+          
+          // Small delay between requests to avoid overwhelming the server
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+        } catch (error) {
+          console.error(`Error updating ${district.name}:`, error);
+          errors.push(`${district.name}: ${error.message}`);
+          errorCount++;
+          
+          // Continue with other districts even if one fails
+          continue;
         }
-
-        const data = await response.json();
-        console.log('Response data for', district.name, ':', data);
-        
-        if (!data.Status) {
-          throw new Error(data.Message || data.Error || data.Errror || `Failed to update ${district.name}`);
-        }
-
-        successCount++;
-        
-        // Small delay between requests to avoid overwhelming the server
-        await new Promise(resolve => setTimeout(resolve, 200));
-        
-      } catch (error) {
-        console.error(`Error updating ${district.name}:`, error);
-        errors.push(`${district.name}: ${error.message}`);
-        errorCount++;
-        
-        // Continue with other districts even if one fails
-        continue;
       }
-    }
 
-    // Show appropriate message based on results
-    if (successCount === districtFees.length) {
-      setMessage({ 
-        type: "success", 
-        text: `State-wide fee of ₹${stateFee} applied to all ${successCount} districts successfully` 
-      });
-      
-      // Refresh data and reset state fee input
-      setTimeout(() => {
-        fetchWaterFeeData();
-        setStateFee("");
-      }, 1000);
-      
-    } else if (successCount > 0) {
-      setMessage({ 
-        type: "error", 
-        text: `Partial success: ${successCount} districts updated, ${errorCount} failed. First error: ${errors[0] || 'Unknown error'}` 
-      });
-    } else {
-      setMessage({ 
-        type: "error", 
-        text: `Failed to update any districts. Errors: ${errors.slice(0, 3).join('; ')}${errors.length > 3 ? '...' : ''}` 
-      });
-    }
-    
-  } catch (error) {
-    console.error("Error in handleSaveStateFee:", error);
-    setMessage({ type: "error", text: `Error: ${error.message}` });
-  } finally {
-    setSaving(false);
-  }
-};
-
-// Alternative version with batch processing (use this if you want to send all updates at once)
-const handleSaveStateFeeBatch = async () => {
-  if (!stateFee || stateFee === "0") {
-    setMessage({ type: "error", text: "Please enter a valid state fee amount" });
-    return;
-  }
-
-  if (!userId) {
-    setMessage({ type: "error", text: "User ID not available. Please refresh the page and try again." });
-    return;
-  }
-
-  setSaving(true);
-  setMessage({ type: "", text: "" });
-
-  try {
-    // Prepare all requests
-    const requests = districtFees.map(district => ({
-      DistrictId: district.districtId,
-      WaterFeeAmount: parseFloat(stateFee),
-      ApplyFrom: new Date().toISOString(),
-      UserId: userId,
-      DeviceToken: "web_app",
-      IPAddress: "192.168.1.1"
-    }));
-
-    console.log('Sending batch requests:', requests);
-
-    // Send all requests in parallel (but be careful not to overwhelm the server)
-    const responses = await Promise.allSettled(
-      requests.map(async (requestBody, index) => {
-        // Add small delay for each request
-        await new Promise(resolve => setTimeout(resolve, index * 100));
+      // Show appropriate message based on results
+      if (successCount === districtFees.length) {
+        setMessage({ 
+          type: "success", 
+          text: `State-wide fee of ₹${stateFee} applied to all ${successCount} districts successfully` 
+        });
         
-        const response = await fetch(
-          `${API_BASE}/UpdateStateAndDistrictWiseWaterFee`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "accept": "*/*"
-            },
-            body: JSON.stringify(requestBody)
-          }
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`HTTP ${response.status}: ${errorText}`);
-        }
-
-        const data = await response.json();
-        if (!data.Status) {
-          throw new Error(data.Message || data.Error || data.Errror || "Failed to update");
-        }
-
-        return { district: districtFees[index].name, success: true, data };
-      })
-    );
-
-    // Process results
-    const successful = responses.filter(r => r.status === 'fulfilled');
-    const failed = responses.filter(r => r.status === 'rejected');
-
-    if (failed.length === 0) {
-      setMessage({ 
-        type: "success", 
-        text: `State-wide fee of ₹${stateFee} applied to all ${successful.length} districts successfully` 
-      });
+        // Refresh data and reset state fee input
+        setTimeout(() => {
+          fetchWaterFeeData();
+          setStateFee("");
+          setValidationErrors(prev => ({ ...prev, stateFee: null }));
+        }, 1000);
+        
+      } else if (successCount > 0) {
+        setMessage({ 
+          type: "error", 
+          text: `Partial success: ${successCount} districts updated, ${errorCount} failed. First error: ${errors[0] || 'Unknown error'}` 
+        });
+      } else {
+        setMessage({ 
+          type: "error", 
+          text: `Failed to update any districts. Errors: ${errors.slice(0, 3).join('; ')}${errors.length > 3 ? '...' : ''}` 
+        });
+      }
       
-      setTimeout(() => {
-        fetchWaterFeeData();
-        setStateFee("");
-      }, 1000);
-    } else {
-      const errorMessages = failed.map((r, i) => 
-        `${districtFees[responses.indexOf(r)].name}: ${r.reason.message}`
-      );
-      
-      setMessage({ 
-        type: "error", 
-        text: `${successful.length} successful, ${failed.length} failed. Errors: ${errorMessages.slice(0, 2).join('; ')}${errorMessages.length > 2 ? '...' : ''}` 
-      });
+    } catch (error) {
+      console.error("Error in handleSaveStateFee:", error);
+      setMessage({ type: "error", text: `Error: ${error.message}` });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Alternative version with batch processing (use this if you want to send all updates at once)
+  const handleSaveStateFeeBatch = async () => {
+    // Validate state fee first
+    const stateError = validateStateFee(stateFee);
+    if (stateError) {
+      setValidationErrors(prev => ({ ...prev, stateFee: stateError }));
+      setMessage({ type: "error", text: stateError });
+      return;
     }
 
-  } catch (error) {
-    console.error("Error in batch save:", error);
-    setMessage({ type: "error", text: `Batch update error: ${error.message}` });
-  } finally {
-    setSaving(false);
-  }
-};
+    if (!userId) {
+      setMessage({ type: "error", text: "User ID not available. Please refresh the page and try again." });
+      return;
+    }
+
+    setSaving(true);
+    setMessage({ type: "", text: "" });
+
+    try {
+      // Prepare all requests
+      const requests = districtFees.map(district => ({
+        DistrictId: district.districtId,
+        WaterFeeAmount: parseFloat(stateFee),
+        ApplyFrom: new Date().toISOString(),
+        UserId: userId,
+        DeviceToken: "web_app",
+        IPAddress: "192.168.1.1"
+      }));
+
+      console.log('Sending batch requests:', requests);
+
+      // Send all requests in parallel (but be careful not to overwhelm the server)
+      const responses = await Promise.allSettled(
+        requests.map(async (requestBody, index) => {
+          // Add small delay for each request
+          await new Promise(resolve => setTimeout(resolve, index * 100));
+          
+          const response = await fetch(
+            `${API_BASE}/UpdateStateAndDistrictWiseWaterFee`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "accept": "*/*"
+              },
+              body: JSON.stringify(requestBody)
+            }
+          );
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+          }
+
+          const data = await response.json();
+          if (!data.Status) {
+            throw new Error(data.Message || data.Error || data.Errror || "Failed to update");
+          }
+
+          return { district: districtFees[index].name, success: true, data };
+        })
+      );
+
+      // Process results
+      const successful = responses.filter(r => r.status === 'fulfilled');
+      const failed = responses.filter(r => r.status === 'rejected');
+
+      if (failed.length === 0) {
+        setMessage({ 
+          type: "success", 
+          text: `State-wide fee of ₹${stateFee} applied to all ${successful.length} districts successfully` 
+        });
+        
+        setTimeout(() => {
+          fetchWaterFeeData();
+          setStateFee("");
+          setValidationErrors(prev => ({ ...prev, stateFee: null }));
+        }, 1000);
+      } else {
+        const errorMessages = failed.map((r, i) => 
+          `${districtFees[responses.indexOf(r)].name}: ${r.reason.message}`
+        );
+        
+        setMessage({ 
+          type: "error", 
+          text: `${successful.length} successful, ${failed.length} failed. Errors: ${errorMessages.slice(0, 2).join('; ')}${errorMessages.length > 2 ? '...' : ''}` 
+        });
+      }
+
+    } catch (error) {
+      console.error("Error in batch save:", error);
+      setMessage({ type: "error", text: `Batch update error: ${error.message}` });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleDownload = () => {
     // Create CSV content
     const csvHeaders = "District Name,Water Fee (₹),Total Amount Collected (₹),Apply From\n";
@@ -488,31 +576,43 @@ const handleSaveStateFeeBatch = async () => {
       {/* Fee Input Section */}
       <div className="bg-white rounded-xl shadow-lg p-6 space-y-4">
         {mode === "state" ? (
-          <div className="flex flex-wrap items-center gap-4">
-            <label className="font-medium flex items-center gap-2">
-              <Banknote className="w-5 h-5 text-green-600" />
-              State-wide Water Fee Amount (₹)
-            </label>
-            <input
-              type="number"
-              value={stateFee}
-              onChange={(e) => setStateFee(e.target.value)}
-              className="border rounded-lg px-3 py-2 w-48 focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
-              placeholder="Enter fee amount"
-              min="0"
-            />
-            <button
-              onClick={handleSaveStateFee}
-              disabled={saving || loading}
-              className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg shadow hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <Save className="w-4 h-4" />
-              )}
-              {saving ? "Saving..." : "Save State Fee"}
-            </button>
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <label className="font-medium flex items-center gap-2">
+                <Banknote className="w-5 h-5 text-green-600" />
+                State-wide Water Fee Amount (₹)
+              </label>
+              <input
+                type="number"
+                value={stateFee}
+                onChange={(e) => handleStateFeeChange(e.target.value)}
+                className={`border rounded-lg px-3 py-2 w-48 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 ${
+                  validationErrors.stateFee ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                }`}
+                placeholder="Enter fee amount"
+                min="0"
+              />
+              <button
+                onClick={handleSaveStateFee}
+                disabled={saving || loading || validationErrors.stateFee}
+                className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg shadow hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                {saving ? "Saving..." : "Save State Fee"}
+              </button>
+            </div>
+            
+            {/* State fee validation error */}
+            {validationErrors.stateFee && (
+              <div className="flex items-center gap-2 text-red-600 text-sm">
+                <AlertCircle className="w-4 h-4" />
+                <span>{validationErrors.stateFee}</span>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
@@ -540,21 +640,30 @@ const handleSaveStateFeeBatch = async () => {
                         >
                           <td className="p-3 border font-medium">{district.name}</td>
                           <td className="p-3 border">
-                            <input
-                              type="number"
-                              value={district.fee}
-                              onChange={(e) =>
-                                handleDistrictFeeChange(district.id, e.target.value)
-                              }
-                              className="border rounded-lg px-2 py-1 w-32 focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
-                              placeholder="Fee"
-                              min="0"
-                            />
+                            <div className="space-y-1">
+                              <input
+                                type="number"
+                                value={district.fee}
+                                onChange={(e) =>
+                                  handleDistrictFeeChange(district.id, e.target.value)
+                                }
+                                className={`border rounded-lg px-2 py-1 w-32 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 ${
+                                  validationErrors[`district_${district.id}`] ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                                }`}
+                                placeholder="Fee"
+                                min="0"
+                              />
+                              {validationErrors[`district_${district.id}`] && (
+                                <div className="text-red-600 text-xs flex items-center gap-1">
+                                  <AlertCircle className="w-3 h-3" />
+                                  <span>{validationErrors[`district_${district.id}`]}</span>
+                                </div>
+                              )}
+                            </div>
                           </td>
                           <td className="p-3 border">
                             ₹ {district.totalCollected?.toLocaleString('en-IN') || '0'}
                           </td>
-                          
                         </tr>
                       ))}
                     </tbody>
@@ -563,7 +672,11 @@ const handleSaveStateFeeBatch = async () => {
                 <div className="flex gap-4">
                   <button
                     onClick={handleSaveAll}
-                    disabled={saving || districtFees.length === 0}
+                    disabled={
+                      saving || 
+                      districtFees.length === 0 || 
+                      Object.values(validationErrors).some(error => error)
+                    }
                     className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg shadow hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {saving ? (

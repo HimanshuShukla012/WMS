@@ -60,7 +60,7 @@ const TranslateBar = () => {
       className="fixed left-0 w-full backdrop-blur bg-gradient-to-r from-blue-950 via-blue-900 to-cyan-800 text-white border-b border-blue-800 shadow-lg"
       style={translateBarStyle}
     >
-      <span className="font-semibold">🌐 भाषा चुनें:</span>
+      <span className="font-semibold">🌐 Select Language:</span>
       <div id="google_translate_element"></div>
     </div>
   );

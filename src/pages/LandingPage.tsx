@@ -368,6 +368,128 @@ const LandingPage = () => {
     ))}
   </div>
 </section>
+{/* Handover Takeover Section */}
+<section className="bg-white py-24 px-6 md:px-24 text-gray-900">
+  <div className="max-w-7xl mx-auto">
+    <div className="text-center mb-16">
+      <h2 className="text-4xl font-extrabold mb-6 tracking-tight text-gray-900">
+        Handover Takeover
+      </h2>
+      <p className="text-xl text-gray-600 font-medium">
+        Of Rural Water Supply Schemes
+      </p>
+      <p className="text-lg text-blue-600 mt-2">
+        Link: <a href="https://rwsp.upprd.in/" className="underline hover:text-blue-800">www.rwsp.upprd.in</a>
+      </p>
+    </div>
+
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+      {/* Left Column - Content */}
+      <div className="space-y-8">
+        {/* Relevant G.O Section */}
+        <div className="bg-gray-50 p-6 rounded-2xl shadow-sm">
+          <h3 className="text-2xl font-bold mb-4 text-gray-900">Relevant G.O Numbers:</h3>
+          <ul className="space-y-2 text-gray-700">
+            <li>a) G.O - 814 / पीएसएमएस / 2024, dated: 06 Sep 2024</li>
+            <li>b) G.O - 2499/76-1-2023, dated: 28 June 2024</li>
+            <li>c) G.O - 1596/33-3-2023- 1028/2022 TC, dated: 08 August 2023</li>
+            <li>d) G.O - 365/33-3-2023, dated: 20 Feb 2023</li>
+            <li>e) G.O - 1896/33-3-2022-1028/2022 TC, dated 11 Nov 2022</li>
+          </ul>
+        </div>
+
+        {/* Procedure Section */}
+        <div className="space-y-6">
+          <h3 className="text-2xl font-bold text-gray-900">PROCEDURE:</h3>
+          
+          <div className="space-y-4">
+            <div className="bg-blue-50 p-6 rounded-xl border-l-4 border-blue-500">
+              <h4 className="font-semibold text-lg mb-2">1. Constitutional Amendment</h4>
+              <p className="text-gray-700 leading-relaxed">
+                The 73rd Amendment to the Constitution in 1992, added a new Part IX to the Constitution titled 
+                'The Panchayats' covering provisions from Article 243 to 243 (O); and a new Eleventh Schedule 
+                covering 29 subjects within the functions of the Panchayats'. Entry 11 of this schedule is drinking 
+                water, devolving its management to Panchayati Raj Institutions (PRIs).
+              </p>
+            </div>
+
+            <div className="bg-green-50 p-6 rounded-xl border-l-4 border-green-500">
+              <h4 className="font-semibold text-lg mb-2">2. State Government Order</h4>
+              <p className="text-gray-700 leading-relaxed">
+                According to UP State G.O - 814 / पीएसएमएस / 2024 dated: 06 Sep 2024, the State finance 
+                commission and Central finance commission funds will be utilised for the O&M of only those 
+                schemes handed over to Gram Panchayat through the handover takeover management portal 
+                (www.rwsp.upprd.in). Moreover, there is a provision for water user charge collection.
+              </p>
+            </div>
+
+            <div className="bg-yellow-50 p-6 rounded-xl border-l-4 border-yellow-500">
+              <h4 className="font-semibold text-lg mb-2">3. Two Stage Process</h4>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                There are two stages involved in handover takeover procedure, viz. Stage 1st and 2nd.
+              </p>
+              <div className="ml-4 space-y-3">
+                <div>
+                  <h5 className="font-semibold text-gray-800">3.1. Stage 1st</h5>
+                  <p className="text-gray-700">
+                    Comprises 07 different annexures covering a) basic details, b) DPR, c) Hydro-testing report, 
+                    d) As built Drawing, e) Trail and Run certificate, f) Water supply timing, g) Road restoration, 
+                    H) land verification, I) beneficiary details etc.
+                  </p>
+                  <p className="text-sm font-medium text-gray-600 mt-2">• TECHNICAL VERIFICATION BY DIRECTORATE</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-purple-50 p-6 rounded-xl border-l-4 border-purple-500">
+              <h4 className="font-semibold text-lg mb-2">4. Stage 2nd</h4>
+              <p className="text-gray-700 leading-relaxed">
+                Consists of a join site visit by the officials of Gramin Jalapurti Prakoshth / Consulting Engineer, 
+                along with ADO (P), Panchayat Sachiv, Gram Pradhan, and JE (UPJN-G) within a reasonable time frame. 
+                Based on the field visit report, the scheme is approved/reverted online by the concerned ADO (P) and DPRO. 
+                Projects where major technical issues rise, those are reverted to the concerned UP JN section for further 
+                action, and projects those are found satisfactory, are forwarded to ADO (P) and from ADO(P) to DPRO.
+              </p>
+            </div>
+
+            <div className="bg-indigo-50 p-6 rounded-xl border-l-4 border-indigo-500">
+              <h4 className="font-semibold text-lg mb-2">5. Final Approval</h4>
+              <p className="text-gray-700 leading-relaxed">
+                Once the scheme is approved by ADO (P) and DPRO, an Online certificate is generated instantly.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Column - Process Flow */}
+      <div className="lg:sticky lg:top-8">
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-8 rounded-3xl shadow-lg">
+          <h3 className="text-2xl font-bold text-center mb-8 text-gray-900">Process Flow</h3>
+          <div className="space-y-6">
+            {[
+              { title: "Project Initiation by UPJN (G)", color: "bg-blue-500" },
+              { title: "Technical Verification by Directorate (PRD)", color: "bg-green-500" },
+              { title: "Site visit by Engineer (GJP), G.Pradhan, ADO (P), Sachiv (P)", color: "bg-yellow-500" },
+              { title: "Online approval by Assistant Development Officer (Panchayat)", color: "bg-purple-500" },
+              { title: "Online approval by District Panchayat Raj Officer", color: "bg-indigo-500" },
+              { title: "Handover takeover of rural water supply scheme", color: "bg-emerald-500" }
+            ].map((step, index) => (
+              <div key={index} className="flex items-center space-x-4">
+                <div className={`w-8 h-8 ${step.color} rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}>
+                  {index + 1}
+                </div>
+                <div className="bg-white p-4 rounded-xl shadow-sm flex-1">
+                  <p className="text-gray-800 font-medium text-sm leading-relaxed">{step.title}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 <Footer />
     </div>
   );

@@ -11,27 +11,27 @@ const Footer = () => {
               <img src="/logo.png" alt="IWMS Logo" className="h-14 w-auto" />
               <div className="leading-tight">
                 <div className="font-bold text-base">
-                  Integrated Water Management System
+                  Water Management System
                 </div>
                 
               </div>
             </div>
             <p className="text-gray-400 mt-3">
-              उत्तर प्रदेश पंचायती राज विभाग के अंतर्गत ग्रामीण जल आपूर्ति परियोजनाओं के प्रभावी प्रबंधन हेतु विकसित।
+              Developed for effective management of Rural Water Supply under Directorate of Panchayati Raj Uttar Pradesh.
             </p>
           </div>
 
           
           {/* Social Media (optional or placeholder) */}
           <div>
-  <h3 className="font-semibold text-lg mb-4 text-cyan-300 text-right">सोशल मीडिया</h3>
+  <h3 className="font-semibold text-lg mb-4 text-cyan-300 text-right">Social Media</h3>
   <div className="flex justify-end gap-4 text-xl">
     <a href="#" className="hover:text-cyan-400"><FaFacebookF /></a>
     <a href="#" className="hover:text-cyan-400"><FaTwitter /></a>
     <a href="#" className="hover:text-cyan-400"><FaYoutube /></a>
   </div>
   <p className="text-gray-400 mt-4 text-xs text-right">
-    आधिकारिक जानकारी के लिए केवल इस पोर्टल का उपयोग करें।
+    Follow us on Social Media for all the recent updates!
   </p>
 </div>
 
@@ -39,7 +39,7 @@ const Footer = () => {
 
         {/* Bottom Bar */}
         <div className="border-t border-blue-800 pt-6 pb-4 text-center text-gray-400 text-xs">
-          <p>Cpoyright © {new Date().getFullYear()} KDS Services Pvt. Ltd. | All Rights Reserved</p>
+          <p>Copyright © {new Date().getFullYear()} KDS Services Pvt. Ltd. | All Rights Reserved</p>
           
         </div>
         

@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Download, RefreshCw, BarChart3, FileText, Users, MapPin, Zap, Droplets, AlertCircle, TrendingUp } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import { useUserInfo } from "../utils/userInfo";
 
+// Mock userInfo hook for demo
+const useUserInfo = () => ({
+  userId: 1,
+  role: 'Admin',
+  isLoading: false
+});
 
 // Interfaces
 interface PumpHouseData {
@@ -44,15 +48,8 @@ interface MonthlyRoasterData {
   UpdatedDate: string;
 }
 
-
-interface OHTData {
-  OhtId: number;
-  Districtname: string;
-  BlockName: string;
-  GramPanchayatName: string;
-  VillageName: string;
-  OHTCapacity: number;
-  NoOfPumps: number;
+interface OHTCountData {
+  TotalOHTCount: number;
 }
 
 interface ComplaintData {
@@ -100,166 +97,298 @@ const MISReportingPage: React.FC = () => {
   const [error, setError] = useState<string>("");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-const { userId, role, isLoading: userLoading } = useUserInfo();
+  const { userId, role, isLoading: userLoading } = useUserInfo();
   
   // Data states
   const [pumpHouses, setPumpHouses] = useState<PumpHouseData[]>([]);
   const [roasterData, setRoasterData] = useState<MonthlyRoasterData[]>([]);
-  const [ohtData, setOHTData] = useState<OHTData[]>([]);
+  const [ohtCount, setOHTCount] = useState<number>(0);
   const [complaints, setComplaints] = useState<ComplaintData[]>([]);
   const [feeData, setFeeData] = useState<FeeCollectionData[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
 
   // Summary states
   const [summary, setSummary] = useState({
-  totalPumps: 0,
-  activePumps: 0,
-  totalOHTs: 0,
-  totalCapacity: 0,
-  totalComplaints: 0,
-  resolvedComplaints: 0,
-  totalCollection: 0,
-  totalOutstanding: 0,
-  totalBeneficiaries: 0,
-  activeConnections: 0,       // ✅ add this
-  pendingComplaints: 0        // ✅ add this
-});
+    totalPumps: 0,
+    activePumps: 0,
+    totalOHTs: 0,
+    totalCapacity: 0,
+    totalComplaints: 0,
+    resolvedComplaints: 0,
+    totalCollection: 0,
+    totalOutstanding: 0,
+    totalBeneficiaries: 0,
+    activeConnections: 0,
+    pendingComplaints: 0,
+    totalVillages: 0
+  });
 
-const [isLoading, setIsLoading] = useState(false);
+  const [loadingStates, setLoadingStates] = useState({
+    pumpHouses: false,
+    complaints: false,
+    ohtData: false,
+    feeData: false,
+    villages: false,
+    dashboardStats: false
+  });
+
+  // Helper function to determine if user is admin
+  const isAdmin = () => {
+    return role?.toLowerCase() === 'admin' || role?.toLowerCase() === 'administrator';
+  };
+
+  // Fetch dashboard statistics (Admin vs GP)
+  const fetchDashboardStats = async () => {
+    if (!userId) return;
+    
+    setLoadingStates(prev => ({ ...prev, dashboardStats: true }));
+    
+    try {
+      const baseBody = { InputType: "string" };
+      
+      if (isAdmin()) {
+        // Use Admin APIs
+        const [beneficiariesRes, connectionsRes, complaintsRes, ohtCountRes, pumpCountRes, villageCountRes] = await Promise.all([
+          fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalBeneficiaryCountforAdmin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", accept: "*/*" },
+            body: JSON.stringify(baseBody)
+          }),
+          fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalActiveWaterConnectionCountforAdmin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", accept: "*/*" },
+            body: JSON.stringify(baseBody)
+          }),
+          fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalPendingComplaintCountforAdmin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", accept: "*/*" },
+            body: JSON.stringify(baseBody)
+          }),
+          fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalOverHeadTankCountforAdmin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", accept: "*/*" },
+            body: JSON.stringify(baseBody)
+          }),
+          fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalActivePumphouseCountforAdmin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", accept: "*/*" },
+            body: JSON.stringify(baseBody)
+          }),
+          fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalVillageCountforAdmin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", accept: "*/*" },
+            body: JSON.stringify(baseBody)
+          })
+        ]);
+
+        const [beneficiariesData, connectionsData, complaintsData, ohtCountData, pumpCountData, villageCountData] = await Promise.all([
+          beneficiariesRes.json(),
+          connectionsRes.json(),
+          complaintsRes.json(),
+          ohtCountRes.json(),
+          pumpCountRes.json(),
+          villageCountRes.json()
+        ]);
+
+        setSummary(prev => ({
+          ...prev,
+          totalBeneficiaries: beneficiariesData?.Status && beneficiariesData?.Data?.TotalBeneficiaryCount ? beneficiariesData.Data.TotalBeneficiaryCount : 0,
+          activeConnections: connectionsData?.Status && connectionsData?.Data?.TotalActiveWaterConnectionCount ? connectionsData.Data.TotalActiveWaterConnectionCount : 0,
+          pendingComplaints: complaintsData?.Status && complaintsData?.Data?.TotalPendingComplaintCount ? complaintsData.Data.TotalPendingComplaintCount : 0,
+          totalOHTs: ohtCountData?.Status && ohtCountData?.Data?.TotalOverHeadTankCount ? ohtCountData.Data.TotalOverHeadTankCount : 0,
+          activePumps: pumpCountData?.Status && pumpCountData?.Data?.TotalActivePumphouseCount ? pumpCountData.Data.TotalActivePumphouseCount : 0,
+          totalVillages: villageCountData?.Status && villageCountData?.Data?.TotalVillageCount ? villageCountData.Data.TotalVillageCount : 0
+        }));
+
+      } else {
+        // Use existing GP APIs
+        const [beneficiariesRes, connectionsRes, complaintsRes] = await Promise.all([
+          fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalBeneficiaryCountforAdmin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", accept: "*/*" },
+            body: JSON.stringify(baseBody)
+          }),
+          fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalActiveWaterConnectionCountforAdmin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", accept: "*/*" },
+            body: JSON.stringify(baseBody)
+          }),
+          fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalPendingComplaintCountforAdmin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", accept: "*/*" },
+            body: JSON.stringify(baseBody)
+          })
+        ]);
+
+        const [beneficiariesData, connectionsData, complaintsData] = await Promise.all([
+          beneficiariesRes.json(),
+          connectionsRes.json(),
+          complaintsRes.json()
+        ]);
+
+        setSummary(prev => ({
+          ...prev,
+          totalBeneficiaries: beneficiariesData?.Status && beneficiariesData?.Data?.TotalBeneficiaryCount ? beneficiariesData.Data.TotalBeneficiaryCount : 0,
+          activeConnections: connectionsData?.Status && connectionsData?.Data?.TotalActiveWaterConnectionCount ? connectionsData.Data.TotalActiveWaterConnectionCount : 0,
+          pendingComplaints: complaintsData?.Status && complaintsData?.Data?.TotalPendingComplaintCount ? complaintsData.Data.TotalPendingComplaintCount : 0
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching dashboard stats:", error);
+    } finally {
+      setLoadingStates(prev => ({ ...prev, dashboardStats: false }));
+    }
+  };
 
   // Fetch all data
   const fetchAllData = async () => {
-  if (!userId) {
-    console.warn('UserId not available yet');
-    return;
-  }
-  
-  setLoading(true);
-  setError("");
-  
-  try {
-    // Fetch basic data first
-    await Promise.all([
-      fetchPumpHouses(),
-      fetchComplaints(),
-      fetchTotalBeneficiaries(),
-      fetchActiveConnections(),
-      fetchPendingComplaints(),
-      fetchOHTCount(userId)
-    ]);
+    if (!userId) {
+      console.warn('UserId not available yet');
+      return;
+    }
     
-    // Then fetch villages and their dependent data
-    await fetchVillages();
+    setLoading(true);
+    setError("");
     
-  } catch (err) {
-    console.error('Error in fetchAllData:', err);
-    setError(err.message || "Failed to load data");
-  } finally {
-    setLoading(false);
-  }
-};
+    try {
+      await Promise.all([
+        fetchDashboardStats(),
+        fetchPumpHouses(),
+        fetchComplaints(),
+        fetchVillages()
+      ]);
+    } catch (err) {
+      console.error('Error in fetchAllData:', err);
+      setError(err.message || "Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchPumpHouses = async () => {
-  try {
-    if (!userId) return; // Add userId check
+    if (!userId) return;
     
-    const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetPumpHouseListByUserId?UserId=${userId}`);
+    setLoadingStates(prev => ({ ...prev, pumpHouses: true }));
     
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    console.log('Pump Houses Data:', data); // Add logging for debugging
-    
-    if (data.Status && Array.isArray(data.Data)) {
-      setPumpHouses(data.Data);
-    } else {
-      console.warn('Invalid pump houses response:', data);
+    try {
+      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetPumpHouseListByUserId?UserId=${userId}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Pump Houses Data:', data);
+      
+      if (data.Status && Array.isArray(data.Data)) {
+        setPumpHouses(data.Data);
+      } else {
+        console.warn('Invalid pump houses response:', data);
+        setPumpHouses([]);
+      }
+    } catch (error) {
+      console.error('Error fetching pump houses:', error);
       setPumpHouses([]);
+    } finally {
+      setLoadingStates(prev => ({ ...prev, pumpHouses: false }));
     }
-  } catch (error) {
-    console.error('Error fetching pump houses:', error);
-    setPumpHouses([]);
-  }
-};
+  };
 
   const fetchVillages = async () => {
+    if (!userId) return;
+    
+    setLoadingStates(prev => ({ ...prev, villages: true }));
+    
     try {
       const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetVillageListByUserId?UserId=${userId}`);
       const data: ApiResponse<Village[]> = await response.json();
       
       if (data.Status && Array.isArray(data.Data)) {
         setVillages(data.Data);
-        // Fetch OHT and Fee data for each village
-        for (const village of data.Data) {
-          await fetchOHTData(village.VillageId);
-          await fetchFeeData(village.VillageId);
-        }
+        
+        // Fetch OHT count and Fee data for all villages
+        await fetchOHTCountForUser();
+        await fetchFeeDataForAllVillages(data.Data);
       }
     } catch (error) {
       console.error('Error fetching villages:', error);
+    } finally {
+      setLoadingStates(prev => ({ ...prev, villages: false }));
     }
   };
 
-  const fetchOHTData = async (currentUserId: number) => {
+  const fetchOHTCountForUser = async () => {
+    if (!userId) return;
+    
+    setLoadingStates(prev => ({ ...prev, ohtData: true }));
+    
     try {
-    const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetOHTCountByVillage?VillageId=0&UserId=${currentUserId}`);
-    const data: ApiResponse<{ TotalOHTCount: number }> = await response.json();
-    if (data.Status && data.Data?.TotalOHTCount !== undefined) {
-      setSummary(prev => ({ ...prev, totalOHTs: data.Data.TotalOHTCount }));
-    }
-  } catch (error) {
-    console.error("Error fetching OHT count:", error);
-  }
-};
-
-const fetchOHTCount = async (currentUserId: number) => {
-  try {
-    const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetOHTCountByVillage?VillageId=0&UserId=${currentUserId}`);
-    const data: ApiResponse<{ TotalOHTCount: number }> = await response.json();
-
-    if (data.Status && data.Data?.TotalOHTCount !== undefined) {
-      setSummary(prev => ({ ...prev, totalOHTs: data.Data.TotalOHTCount }));
-    }
-  } catch (error) {
-    console.error("Error fetching OHT count:", error);
-  }
-};
-
-
-  const fetchFeeData = async (villageId: number) => {
-    try {
-      const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetFeeCollectionDetails', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          VillageId: villageId,
-          Month: selectedMonth,
-          Year: selectedYear
-        })
-      });
+      // Fetch OHT count for all villages (VillageId=0 means all villages for the user)
+      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetOHTCountByVillage?VillageId=0&UserId=${userId}`);
+      const data: ApiResponse<OHTCountData> = await response.json();
       
-      const data: ApiResponse<FeeCollectionData[]> = await response.json();
-      
-      if (data.Status && Array.isArray(data.Data)) {
-        setFeeData(prev => [...prev, ...data.Data]);
+      if (data.Status && data.Data && typeof data.Data.TotalOHTCount === 'number') {
+        setOHTCount(data.Data.TotalOHTCount);
+        setSummary(prev => ({ ...prev, totalOHTs: data.Data.TotalOHTCount }));
+      } else {
+        console.warn('Invalid OHT count response:', data);
+        setOHTCount(0);
       }
     } catch (error) {
-      console.error(`Error fetching fee data for village ${villageId}:`, error);
+      console.error('Error fetching OHT count:', error);
+      setOHTCount(0);
+    } finally {
+      setLoadingStates(prev => ({ ...prev, ohtData: false }));
+    }
+  };
+
+  const fetchFeeDataForAllVillages = async (villageList: Village[]) => {
+    setLoadingStates(prev => ({ ...prev, feeData: true }));
+    
+    try {
+      const allFeeData: FeeCollectionData[] = [];
+      
+      // Fetch fee data for each village
+      for (const village of villageList) {
+        try {
+          const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetFeeCollectionDetails', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              VillageId: village.VillageId,
+              Month: selectedMonth,
+              Year: selectedYear
+            })
+          });
+          
+          const data: ApiResponse<FeeCollectionData[]> = await response.json();
+          
+          if (data.Status && Array.isArray(data.Data)) {
+            allFeeData.push(...data.Data);
+          }
+        } catch (error) {
+          console.error(`Error fetching fee data for village ${village.VillageId}:`, error);
+        }
+      }
+      
+      setFeeData(allFeeData);
+    } catch (error) {
+      console.error('Error fetching fee data for all villages:', error);
+      setFeeData([]);
+    } finally {
+      setLoadingStates(prev => ({ ...prev, feeData: false }));
     }
   };
 
   const fetchComplaints = async () => {
-    setIsLoading(prev => ({ ...prev, complaints: true }));
+    setLoadingStates(prev => ({ ...prev, complaints: true }));
+    
     try {
       const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Complain/GetComplaintListByUserIdVillageAndStatus', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          UserId: 0,
+          UserId: isAdmin() ? 0 : userId, // Admin gets all complaints, GP gets filtered
           VillageId: 0,
           Status: null
         })
@@ -276,180 +405,122 @@ const fetchOHTCount = async (currentUserId: number) => {
       console.error('Error fetching complaints:', error);
       setComplaints([]);
     } finally {
-      setIsLoading(prev => ({ ...prev, complaints: false }));
+      setLoadingStates(prev => ({ ...prev, complaints: false }));
     }
   };
 
-const fetchTotalBeneficiaries = async () => {
-  try {
-    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalBeneficiaryCountforAdmin", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        accept: "*/*",
-      },
-      body: JSON.stringify({ InputType: "string" })
-    });
-
-    const data = await res.json();
-    if (data?.Status && data?.Data?.TotalBeneficiaryCount !== undefined) {
-      setSummary(prev => ({ ...prev, totalBeneficiaries: data.Data.TotalBeneficiaryCount }));
-    }
-  } catch (error) {
-    console.error("Error fetching total beneficiaries:", error);
-  }
-};
-
-const fetchActiveConnections = async () => {
-  try {
-    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalActiveWaterConnectionCountforAdmin", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        accept: "*/*",
-      },
-      body: JSON.stringify({ InputType: "string" })
-    });
-
-    const data = await res.json();
-    if (data?.Status && data?.Data?.TotalActiveWaterConnectionCount !== undefined) {
-      setSummary(prev => ({ ...prev, activeConnections: data.Data.TotalActiveWaterConnectionCount }));
-    }
-  } catch (error) {
-    console.error("Error fetching active connections:", error);
-  }
-};
-
-const fetchPendingComplaints = async () => {
-  try {
-    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalPendingComplaintCountforAdmin", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        accept: "*/*",
-      },
-      body: JSON.stringify({ InputType: "string" })
-    });
-
-    const data = await res.json();
-    if (data?.Status && data?.Data?.TotalPendingComplaintCount !== undefined) {
-      setSummary(prev => ({ ...prev, pendingComplaints: data.Data.TotalPendingComplaintCount }));
-    }
-  } catch (error) {
-    console.error("Error fetching pending complaints:", error);
-  }
-};
-
-
-  const fetchRoasterData = async (pumpId: number) => {
+  const fetchRoasterData = async () => {
+    if (pumpHouses.length === 0) return;
+    
     try {
-      const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetMonthlyRoasterWithSchedule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          GPId: pumpId,
-          VillgeId: 0,
-          Month: selectedMonth,
-          Year: selectedYear
-        })
-      });
+      const uniqueGPIds = [...new Set(pumpHouses.map(p => p.PumpId))];
+      const allRoasterData: MonthlyRoasterData[] = [];
       
-      const data: ApiResponse<MonthlyRoasterData[]> = await response.json();
-      
-      if (data.Status && Array.isArray(data.Data)) {
-        setRoasterData(prev => [...prev, ...data.Data]);
+      for (const gpId of uniqueGPIds) {
+        try {
+          const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetMonthlyRoasterWithSchedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              GPId: gpId,
+              VillgeId: 0, // 0 for all villages under the GP
+              Month: selectedMonth,
+              Year: selectedYear
+            })
+          });
+          
+          const data: ApiResponse<MonthlyRoasterData[]> = await response.json();
+          
+          if (data.Status && Array.isArray(data.Data)) {
+            allRoasterData.push(...data.Data);
+          }
+        } catch (error) {
+          console.error(`Error fetching roaster data for GP ${gpId}:`, error);
+        }
       }
+      
+      setRoasterData(allRoasterData);
     } catch (error) {
-      console.error(`Error fetching roaster data for pump ${pumpId}:`, error);
+      console.error('Error fetching roaster data:', error);
+      setRoasterData([]);
     }
   };
 
-  // Calculate summary statistics
+  // Calculate summary statistics from local data
   useEffect(() => {
-  const totalPumps = pumpHouses.length;
-  const activePumps = pumpHouses.filter(p => p.Status === 1).length;
-  const totalCapacity = ohtData.reduce((sum, oht) => sum + oht.OHTCapacity, 0);
-  const totalComplaints = complaints.length;
-  const resolvedComplaints = complaints.filter(c => c.Status === true).length;
-  const totalCollection = feeData.reduce((sum, fee) => sum + fee.PaidAmount, 0);
-  const totalOutstanding = feeData.reduce((sum, fee) => sum + fee.OutstandingAmount, 0);
-  const totalBeneficiaries = new Set(feeData.map(f => f.BeneficiaryId)).size;
+    if (pumpHouses.length === 0 && ohtCount === 0 && complaints.length === 0 && feeData.length === 0) {
+      return;
+    }
+
+    const totalPumps = pumpHouses.length;
+    const localActivePumps = pumpHouses.filter(p => p.Status === 1).length;
+    const totalComplaints = complaints.length;
+    const resolvedComplaints = complaints.filter(c => c.Status === true).length;
+    const totalCollection = feeData.reduce((sum, fee) => sum + fee.PaidAmount, 0);
+    const totalOutstanding = feeData.reduce((sum, fee) => sum + fee.OutstandingAmount, 0);
+    const localBeneficiaries = new Set(feeData.map(f => f.BeneficiaryId)).size;
 
     setSummary(prev => ({
-    ...prev, // Keep existing values like totalOHTs, activeConnections, pendingComplaints
-    totalPumps,
-    activePumps,
-    totalCapacity,
-    totalComplaints,
-    resolvedComplaints,
-    totalCollection,
-    totalOutstanding,
-    totalBeneficiaries
-  }));
-}, [pumpHouses, ohtData, complaints, feeData]);
+      ...prev,
+      totalPumps,
+      activePumps: isAdmin() ? prev.activePumps : localActivePumps,
+      totalComplaints,
+      resolvedComplaints,
+      totalCollection,
+      totalOutstanding,
+      totalBeneficiaries: isAdmin() ? prev.totalBeneficiaries : localBeneficiaries
+    }));
+  }, [pumpHouses, ohtCount, complaints, feeData, role]);
 
   // Initialize data on component mount
   useEffect(() => {
-  if (userId) {  // Add this check
-    fetchAllData();
-  }
-}, [userId]);
-
-  // Fetch roaster data when pump houses are loaded
-  useEffect(() => {
-    if (pumpHouses.length > 0) {
-      setRoasterData([]); // Clear previous data
-      const uniquePumpIds = [...new Set(pumpHouses.map(p => p.PumpId))];
-      uniquePumpIds.forEach(pumpId => {
-        fetchRoasterData(pumpId);
-      });
+    if (userId && role) {
+      fetchAllData();
     }
+  }, [userId, role]);
+
+  // Fetch roaster data when pump houses are loaded or month/year changes
+  useEffect(() => {
+    fetchRoasterData();
   }, [pumpHouses, selectedMonth, selectedYear]);
 
-  const handleRefresh = () => {
-  // Clear all data states
-  setPumpHouses([]);
-  setOHTData([]);
-  setFeeData([]);
-  setRoasterData([]);
-  setComplaints([]);
-  
-  // Reset summary to initial state
-  setSummary({
-    totalPumps: 0,
-    activePumps: 0,
-    totalOHTs: 0,
-    totalCapacity: 0,
-    totalComplaints: 0,
-    resolvedComplaints: 0,
-    totalCollection: 0,
-    totalOutstanding: 0,
-    totalBeneficiaries: 0,
-    activeConnections: 0,
-    pendingComplaints: 0
-  });
-  
-  fetchAllData();
-};
+  // Re-fetch fee data when month/year changes
+  useEffect(() => {
+    if (villages.length > 0) {
+      fetchFeeDataForAllVillages(villages);
+    }
+  }, [selectedMonth, selectedYear]);
 
-
-const DataDebugInfo = () => {
-  if (!userId) return <div className="text-red-500">UserId not loaded</div>;
-  
-  return (
-    <div className="bg-yellow-50 p-4 rounded border text-sm">
-      <h4 className="font-semibold mb-2">Debug Info:</h4>
-      <div>UserId: {userId}</div>
-      <div>Pump Houses: {pumpHouses.length}</div>
-      <div>Villages: {villages.length}</div>
-      <div>OHT Data: {ohtData.length}</div>
-      <div>Fee Data: {feeData.length}</div>
-      <div>Complaints: {complaints.length}</div>
-      <div>Loading: {loading ? 'Yes' : 'No'}</div>
-    </div>
-  );
-};
-
+  const handleRefresh = async () => {
+    // Clear all data states
+    setPumpHouses([]);
+    setOHTCount(0);
+    setFeeData([]);
+    setRoasterData([]);
+    setComplaints([]);
+    setVillages([]);
+    
+    // Reset summary to initial state
+    setSummary({
+      totalPumps: 0,
+      activePumps: 0,
+      totalOHTs: 0,
+      totalCapacity: 0,
+      totalComplaints: 0,
+      resolvedComplaints: 0,
+      totalCollection: 0,
+      totalOutstanding: 0,
+      totalBeneficiaries: 0,
+      activeConnections: 0,
+      pendingComplaints: 0,
+      totalVillages: 0
+    });
+    
+    // Add small delay to ensure state updates
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    fetchAllData();
+  };
 
   const handleDownloadReport = (reportType: string) => {
     let exportData: any[] = [];
@@ -457,6 +528,10 @@ const DataDebugInfo = () => {
 
     switch (reportType) {
       case 'pump-house':
+        if (pumpHouses.length === 0) {
+          alert('No pump house data available to download');
+          return;
+        }
         exportData = pumpHouses.map(pump => ({
           'OHT ID': pump.OhtId,
           'Operator Name': pump.OperatorName,
@@ -467,23 +542,23 @@ const DataDebugInfo = () => {
           'Solar Output (kW)': pump.SolarOutput,
           'Status': pump.Status === 1 ? 'Active' : 'Inactive'
         }));
-        filename = `pump_house_report_${selectedYear}_${selectedMonth}.xlsx`;
+        filename = `pump_house_report_${selectedYear}_${selectedMonth}.csv`;
         break;
 
       case 'oht':
-        exportData = ohtData.map(oht => ({
-          'OHT ID': oht.OhtId,
-          'District': oht.Districtname,
-          'Block': oht.BlockName,
-          'Gram Panchayat': oht.GramPanchayatName,
-          'Village': oht.VillageName,
-          'Capacity (L)': oht.OHTCapacity,
-          'Number of Pumps': oht.NoOfPumps
-        }));
-        filename = `oht_report_${selectedYear}_${selectedMonth}.xlsx`;
+        exportData = [{
+          'Total OHT Count': ohtCount,
+          'Report Period': `${getMonthName(selectedMonth)} ${selectedYear}`,
+          'Generated On': new Date().toLocaleDateString()
+        }];
+        filename = `oht_count_report_${selectedYear}_${selectedMonth}.csv`;
         break;
 
       case 'complaints':
+        if (complaints.length === 0) {
+          alert('No complaints data available to download');
+          return;
+        }
         exportData = complaints.map(complaint => ({
           'Complaint ID': complaint.ComplaintID,
           'District': complaint.District,
@@ -496,10 +571,14 @@ const DataDebugInfo = () => {
           'Category': complaint.Category,
           'Status': complaint.Status ? 'Resolved' : 'Pending'
         }));
-        filename = `complaints_report_${selectedYear}_${selectedMonth}.xlsx`;
+        filename = `complaints_report_${selectedYear}_${selectedMonth}.csv`;
         break;
 
       case 'fee-collection':
+        if (feeData.length === 0) {
+          alert('No fee collection data available to download');
+          return;
+        }
         exportData = feeData.map(fee => ({
           'Fee Collection ID': fee.FeeCollectionId,
           'Village': fee.VillageName,
@@ -511,10 +590,14 @@ const DataDebugInfo = () => {
           'Paid Amount': fee.PaidAmount,
           'Balance Amount': fee.BalanceAmount
         }));
-        filename = `fee_collection_report_${selectedYear}_${selectedMonth}.xlsx`;
+        filename = `fee_collection_report_${selectedYear}_${selectedMonth}.csv`;
         break;
 
       case 'roaster':
+        if (roasterData.length === 0) {
+          alert('No roaster data available to download');
+          return;
+        }
         exportData = roasterData.map(roaster => ({
           'Roaster ID': roaster.RoasterId,
           'GP ID': roaster.GPId,
@@ -523,9 +606,10 @@ const DataDebugInfo = () => {
           'Activity Type': roaster.ActivityType,
           'Start Date': roaster.StartDate,
           'End Date': roaster.EndDate,
+          'Remark': roaster.Remark,
           'Status': roaster.Status === 1 ? 'Active' : 'Inactive'
         }));
-        filename = `roaster_report_${selectedYear}_${selectedMonth}.xlsx`;
+        filename = `roaster_report_${selectedYear}_${selectedMonth}.csv`;
         break;
 
       case 'consolidated':
@@ -534,20 +618,22 @@ const DataDebugInfo = () => {
           'Total Pumps': summary.totalPumps,
           'Active Pumps': summary.activePumps,
           'Total OHTs': summary.totalOHTs,
-          'Total Capacity (L)': summary.totalCapacity,
           'Total Complaints': summary.totalComplaints,
           'Resolved Complaints': summary.resolvedComplaints,
           'Total Collection (₹)': summary.totalCollection,
           'Total Outstanding (₹)': summary.totalOutstanding,
           'Total Beneficiaries': summary.totalBeneficiaries,
+          'Active Connections': summary.activeConnections,
+          'Pending Complaints': summary.pendingComplaints,
           'Collection Efficiency (%)': summary.totalCollection + summary.totalOutstanding > 0 
             ? Math.round((summary.totalCollection / (summary.totalCollection + summary.totalOutstanding)) * 100) 
             : 0
         }];
-        filename = `consolidated_report_${selectedYear}_${selectedMonth}.xlsx`;
+        filename = `consolidated_report_${selectedYear}_${selectedMonth}.csv`;
         break;
 
       default:
+        alert('Invalid report type');
         return;
     }
 
@@ -556,16 +642,27 @@ const DataDebugInfo = () => {
       return;
     }
 
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    
-    const colWidths = Object.keys(exportData[0] || {}).map(key => ({
-      wch: Math.max(key.length, 15)
-    }));
-    ws['!cols'] = colWidths;
+    try {
+      // Simple CSV export
+      const headers = Object.keys(exportData[0]);
+      const csvContent = [
+        headers.join(','),
+        ...exportData.map(row => headers.map(header => `"${row[header]}"`).join(','))
+      ].join('\n');
 
-    XLSX.utils.book_append_sheet(wb, ws, reportType.replace('-', '_').toUpperCase());
-    XLSX.writeFile(wb, filename);
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error generating CSV file:', error);
+      alert('Error generating CSV file. Please try again.');
+    }
   };
 
   const getMonthName = (month: number): string => {
@@ -579,18 +676,20 @@ const DataDebugInfo = () => {
       description: "Complete pump house inventory and status",
       icon: <Zap className="w-6 h-6" />,
       count: pumpHouses.length,
-      active: pumpHouses.filter(p => p.Status === 1).length,
+      active: summary.activePumps,
       downloadKey: 'pump-house',
-      color: 'blue'
+      color: 'blue',
+      loading: loadingStates.pumpHouses
     },
     {
-      title: "OHT Infrastructure Report",
-      description: "Overhead tank capacity and distribution",
+      title: "OHT Count Report",
+      description: "Overhead tank count and status",
       icon: <Droplets className="w-6 h-6" />,
-      count: ohtData.length,
-      active: Math.round(summary.totalCapacity / 1000),
+      count: ohtCount,
+      active: ohtCount,
       downloadKey: 'oht',
-      color: 'green'
+      color: 'green',
+      loading: loadingStates.ohtData
     },
     {
       title: "Complaints Report",
@@ -599,16 +698,18 @@ const DataDebugInfo = () => {
       count: complaints.length,
       active: summary.resolvedComplaints,
       downloadKey: 'complaints',
-      color: 'orange'
+      color: 'orange',
+      loading: loadingStates.complaints
     },
     {
       title: "Fee Collection Report",
       description: "Revenue collection and outstanding dues",
       icon: <TrendingUp className="w-6 h-6" />,
-      count: summary.totalBeneficiaries,
+      count: feeData.length,
       active: Math.round(summary.totalCollection / 1000),
       downloadKey: 'fee-collection',
-      color: 'purple'
+      color: 'purple',
+      loading: loadingStates.feeData
     },
     {
       title: "Roaster Schedule Report",
@@ -617,9 +718,21 @@ const DataDebugInfo = () => {
       count: roasterData.length,
       active: roasterData.filter(r => r.Status === 1).length,
       downloadKey: 'roaster',
-      color: 'indigo'
+      color: 'indigo',
+      loading: false
     }
   ];
+
+  if (userLoading) {
+    return (
+      <div className="w-full bg-gray-50 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading user information...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full bg-gray-50 min-h-screen relative z-10">
@@ -630,8 +743,11 @@ const DataDebugInfo = () => {
             <div>
               <h1 className="text-3xl font-bold mb-2">MIS & Reporting Dashboard</h1>
               <p className="text-blue-100">
-                Comprehensive reporting and analytics for Gram Panchayat water management
+                Comprehensive reporting and analytics for {isAdmin() ? 'Administrative' : 'Gram Panchayat'} water management
               </p>
+              <div className="text-sm text-blue-200 mt-2">
+                Role: {role} | User ID: {userId}
+              </div>
             </div>
             <div className="text-right">
               <div className="text-sm text-blue-200">Report Period</div>
@@ -690,7 +806,8 @@ const DataDebugInfo = () => {
               </button>
               <button
                 onClick={() => handleDownloadReport('consolidated')}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                disabled={loading}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors"
               >
                 <Download className="w-4 h-4" />
                 Download All
@@ -725,7 +842,13 @@ const DataDebugInfo = () => {
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-2xl font-bold text-blue-600">{summary.activePumps}/{summary.totalPumps}</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {loadingStates.dashboardStats ? (
+                    <div className="animate-pulse bg-gray-300 h-6 w-16 rounded"></div>
+                  ) : (
+                    `${summary.activePumps}/${summary.totalPumps}`
+                  )}
+                </div>
                 <div className="text-sm font-medium text-gray-700">Active Pumps</div>
               </div>
               <Zap className="w-8 h-8 text-blue-600 opacity-60" />
@@ -735,8 +858,14 @@ const DataDebugInfo = () => {
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-2xl font-bold text-green-600">{(summary.totalCapacity / 1000).toFixed(0)} KL</div>
-                <div className="text-sm font-medium text-gray-700">Total OHT Capacity</div>
+                <div className="text-2xl font-bold text-green-600">
+                  {loadingStates.ohtData ? (
+                    <div className="animate-pulse bg-gray-300 h-6 w-16 rounded"></div>
+                  ) : (
+                    `${summary.totalOHTs}`
+                  )}
+                </div>
+                <div className="text-sm font-medium text-gray-700">Total OHTs</div>
               </div>
               <Droplets className="w-8 h-8 text-green-600 opacity-60" />
             </div>
@@ -745,8 +874,14 @@ const DataDebugInfo = () => {
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-2xl font-bold text-orange-600">{summary.resolvedComplaints}/{summary.totalComplaints}</div>
-                <div className="text-sm font-medium text-gray-700">Resolved Complaints</div>
+                <div className="text-2xl font-bold text-orange-600">
+                  {loadingStates.dashboardStats ? (
+                    <div className="animate-pulse bg-gray-300 h-6 w-16 rounded"></div>
+                  ) : (
+                    `${summary.pendingComplaints}`
+                  )}
+                </div>
+                <div className="text-sm font-medium text-gray-700">Pending Complaints</div>
               </div>
               <AlertCircle className="w-8 h-8 text-orange-600 opacity-60" />
             </div>
@@ -755,7 +890,13 @@ const DataDebugInfo = () => {
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-2xl font-bold text-purple-600">₹{(summary.totalCollection / 1000).toFixed(0)} K</div>
+                <div className="text-2xl font-bold text-purple-600">
+                  {loadingStates.feeData ? (
+                    <div className="animate-pulse bg-gray-300 h-6 w-16 rounded"></div>
+                  ) : (
+                    `₹${(summary.totalCollection / 1000).toFixed(0)} K`
+                  )}
+                </div>
                 <div className="text-sm font-medium text-gray-700">Fee Collection</div>
               </div>
               <TrendingUp className="w-8 h-8 text-purple-600 opacity-60" />
@@ -770,7 +911,11 @@ const DataDebugInfo = () => {
               <div className={`bg-gradient-to-r from-${card.color}-500 to-${card.color}-600 p-4 text-white`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    {card.icon}
+                    {card.loading ? (
+                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent"></div>
+                    ) : (
+                      card.icon
+                    )}
                     <h3 className="font-semibold text-lg">{card.title}</h3>
                   </div>
                   <FileText className="w-5 h-5 opacity-75" />
@@ -782,14 +927,26 @@ const DataDebugInfo = () => {
                 
                 <div className="flex justify-between items-center mb-4">
                   <div>
-                    <div className="text-2xl font-bold text-gray-800">{card.count}</div>
+                    <div className="text-2xl font-bold text-gray-800">
+                      {card.loading ? (
+                        <div className="animate-pulse bg-gray-300 h-6 w-12 rounded"></div>
+                      ) : (
+                        card.count
+                      )}
+                    </div>
                     <div className="text-sm text-gray-500">Total Records</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xl font-semibold text-green-600">{card.active}</div>
+                    <div className="text-xl font-semibold text-green-600">
+                      {card.loading ? (
+                        <div className="animate-pulse bg-gray-300 h-5 w-10 rounded"></div>
+                      ) : (
+                        card.active
+                      )}
+                    </div>
                     <div className="text-sm text-gray-500">
                       {card.downloadKey === 'pump-house' ? 'Active' :
-                       card.downloadKey === 'oht' ? 'K Liters' :
+                       card.downloadKey === 'oht' ? 'Available' :
                        card.downloadKey === 'complaints' ? 'Resolved' :
                        card.downloadKey === 'fee-collection' ? 'K Collection' :
                        'Active'}
@@ -799,11 +956,11 @@ const DataDebugInfo = () => {
                 
                 <button
                   onClick={() => handleDownloadReport(card.downloadKey)}
-                  disabled={card.count === 0}
+                  disabled={card.count === 0 || card.loading || loading}
                   className={`w-full flex items-center justify-center gap-2 px-4 py-2 bg-${card.color}-600 text-white rounded-lg hover:bg-${card.color}-700 disabled:bg-gray-400 transition-colors`}
                 >
                   <Download className="w-4 h-4" />
-                  Download Report
+                  {card.loading ? 'Loading...' : 'Download Report'}
                 </button>
               </div>
             </div>
@@ -823,24 +980,52 @@ const DataDebugInfo = () => {
             <div className="p-6 space-y-4">
               <div className="flex justify-between items-center py-2 border-b">
                 <span className="text-gray-600">Total Villages Covered</span>
-                <span className="font-semibold">{villages.length}</span>
+                <span className="font-semibold">
+                  {loadingStates.villages ? (
+                    <div className="animate-pulse bg-gray-300 h-4 w-8 rounded"></div>
+                  ) : (
+                    isAdmin() ? summary.totalVillages : villages.length
+                  )}
+                </span>
               </div>
               <div className="flex justify-between items-center py-2 border-b">
                 <span className="text-gray-600">Pump House Coverage</span>
-                <span className="font-semibold">{summary.totalPumps} units</span>
+                <span className="font-semibold">
+                  {loadingStates.pumpHouses ? (
+                    <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
+                  ) : (
+                    `${summary.totalPumps} units`
+                  )}
+                </span>
               </div>
               <div className="flex justify-between items-center py-2 border-b">
                 <span className="text-gray-600">OHT Infrastructure</span>
-                <span className="font-semibold">{summary.totalOHTs} tanks</span>
+                <span className="font-semibold">
+                  {loadingStates.ohtData ? (
+                    <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
+                  ) : (
+                    `${summary.totalOHTs} tanks`
+                  )}
+                </span>
               </div>
               <div className="flex justify-between items-center py-2 border-b">
                 <span className="text-gray-600">Solar Pumps</span>
-                <span className="font-semibold">{pumpHouses.filter(p => p.PowerSource === '2').length}</span>
+                <span className="font-semibold">
+                  {loadingStates.pumpHouses ? (
+                    <div className="animate-pulse bg-gray-300 h-4 w-8 rounded"></div>
+                  ) : (
+                    pumpHouses.filter(p => p.PowerSource === '2').length
+                  )}
+                </span>
               </div>
               <div className="flex justify-between items-center py-2">
                 <span className="text-gray-600">Operational Efficiency</span>
                 <span className="font-semibold text-green-600">
-                  {summary.totalPumps > 0 ? Math.round((summary.activePumps / summary.totalPumps) * 100) : 0}%
+                  {loadingStates.pumpHouses || loadingStates.dashboardStats ? (
+                    <div className="animate-pulse bg-gray-300 h-4 w-10 rounded"></div>
+                  ) : (
+                    `${summary.totalPumps > 0 ? Math.round((summary.activePumps / summary.totalPumps) * 100) : 0}%`
+                  )}
                 </span>
               </div>
             </div>
@@ -857,280 +1042,65 @@ const DataDebugInfo = () => {
             <div className="p-6 space-y-4">
               <div className="flex justify-between items-center py-2 border-b">
                 <span className="text-gray-600">Total Collection</span>
-                <span className="font-semibold text-green-600">₹{summary.totalCollection.toLocaleString()}</span>
+                <span className="font-semibold text-green-600">
+                  {loadingStates.feeData ? (
+                    <div className="animate-pulse bg-gray-300 h-4 w-16 rounded"></div>
+                  ) : (
+                    `₹${summary.totalCollection.toLocaleString()}`
+                  )}
+                </span>
               </div>
               <div className="flex justify-between items-center py-2 border-b">
                 <span className="text-gray-600">Outstanding Amount</span>
-                <span className="font-semibold text-red-600">₹{summary.totalOutstanding.toLocaleString()}</span>
+                <span className="font-semibold text-red-600">
+                  {loadingStates.feeData ? (
+                    <div className="animate-pulse bg-gray-300 h-4 w-16 rounded"></div>
+                  ) : (
+                    `₹${summary.totalOutstanding.toLocaleString()}`
+                  )}
+                </span>
               </div>
               <div className="flex justify-between items-center py-2 border-b">
                 <span className="text-gray-600">Active Beneficiaries</span>
-                <span className="font-semibold">{summary.totalBeneficiaries}</span>
+                <span className="font-semibold">
+                  {loadingStates.dashboardStats || loadingStates.feeData ? (
+                    <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
+                  ) : (
+                    summary.totalBeneficiaries
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b">
+                <span className="text-gray-600">Active Connections</span>
+                <span className="font-semibold">
+                  {loadingStates.dashboardStats ? (
+                    <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
+                  ) : (
+                    summary.activeConnections
+                  )}
+                </span>
               </div>
               <div className="flex justify-between items-center py-2 border-b">
                 <span className="text-gray-600">Collection Efficiency</span>
                 <span className="font-semibold text-blue-600">
-                  {summary.totalCollection + summary.totalOutstanding > 0 
-                    ? Math.round((summary.totalCollection / (summary.totalCollection + summary.totalOutstanding)) * 100) 
-                    : 0}%
+                  {loadingStates.feeData ? (
+                    <div className="animate-pulse bg-gray-300 h-4 w-10 rounded"></div>
+                  ) : (
+                    `${summary.totalCollection + summary.totalOutstanding > 0 
+                      ? Math.round((summary.totalCollection / (summary.totalCollection + summary.totalOutstanding)) * 100) 
+                      : 0}%`
+                  )}
                 </span>
               </div>
               <div className="flex justify-between items-center py-2">
                 <span className="text-gray-600">Avg Collection/Beneficiary</span>
                 <span className="font-semibold">
-                  ₹{summary.totalBeneficiaries > 0 ? Math.round(summary.totalCollection / summary.totalBeneficiaries) : 0}
+                  {loadingStates.feeData || loadingStates.dashboardStats ? (
+                    <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
+                  ) : (
+                    `₹${summary.totalBeneficiaries > 0 ? Math.round(summary.totalCollection / summary.totalBeneficiaries) : 0}`
+                  )}
                 </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="bg-gradient-to-r from-gray-600 to-gray-700 p-4 text-white">
-            <h3 className="font-semibold text-lg flex items-center gap-2">
-              <FileText className="w-5 h-5" />
-              Quick Export Options
-            </h3>
-          </div>
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <button
-                onClick={() => handleDownloadReport('consolidated')}
-                className="flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-              >
-                <BarChart3 className="w-4 h-4" />
-                Executive Summary
-              </button>
-              <button
-                onClick={() => {
-                  const wb = XLSX.utils.book_new();
-                  
-                  // Add all reports to workbook
-                  reportCards.forEach(card => {
-                    let data: any[] = [];
-                    switch(card.downloadKey) {
-                      case 'pump-house':
-                        data = pumpHouses.map(p => ({
-                          'OHT ID': p.OhtId,
-                          'Operator': p.OperatorName,
-                          'Pump ID': p.PumpId,
-                          'HP': p.HorsePower,
-                          'Power Source': p.PowerSource === '1' ? 'Electric' : 'Solar',
-                          'Status': p.Status === 1 ? 'Active' : 'Inactive'
-                        }));
-                        break;
-                      case 'oht':
-                        data = ohtData.map(o => ({
-                          'OHT ID': o.OhtId,
-                          'Village': o.VillageName,
-                          'Capacity': o.OHTCapacity,
-                          'Pumps': o.NoOfPumps
-                        }));
-                        break;
-                      case 'complaints':
-                        data = complaints.map(c => ({
-                          'ID': c.ComplaintID,
-                          'Village': c.Village,
-                          'Beneficiary': c.BeneficiaryName,
-                          'Category': c.Category,
-                          'Status': c.Status ? 'Resolved' : 'Pending'
-                        }));
-                        break;
-                      case 'fee-collection':
-                        data = feeData.map(f => ({
-                          'Village': f.VillageName,
-                          'Beneficiary': f.BeneficiaryName,
-                          'Paid': f.PaidAmount,
-                          'Outstanding': f.OutstandingAmount,
-                          'Balance': f.BalanceAmount
-                        }));
-                        break;
-                      case 'roaster':
-                        data = roasterData.map(r => ({
-                          'GP ID': r.GPId,
-                          'Date': r.RoasterDate,
-                          'Activity': r.ActivityType,
-                          'Status': r.Status === 1 ? 'Active' : 'Inactive'
-                        }));
-                        break;
-                    }
-                    
-                    if (data.length > 0) {
-                      const ws = XLSX.utils.json_to_sheet(data);
-                      XLSX.utils.book_append_sheet(wb, ws, card.title.replace(' Report', ''));
-                    }
-                  });
-                  
-                  XLSX.writeFile(wb, `complete_mis_report_${selectedYear}_${selectedMonth}.xlsx`);
-                }}
-                className="flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-              >
-                <Download className="w-4 h-4" />
-                Complete Workbook
-              </button>
-              <button
-                onClick={() => {
-                  const summaryData = [{
-                    'Metric': 'Infrastructure',
-                    'Total Pumps': summary.totalPumps,
-                    'Active Pumps': summary.activePumps,
-                    'Total OHTs': summary.totalOHTs,
-                    'OHT Capacity (L)': summary.totalCapacity
-                  }, {
-                    'Metric': 'Operations',
-                    'Total Complaints': summary.totalComplaints,
-                    'Resolved Complaints': summary.resolvedComplaints,
-                    'Roaster Schedules': roasterData.length,
-                    'Active Schedules': roasterData.filter(r => r.Status === 1).length
-                  }, {
-                    'Metric': 'Financial',
-                    'Total Collection': summary.totalCollection,
-                    'Outstanding Amount': summary.totalOutstanding,
-                    'Total Beneficiaries': summary.totalBeneficiaries,
-                    'Collection Efficiency': Math.round((summary.totalCollection / (summary.totalCollection + summary.totalOutstanding || 1)) * 100)
-                  }];
-                  
-                  const wb = XLSX.utils.book_new();
-                  const ws = XLSX.utils.json_to_sheet(summaryData);
-                  XLSX.utils.book_append_sheet(wb, ws, 'Dashboard_Summary');
-                  XLSX.writeFile(wb, `dashboard_summary_${selectedYear}_${selectedMonth}.xlsx`);
-                }}
-                className="flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                <BarChart3 className="w-4 h-4" />
-                Dashboard Summary
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Village-wise Breakdown */}
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="bg-gradient-to-r from-green-500 to-green-600 p-4 text-white">
-            <h3 className="font-semibold text-lg flex items-center gap-2">
-              <MapPin className="w-5 h-5" />
-              Village-wise Infrastructure Summary
-            </h3>
-          </div>
-          <div className="p-6">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b">
-                    <th className="text-left p-3 font-semibold text-gray-700">Village</th>
-                    <th className="text-left p-3 font-semibold text-gray-700">OHTs</th>
-                    <th className="text-left p-3 font-semibold text-gray-700">Capacity (L)</th>
-                    <th className="text-left p-3 font-semibold text-gray-700">Pumps</th>
-                    <th className="text-left p-3 font-semibold text-gray-700">Complaints</th>
-                    <th className="text-left p-3 font-semibold text-gray-700">Collection (₹)</th>
-                    <th className="text-left p-3 font-semibold text-gray-700">Outstanding (₹)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {villages.map((village, index) => {
-                    const villageOHTs = ohtData.filter(o => o.VillageName === village.VillageName);
-                    const villageCapacity = villageOHTs.reduce((sum, o) => sum + o.OHTCapacity, 0);
-                    const villagePumps = villageOHTs.reduce((sum, o) => sum + o.NoOfPumps, 0);
-                    const villageComplaints = complaints.filter(c => c.Village === village.VillageName);
-                    const villageFees = feeData.filter(f => f.VillageId === village.VillageId);
-                    const villageCollection = villageFees.reduce((sum, f) => sum + f.PaidAmount, 0);
-                    const villageOutstanding = villageFees.reduce((sum, f) => sum + f.OutstandingAmount, 0);
-
-                    return (
-                      <tr key={village.VillageId} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                        <td className="p-3 font-medium text-gray-900">{village.VillageName}</td>
-                        <td className="p-3 text-gray-700">{villageOHTs.length}</td>
-                        <td className="p-3 text-gray-700">{villageCapacity.toLocaleString()}</td>
-                        <td className="p-3 text-gray-700">{villagePumps}</td>
-                        <td className="p-3 text-gray-700">{villageComplaints.length}</td>
-                        <td className="p-3 text-green-600 font-medium">₹{villageCollection.toLocaleString()}</td>
-                        <td className="p-3 text-red-600 font-medium">₹{villageOutstanding.toLocaleString()}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Activity Summary */}
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-4 text-white">
-            <h3 className="font-semibold text-lg flex items-center gap-2">
-              <Calendar className="w-5 h-5" />
-              Recent Activity Summary
-            </h3>
-          </div>
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600 mb-2">{roasterData.filter(r => r.Status === 1).length}</div>
-                <div className="text-sm text-gray-600">Active Schedules</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600 mb-2">
-                  {roasterData.filter(r => r.ActivityType.toLowerCase().includes('maintenance')).length}
-                </div>
-                <div className="text-sm text-gray-600">Maintenance Activities</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600 mb-2">
-                  {complaints.filter(c => !c.Status).length}
-                </div>
-                <div className="text-sm text-gray-600">Pending Complaints</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600 mb-2">
-                  {feeData.filter(f => f.BalanceAmount > 0).length}
-                </div>
-                <div className="text-sm text-gray-600">Pending Payments</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Key Performance Indicators */}
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 p-4 text-white">
-            <h3 className="font-semibold text-lg flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
-              Key Performance Indicators
-            </h3>
-          </div>
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <div className="text-lg font-semibold text-blue-800 mb-1">
-                  {summary.totalPumps > 0 ? Math.round((summary.activePumps / summary.totalPumps) * 100) : 0}%
-                </div>
-                <div className="text-sm text-blue-600">Pump Operational Rate</div>
-                <div className="text-xs text-blue-500 mt-1">
-                  {summary.activePumps} of {summary.totalPumps} pumps active
-                </div>
-              </div>
-              
-              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                <div className="text-lg font-semibold text-green-800 mb-1">
-                  {summary.totalComplaints > 0 ? Math.round((summary.resolvedComplaints / summary.totalComplaints) * 100) : 0}%
-                </div>
-                <div className="text-sm text-green-600">Complaint Resolution Rate</div>
-                <div className="text-xs text-green-500 mt-1">
-                  {summary.resolvedComplaints} of {summary.totalComplaints} resolved
-                </div>
-              </div>
-              
-              <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                <div className="text-lg font-semibold text-purple-800 mb-1">
-                  {summary.totalCollection + summary.totalOutstanding > 0 
-                    ? Math.round((summary.totalCollection / (summary.totalCollection + summary.totalOutstanding)) * 100) 
-                    : 0}%
-                </div>
-                <div className="text-sm text-purple-600">Fee Collection Efficiency</div>
-                <div className="text-xs text-purple-500 mt-1">
-                  ₹{summary.totalCollection.toLocaleString()} collected
-                </div>
               </div>
             </div>
           </div>
@@ -1149,9 +1119,9 @@ const DataDebugInfo = () => {
               <div className="bg-gray-50 p-4 rounded border">
                 <div className="font-medium text-gray-800 mb-2">Infrastructure Data</div>
                 <div className="space-y-1 text-gray-600">
-                  <div>Pump Houses: {pumpHouses.length} records</div>
-                  <div>OHT Tanks: {ohtData.length} records</div>
-                  <div>Villages: {villages.length} locations</div>
+                  <div>Pump Houses: {loadingStates.pumpHouses ? 'Loading...' : `${pumpHouses.length} records`}</div>
+                  <div>OHT Count: {loadingStates.ohtData ? 'Loading...' : `${ohtCount} tanks`}</div>
+                  <div>Villages: {loadingStates.villages ? 'Loading...' : `${villages.length} locations`}</div>
                 </div>
               </div>
               
@@ -1159,7 +1129,7 @@ const DataDebugInfo = () => {
                 <div className="font-medium text-gray-800 mb-2">Operational Data</div>
                 <div className="space-y-1 text-gray-600">
                   <div>Roaster Schedules: {roasterData.length} entries</div>
-                  <div>Complaints: {complaints.length} cases</div>
+                  <div>Complaints: {loadingStates.complaints ? 'Loading...' : `${complaints.length} cases`}</div>
                   <div>Last Updated: {new Date().toLocaleDateString()}</div>
                 </div>
               </div>
@@ -1167,8 +1137,8 @@ const DataDebugInfo = () => {
               <div className="bg-gray-50 p-4 rounded border">
                 <div className="font-medium text-gray-800 mb-2">Financial Data</div>
                 <div className="space-y-1 text-gray-600">
-                  <div>Fee Records: {feeData.length} entries</div>
-                  <div>Beneficiaries: {summary.totalBeneficiaries} active</div>
+                  <div>Fee Records: {loadingStates.feeData ? 'Loading...' : `${feeData.length} entries`}</div>
+                  <div>Beneficiaries: {loadingStates.dashboardStats || loadingStates.feeData ? 'Loading...' : `${summary.totalBeneficiaries} active`}</div>
                   <div>Period: {getMonthName(selectedMonth)} {selectedYear}</div>
                 </div>
               </div>
@@ -1184,12 +1154,60 @@ const DataDebugInfo = () => {
                     Data Source: Live API
                   </span>
                   <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs">
-                    Format: Excel (.xlsx)
+                    Format: CSV
                   </span>
                   <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-xs">
                     Updated: Real-time
                   </span>
+                  <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs">
+                    Role: {isAdmin() ? 'Administrator' : 'Gram Panchayat'}
+                  </span>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* API Status Overview */}
+        <div className="bg-white rounded-lg shadow-sm border">
+          <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 p-4 text-white">
+            <h3 className="font-semibold text-lg flex items-center gap-2">
+              <MapPin className="w-5 h-5" />
+              API Integration Status
+            </h3>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="space-y-2">
+                <div className="font-medium text-gray-800">API Endpoints Used:</div>
+                <div className="space-y-1 text-gray-600 ml-2">
+                  <div>✓ GetPumpHouseListByUserId</div>
+                  <div>✓ GetVillageListByUserId</div>
+                  <div>✓ GetOHTCountByVillage</div>
+                  <div>✓ GetFeeCollectionDetails</div>
+                  <div>✓ GetMonthlyRoasterWithSchedule</div>
+                  <div>✓ GetComplaintListByUserIdVillageAndStatus</div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="font-medium text-gray-800">Data Processing:</div>
+                <div className="space-y-1 text-gray-600 ml-2">
+                  <div>• Real-time API calls</div>
+                  <div>• Dynamic month/year filtering</div>
+                  <div>• Automatic data aggregation</div>
+                  <div>• Cross-village data compilation</div>
+                  <div>• Role-based data access</div>
+                  <div>• CSV export functionality</div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="text-sm text-gray-600">
+                <strong>Note:</strong> OHT data shows count only as per API specification. 
+                Fee collection data is fetched per village for the selected month/year period.
+                All exports are in CSV format for maximum compatibility.
               </div>
             </div>
           </div>
@@ -1199,7 +1217,7 @@ const DataDebugInfo = () => {
         <div className="bg-gradient-to-r from-gray-100 to-gray-200 rounded-lg p-6 border">
           <div className="text-center">
             <p className="text-gray-700 font-medium mb-2">
-              Water Management System - MIS Dashboard
+              Water Management System - MIS Dashboard ({isAdmin() ? 'Administrator View' : 'Gram Panchayat View'})
             </p>
             <p className="text-sm text-gray-600">
               Report generated on {new Date().toLocaleDateString('en-GB', { 

@@ -468,7 +468,7 @@ const WaterQuality = () => {
             {/* Block */}
             <div>
               <label className="block font-medium mb-2 text-gray-700">
-                Block <span className="text-red-500">*</span>
+                Select Block <span className="text-red-500">*</span>
               </label>
               <select
                 value={selectedBlockId || ''}

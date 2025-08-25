@@ -82,12 +82,12 @@ const PumpHouseMaster: React.FC = () => {
   // Validation functions
   const validateOHTCapacity = (capacity: string) => {
     const num = Number(capacity);
-    return num >= 10000 && num <= 100000;
+    return num >= 10 && num <= 600;
   };
 
   const validateHorsepower = (hp: string) => {
     const num = Number(hp);
-    return num > 0 && num <= 1000;
+    return num > 0 && num <= 50;
   };
 
   const validateName = (name: string) => {
@@ -107,10 +107,10 @@ const PumpHouseMaster: React.FC = () => {
     
     if (value && !validateOHTCapacity(value)) {
       const num = Number(value);
-      if (num < 10000) {
-        setErrors(prev => ({ ...prev, ohtCapacity: "OHT Capacity must be at least 10,000 litres" }));
-      } else if (num > 100000) {
-        setErrors(prev => ({ ...prev, ohtCapacity: "OHT Capacity must not exceed 1,00,000 litres" }));
+      if (num < 10) {
+        setErrors(prev => ({ ...prev, ohtCapacity: "OHT Capacity must be at least 10 K L D" }));
+      } else if (num > 600) {
+        setErrors(prev => ({ ...prev, ohtCapacity: "OHT Capacity must not exceed 600 K L D" }));
       }
     } else {
       setErrors(prev => ({ ...prev, ohtCapacity: "" }));
@@ -154,8 +154,8 @@ const PumpHouseMaster: React.FC = () => {
       const num = Number(filteredValue);
       if (num <= 0) {
         newPumpErrors[index] = { ...newPumpErrors[index], horsepower: "Horsepower must be greater than 0" };
-      } else if (num > 1000) {
-        newPumpErrors[index] = { ...newPumpErrors[index], horsepower: "Horsepower must not exceed 1000 HP" };
+      } else if (num > 50) {
+        newPumpErrors[index] = { ...newPumpErrors[index], horsepower: "Horsepower must not exceed 50 HP" };
       }
     } else {
       newPumpErrors[index] = { ...newPumpErrors[index], horsepower: "" };
@@ -407,7 +407,7 @@ const PumpHouseMaster: React.FC = () => {
     }
     
     if (!ohtCapacity || !validateOHTCapacity(ohtCapacity)) {
-      alert("Please enter a valid OHT Capacity between 10,000 and 1,00,000 litres.");
+      alert("Please enter a valid OHT Capacity between 10 and 600 K L D.");
       return false;
     }
     
@@ -434,7 +434,7 @@ const PumpHouseMaster: React.FC = () => {
     for (let i = 0; i < pumps.length; i++) {
       const p = pumps[i];
       if (!p.horsepower || !validateHorsepower(p.horsepower)) {
-        alert(`Please enter a valid horsepower (1-1000 HP) for Pump-${i + 1}.`);
+        alert(`Please enter a valid horsepower (1-50 HP) for Pump-${i + 1}.`);
         return false;
       }
       if (!p.powerSource) {
@@ -609,11 +609,11 @@ const PumpHouseMaster: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div>
           <label className="block text-sm font-medium mb-1">
-            OHT Capacity (Litres)
+            OHT Capacity (K L D )
           </label>
           <input
             className={`border rounded p-2 w-full ${errors.ohtCapacity ? 'border-red-500' : 'border-gray-300'}`}
-            placeholder="OHT Capacity (10,000 - 1,00,000 litres)"
+            placeholder="OHT Capacity (10 - 600 K L D)"
             value={ohtCapacity}
             onChange={handleOHTCapacityChange}
             onKeyPress={handleNumberKeyPress}
@@ -622,7 +622,7 @@ const PumpHouseMaster: React.FC = () => {
           {errors.ohtCapacity && (
             <p className="text-red-500 text-sm mt-1">{errors.ohtCapacity}</p>
           )}
-          <p className="text-gray-500 text-xs mt-1">Range: 10,000 - 1,00,000 litres</p>
+          <p className="text-gray-500 text-xs mt-1">Range: 10 - 600 K L D</p>
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Number of Pumps</label>
@@ -654,7 +654,7 @@ const PumpHouseMaster: React.FC = () => {
               </label>
               <input
                 className={`border rounded p-2 w-full ${errors.pumps[index]?.horsepower ? 'border-red-500' : 'border-gray-300'}`}
-                placeholder="Capacity (1-1000 HP)"
+                placeholder="Capacity (1-50 HP)"
                 value={pump.horsepower}
                 onChange={(e) => handlePumpChange(index, "horsepower", e.target.value)}
                 onKeyPress={handleNumberKeyPress}
@@ -662,7 +662,7 @@ const PumpHouseMaster: React.FC = () => {
               {errors.pumps[index]?.horsepower && (
                 <p className="text-red-500 text-sm mt-1">{errors.pumps[index].horsepower}</p>
               )}
-              <p className="text-gray-500 text-xs mt-1">Maximum: 1000 HP</p>
+              <p className="text-gray-500 text-xs mt-1">Maximum: 50 HP</p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Power Source</label>

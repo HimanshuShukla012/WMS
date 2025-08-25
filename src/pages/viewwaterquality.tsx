@@ -14,91 +14,128 @@ const WaterQualityPage = () => {
   const [reportData, setReportData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [validationError, setValidationError] = useState('');
+
   const getContaminationRate = (item) => {
-  return item.NoOfSampleCollected > 0 
-    ? ((item.NoOfContaminatedSamples / item.NoOfSampleCollected) * 100).toFixed(1)
-    : 0;
-};
+    return item.NoOfSampleCollected > 0 
+      ? ((item.NoOfContaminatedSamples / item.NoOfSampleCollected) * 100).toFixed(1)
+      : 0;
+  };
 
   const downloadTableExcel = () => {
-  if (!reportData || reportData.length === 0) return;
+    if (!reportData || reportData.length === 0) return;
 
-  // Map data for export
-  const exportData = reportData.map((item) => ({
-    'Test ID': item.TestId,
-    'Samples Collected': item.NoOfSampleCollected,
-    'Contaminated Samples': item.NoOfContaminatedSamples,
-    'Villages Tested': item.VillagesTested,
-    'Villages With Contamination': item.VillagesWithContamination,
-    'Action Taken': item.ActionTaken,
-    'Created Date': item.CreatedDate,
-    'Contamination Rate (%)': getContaminationRate(item),
-  }));
+    // Map data for export
+    const exportData = reportData.map((item) => ({
+      'Test ID': item.TestId,
+      'Samples Collected': item.NoOfSampleCollected,
+      'Contaminated Samples': item.NoOfContaminatedSamples,
+      'Villages Tested': item.VillagesTested,
+      'Villages With Contamination': item.VillagesWithContamination,
+      'Action Taken': item.ActionTaken,
+      'Created Date': item.CreatedDate,
+      'Contamination Rate (%)': getContaminationRate(item),
+    }));
 
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(exportData);
 
-  // Optional: Auto-size columns
-  const colWidths = Object.keys(exportData[0]).map((key) => ({
-    wch: Math.max(
-      key.length,
-      ...exportData.map((row) => String(row[key as keyof typeof row]).length)
-    ),
-  }));
-  ws['!cols'] = colWidths;
+    // Optional: Auto-size columns
+    const colWidths = Object.keys(exportData[0]).map((key) => ({
+      wch: Math.max(
+        key.length,
+        ...exportData.map((row) => String(row[key as keyof typeof row]).length)
+      ),
+    }));
+    ws['!cols'] = colWidths;
 
-  XLSX.utils.book_append_sheet(wb, ws, 'WaterQualityReport');
+    XLSX.utils.book_append_sheet(wb, ws, 'WaterQualityReport');
 
-  const filename = `water_quality_report_${new Date().toISOString().split('T')[0]}.xlsx`;
-  XLSX.writeFile(wb, filename);
-};
+    const filename = `water_quality_report_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  };
+
+  const validateDates = (startDate, endDate) => {
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
+      if (end < start) {
+        setValidationError('End date cannot be before start date');
+        return false;
+      }
+    }
+    setValidationError('');
+    return true;
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
+    const updatedFormData = {
+      ...formData,
       [name]: value
-    }));
+    };
+    
+    setFormData(updatedFormData);
+    
+    // Validate dates whenever either date changes
+    if (name === 'StartDate' || name === 'EndDate') {
+      validateDates(
+        name === 'StartDate' ? value : formData.StartDate,
+        name === 'EndDate' ? value : formData.EndDate
+      );
+    }
   };
 
   const handleSubmit = async () => {
-  setLoading(true);
-  setError('');
-    const token = localStorage.getItem("authToken");
-if (!token) {
-  setError("User not authenticated. Please login.");
-  setLoading(false);
-  return;
-}
-  try {
-    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetWaterQualityReport', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-  'accept': '*/*',
-  'Authorization': `Bearer ${token}` // ✅ token now defined
-      },
-      body: JSON.stringify({
-        CreatedBy: userId ? parseInt(userId) : 0,
-        StartDate: formData.StartDate ? new Date(formData.StartDate).toISOString() : new Date().toISOString(),
-        EndDate: formData.EndDate ? new Date(formData.EndDate).toISOString() : new Date().toISOString()
-      })
-    });
-
-    if (!response.ok) throw new Error(`Error: ${response.status}`);
-
-    const result = await response.json();
-
-    if (result.Status) {
-      setReportData(result.Data || []);
-    } else {
-      setError(result.Message || 'Failed to fetch data');
+    // Clear any existing errors
+    setError('');
+    setValidationError('');
+    
+    // Validate dates before submitting
+    if (!validateDates(formData.StartDate, formData.EndDate)) {
+      return;
     }
-  } catch (err: any) {
-    setError(`Failed to fetch water quality reports: ${err.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
+
+    setLoading(true);
+    
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+      setError("User not authenticated. Please login.");
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetWaterQualityReport', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': '*/*',
+          'Authorization': `Bearer ${token}` // ✅ token now defined
+        },
+        body: JSON.stringify({
+          CreatedBy: userId ? parseInt(userId) : 0,
+          StartDate: formData.StartDate ? new Date(formData.StartDate).toISOString() : new Date().toISOString(),
+          EndDate: formData.EndDate ? new Date(formData.EndDate).toISOString() : new Date().toISOString()
+        })
+      });
+
+      if (!response.ok) throw new Error(`Error: ${response.status}`);
+
+      const result = await response.json();
+
+      if (result.Status) {
+        setReportData(result.Data || []);
+      } else {
+        setError(result.Message || 'Failed to fetch data');
+      }
+    } catch (err: any) {
+      setError(`Failed to fetch water quality reports: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getStatusColor = (rate) => {
     if (rate === 0) return 'text-green-600 bg-green-50';
@@ -121,7 +158,6 @@ if (!token) {
                 <p className="text-gray-600">Monitor and analyze water quality test results</p>
               </div>
             </div>
-            
           </div>
         </div>
 
@@ -138,7 +174,9 @@ if (!token) {
                 name="StartDate"
                 value={formData.StartDate}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  validationError ? 'border-red-300' : 'border-gray-300'
+                }`}
               />
             </div>
             
@@ -151,15 +189,27 @@ if (!token) {
                 name="EndDate"
                 value={formData.EndDate}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  validationError ? 'border-red-300' : 'border-gray-300'
+                }`}
               />
             </div>
           </div>
+
+          {/* Validation Error Message */}
+          {validationError && (
+            <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+              <div className="flex items-center">
+                <AlertTriangle className="h-4 w-4 text-red-600 mr-2" />
+                <span className="text-red-800 text-sm">{validationError}</span>
+              </div>
+            </div>
+          )}
           
           <div className="mt-4 flex justify-end">
             <button
               onClick={handleSubmit}
-              disabled={loading}
+              disabled={loading || validationError}
               className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Search className="h-4 w-4" />
@@ -226,19 +276,18 @@ if (!token) {
             {/* Detailed Report Table */}
             <div className="bg-white rounded-lg shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-  <h3 className="text-lg font-semibold text-gray-900">Detailed Report</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Detailed Report</h3>
 
-  <button
-    onClick={downloadTableExcel}
-    className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-    disabled={reportData.length === 0}
-  >
-    <Download className="h-4 w-4" />
-    <span>Download Excel</span>
-  </button>
-</div>
+                <button
+                  onClick={downloadTableExcel}
+                  className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  disabled={reportData.length === 0}
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Download Excel</span>
+                </button>
+              </div>
 
-              
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
