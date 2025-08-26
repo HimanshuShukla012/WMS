@@ -1041,7 +1041,7 @@ const ManageBeneficiary = () => {
 
             <div className="mb-4">
               <a 
-                href="/beneficiaries (1) (1).csv" 
+                href="/beneficiaries (1).csv" 
                 download 
                 className="inline-block text-blue-600 hover:text-blue-800 underline text-sm font-medium"
               >

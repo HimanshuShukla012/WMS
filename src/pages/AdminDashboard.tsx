@@ -26,7 +26,9 @@ const Icons = {
   Settings: () => <span className="text-xl">⚙️</span>,
   Pump: () => <span className="text-2xl">⚡</span>,
   Tank: () => <span className="text-2xl">🏛️</span>,
-  Schedule: () => <span className="text-2xl">📅</span>
+  Schedule: () => <span className="text-2xl">📅</span>,
+  Calendar: () => <span className="text-xl">📅</span>,
+  Filter: () => <span className="text-xl">🔍</span>
 };
 
 const StatCard = ({ title, value, icon: Icon, change, changeType, gradient, trend, isLoading, subtitle }) => (
@@ -128,6 +130,19 @@ interface Village {
   VillageName: string;
 }
 
+// NEW: District-based API Types
+interface DistrictFeeData {
+  DistrictId: number;
+  DistrictName: string;
+  TotalAmount: number;
+}
+
+interface DistrictComplaintData {
+  DistrictId: number;
+  DistrictName: string;
+  TotalComplaint: number;
+}
+
 interface ApiResponse<T> {
   Data: T;
   Error?: string | null;
@@ -148,13 +163,24 @@ export default function EnhancedGPDashboard() {
   const [feeData, setFeeData] = useState<FeeCollectionData[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
   
+  // NEW: District Data States
+  const [topDistrictsByFee, setTopDistrictsByFee] = useState<DistrictFeeData[]>([]);
+  const [bottomDistrictsByFee, setBottomDistrictsByFee] = useState<DistrictFeeData[]>([]);
+  const [topDistrictsByComplaint, setTopDistrictsByComplaint] = useState<DistrictComplaintData[]>([]);
+  const [bottomDistrictsByComplaint, setBottomDistrictsByComplaint] = useState<DistrictComplaintData[]>([]);
+  
   // Original Dashboard APIs
   const [totalBeneficiaries, setTotalBeneficiaries] = useState(0);
   const [totalActiveConnections, setTotalActiveConnections] = useState(0);
   const [totalPendingComplaints, setTotalPendingComplaints] = useState(0);
+  const [totalVillageCount, setTotalVillageCount] = useState(0);
   const [complaintStatusData, setComplaintStatusData] = useState([]);
   const [waterConnectionData, setWaterConnectionData] = useState([]);
   const [villageFeeData, setVillageFeeData] = useState([]);
+  
+  // NEW: Date Controls State
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   
   // Loading states
   const [isLoading, setIsLoading] = useState({
@@ -167,13 +193,13 @@ export default function EnhancedGPDashboard() {
     connections: true,
     complaintStatus: true,
     waterConnection: true,
-    villageFee: true
+    villageFee: true,
+    districtApis: true,
+    villageCount: true
   });
 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedMonth] = useState(new Date().getMonth() + 1);
-  const [selectedYear] = useState(new Date().getFullYear());
 
   // Time update effect
   useEffect(() => {
@@ -182,6 +208,55 @@ export default function EnhancedGPDashboard() {
     }, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // NEW: District APIs Functions
+  const fetchDistrictAPIs = async (year: number) => {
+    setIsLoading(prev => ({ ...prev, districtApis: true }));
+    try {
+      const [topFeeRes, bottomFeeRes, topComplaintRes, bottomComplaintRes] = await Promise.all([
+        fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTop10DistrictByFeeCollection?FinancialYear=${year}`, {
+          method: 'POST',
+          headers: { 'accept': '*/*' }
+        }),
+        fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetBottom10DistrictByFeeCollection?FinancialYear=${year}`, {
+          method: 'POST',
+          headers: { 'accept': '*/*' }
+        }),
+        fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTop10DistrictByComplaint?FinancialYear=${year}`, {
+          method: 'POST',
+          headers: { 'accept': '*/*' }
+        }),
+        fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetBottom10DistrictByComplaint?FinancialYear=${year}`, {
+          method: 'POST',
+          headers: { 'accept': '*/*' }
+        })
+      ]);
+
+      const [topFeeData, bottomFeeData, topComplaintData, bottomComplaintData] = await Promise.all([
+        topFeeRes.json(),
+        bottomFeeRes.json(),
+        topComplaintRes.json(),
+        bottomComplaintRes.json()
+      ]);
+
+      if (topFeeData.Status && Array.isArray(topFeeData.Data)) {
+        setTopDistrictsByFee(topFeeData.Data);
+      }
+      if (bottomFeeData.Status && Array.isArray(bottomFeeData.Data)) {
+        setBottomDistrictsByFee(bottomFeeData.Data);
+      }
+      if (topComplaintData.Status && Array.isArray(topComplaintData.Data)) {
+        setTopDistrictsByComplaint(topComplaintData.Data);
+      }
+      if (bottomComplaintData.Status && Array.isArray(bottomComplaintData.Data)) {
+        setBottomDistrictsByComplaint(bottomComplaintData.Data);
+      }
+    } catch (error) {
+      console.error('Error fetching district APIs:', error);
+    } finally {
+      setIsLoading(prev => ({ ...prev, districtApis: false }));
+    }
+  };
 
   // Real API Functions
   const fetchPumpHouses = async (currentUserId: number) => {
@@ -211,10 +286,6 @@ export default function EnhancedGPDashboard() {
       
       if (data.Status && Array.isArray(data.Data)) {
         setVillages(data.Data);
-        // Fetch dependent data - only fee data now since OHT uses count API
-        await Promise.all(data.Data.slice(0, 5).map(async (village) => {
-          await fetchFeeData(village.VillageId);
-        }));
       } else {
         setVillages([]);
       }
@@ -226,11 +297,46 @@ export default function EnhancedGPDashboard() {
     }
   };
 
-  // NEW: Fetch OHT Count using the new API
+  // FIXED: Fee Collection API with proper parameters
+  const fetchFeeCollectionData = async (month: number, year: number) => {
+    setIsLoading(prev => ({ ...prev, fees: true }));
+    try {
+      console.log('Fetching fee collection with params:', { month, year });
+      
+      const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetFeeCollectionDetails', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'accept': '*/*'
+        },
+        body: JSON.stringify({
+          VillageId: 0, // 0 for all villages as per your requirement
+          Month: month,
+          Year: year
+        })
+      });
+      
+      const data: ApiResponse<FeeCollectionData[]> = await response.json();
+      console.log('Fee collection response:', data);
+      
+      if (data.Status && Array.isArray(data.Data)) {
+        setFeeData(data.Data);
+        console.log(`Loaded ${data.Data.length} fee collection records`);
+      } else {
+        setFeeData([]);
+        console.warn('No fee data available or API error:', data.Message);
+      }
+    } catch (error) {
+      console.error('Error fetching fee data:', error);
+      setFeeData([]);
+    } finally {
+      setIsLoading(prev => ({ ...prev, fees: false }));
+    }
+  };
+
   const fetchOHTCount = async (currentUserId: number) => {
     setIsLoading(prev => ({ ...prev, ohts: true }));
     try {
-      // Use VillageId=0 to get total count for all villages under the user
       const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetOHTCountByVillage?VillageId=0&UserId=${currentUserId}`);
       const data: ApiResponse<OHTCountData> = await response.json();
       
@@ -244,41 +350,6 @@ export default function EnhancedGPDashboard() {
       setOHTCount(0);
     } finally {
       setIsLoading(prev => ({ ...prev, ohts: false }));
-    }
-  };
-
-  const fetchOHTData = async (villageId: number) => {
-    try {
-      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetOHTListByVillage?VillageId=${villageId}`);
-      const data: ApiResponse<OHTData[]> = await response.json();
-      
-      if (data.Status && Array.isArray(data.Data)) {
-        setOHTData(prev => [...prev, ...data.Data]);
-      }
-    } catch (error) {
-      console.error(`Error fetching OHT data for village ${villageId}:`, error);
-    }
-  };
-
-  const fetchFeeData = async (villageId: number) => {
-    try {
-      const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetFeeCollectionDetails', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          VillageId: villageId,
-          Month: selectedMonth,
-          Year: selectedYear
-        })
-      });
-      
-      const data: ApiResponse<FeeCollectionData[]> = await response.json();
-      
-      if (data.Status && Array.isArray(data.Data)) {
-        setFeeData(prev => [...prev, ...data.Data]);
-      }
-    } catch (error) {
-      console.error(`Error fetching fee data for village ${villageId}:`, error);
     }
   };
 
@@ -313,122 +384,142 @@ export default function EnhancedGPDashboard() {
   };
 
   const fetchTotalBeneficiaries = async () => {
-  setIsLoading(prev => ({ ...prev, beneficiaries: true }));
-  try {
-    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalBeneficiaryCountforAdmin", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        accept: "*/*",
-      },
-      body: JSON.stringify({ InputType: "string" }) // ✅ required body
-    });
+    setIsLoading(prev => ({ ...prev, beneficiaries: true }));
+    try {
+      const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalBeneficiaryCountforAdmin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          accept: "*/*",
+        },
+        body: JSON.stringify({ InputType: "string" })
+      });
 
-    const data = await res.json();
-    console.log("Beneficiary API response:", data); // debug
-
-    if (data?.Status && data?.Data?.TotalBeneficiaryCount !== undefined) {
-      setTotalBeneficiaries(data.Data.TotalBeneficiaryCount);
-    } else {
+      const data = await res.json();
+      if (data?.Status && data?.Data?.TotalBeneficiaryCount !== undefined) {
+        setTotalBeneficiaries(data.Data.TotalBeneficiaryCount);
+      } else {
+        setTotalBeneficiaries(0);
+      }
+    } catch (error) {
+      console.error("Error fetching beneficiaries:", error);
       setTotalBeneficiaries(0);
+    } finally {
+      setIsLoading(prev => ({ ...prev, beneficiaries: false }));
     }
-  } catch (error) {
-    console.error("Error fetching beneficiaries:", error);
-    setTotalBeneficiaries(0);
-  } finally {
-    setIsLoading(prev => ({ ...prev, beneficiaries: false }));
-  }
-};
+  };
+
   const fetchActiveConnections = async () => {
-  setIsLoading(prev => ({ ...prev, connections: true }));
-  try {
-    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalActiveWaterConnectionCountforAdmin", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        accept: "*/*",
-      },
-      body: JSON.stringify({ InputType: "string" }) // ✅ required body
-    });
+    setIsLoading(prev => ({ ...prev, connections: true }));
+    try {
+      const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalActiveWaterConnectionCountforAdmin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          accept: "*/*",
+        },
+        body: JSON.stringify({ InputType: "string" })
+      });
 
-    const data = await res.json();
-    console.log("Active connections API response:", data); // debug
-
-    if (data?.Status && data?.Data?.TotalActiveWaterConnectionCount !== undefined) {
-      setTotalActiveConnections(data.Data.TotalActiveWaterConnectionCount);
-    } else {
+      const data = await res.json();
+      if (data?.Status && data?.Data?.TotalActiveWaterConnectionCount !== undefined) {
+        setTotalActiveConnections(data.Data.TotalActiveWaterConnectionCount);
+      } else {
+        setTotalActiveConnections(0);
+      }
+    } catch (error) {
+      console.error("Error fetching connections:", error);
       setTotalActiveConnections(0);
+    } finally {
+      setIsLoading(prev => ({ ...prev, connections: false }));
     }
-  } catch (error) {
-    console.error("Error fetching connections:", error);
-    setTotalActiveConnections(0);
-  } finally {
-    setIsLoading(prev => ({ ...prev, connections: false }));
-  }
-};
+  };
+
+  const fetchTotalVillageCount = async (currentUserId: number) => {
+    setIsLoading(prev => ({ ...prev, villageCount: true }));
+    try {
+      const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalVillageCountforAdmin?UserId=${currentUserId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          accept: "*/*",
+        },
+        body: ""
+      });
+
+      const data = await res.json();
+      if (data?.Status && data?.Data?.TotalVillageCount !== undefined) {
+        setTotalVillageCount(data.Data.TotalVillageCount);
+      } else {
+        setTotalVillageCount(0);
+      }
+    } catch (error) {
+      console.error("Error fetching village count:", error);
+      setTotalVillageCount(0);
+    } finally {
+      setIsLoading(prev => ({ ...prev, villageCount: false }));
+    }
+  };
 
   const fetchPendingComplaints = async () => {
     setIsLoading(prev => ({ ...prev, complaints: true }));
-  try {
-    const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalPendingComplaintCountforAdmin", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        accept: "*/*",
-      },
-      body: JSON.stringify({ InputType: "string" }) // ✅ required body
-    });
+    try {
+      const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalPendingComplaintCountforAdmin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          accept: "*/*",
+        },
+        body: JSON.stringify({ InputType: "string" })
+      });
 
-    const data = await res.json();
-    console.log("Active connections API response:", data); // debug
-
-    if (data?.Status && data?.Data?.TotalPendingComplaintCount !== undefined) {
-      setTotalPendingComplaints(data.Data.TotalPendingComplaintCount);
-    } else {
+      const data = await res.json();
+      if (data?.Status && data?.Data?.TotalPendingComplaintCount !== undefined) {
+        setTotalPendingComplaints(data.Data.TotalPendingComplaintCount);
+      } else {
+        setTotalPendingComplaints(0);
+      }
+    } catch (error) {
+      console.error("Error fetching pending complaints:", error);
       setTotalPendingComplaints(0);
+    } finally {
+      setIsLoading(prev => ({ ...prev, complaints: false }));
     }
-  } catch (error) {
-    console.error("Error fetching connections:", error);
-    setTotalPendingComplaints(0);
-  } finally {
-    setIsLoading(prev => ({ ...prev, complaints: false }));
-  }
   };
 
   const fetchComplaintStatusDistribution = async () => {
-  setIsLoading(prev => ({ ...prev, complaintStatus: true }));
-  try {
-    const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetComplaintStatusDistributionforAdmin`, {
-      method: 'POST',
-      headers: {
-        'Accept': '*/*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        InputType: "string"
-      })
-    });
-    
-    const data = await res.json();
-    if (data?.Status && data?.Data) {
-      const transformedData = data.Data.map(item => ({
-        name: item.ComplaintStatus === 0 ? "Pending" : "Resolved",
-        value: item.TotalCount,
-        status: item.ComplaintStatus
-      }));
-      setComplaintStatusData(transformedData);
-    } else {
+    setIsLoading(prev => ({ ...prev, complaintStatus: true }));
+    try {
+      const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetComplaintStatusDistributionforAdmin`, {
+        method: 'POST',
+        headers: {
+          'Accept': '*/*',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          InputType: "string"
+        })
+      });
+      
+      const data = await res.json();
+      if (data?.Status && data?.Data) {
+        const transformedData = data.Data.map(item => ({
+          name: item.ComplaintStatus === 0 ? "Pending" : "Resolved",
+          value: item.TotalCount,
+          status: item.ComplaintStatus
+        }));
+        setComplaintStatusData(transformedData);
+      } else {
+        setComplaintStatusData([]);
+      }
+    } catch (error) {
+      console.error("Error fetching complaint status:", error);
       setComplaintStatusData([]);
+    } finally {
+      setIsLoading(prev => ({ ...prev, complaintStatus: false }));
     }
-  } catch (error) {
-    console.error("Error fetching complaint status:", error);
-    setComplaintStatusData([]);
-  } finally {
-    setIsLoading(prev => ({ ...prev, complaintStatus: false }));
-  }
-};
+  };
 
-  // Updated to include userId parameter
   const fetchWaterConnectionStatus = async (currentUserId: number) => {
     setIsLoading(prev => ({ ...prev, waterConnection: true }));
     try {
@@ -457,7 +548,6 @@ export default function EnhancedGPDashboard() {
     }
   };
 
-  // Updated to include userId parameter
   const fetchVillageFeeCollectionData = async (currentUserId: number) => {
     setIsLoading(prev => ({ ...prev, villageFee: true }));
     try {
@@ -473,33 +563,35 @@ export default function EnhancedGPDashboard() {
       setVillageFeeData([]);
     } finally {
       setIsLoading(prev => ({ ...prev, villageFee: false }));
-      setIsLoading(prev => ({ ...prev, fees: false }));
     }
   };
 
   // Modified initialization effect that waits for userId
   useEffect(() => {
     const initializeDashboard = async () => {
-      if (!userId || userLoading) return; // Wait for userId to be available
+      if (!userId || userLoading) return;
       
-      console.log('Initializing dashboard with userId:', userId, 'role:', role);
+      console.log('Initializing dashboard with userId:', userId, 'Month:', selectedMonth, 'Year:', selectedYear);
 
       await Promise.all([
-        fetchTotalBeneficiaries(userId),
-        fetchActiveConnections(userId),
-        fetchPendingComplaints(userId),
-        fetchComplaintStatusDistribution(userId),
+        fetchTotalBeneficiaries(),
+        fetchActiveConnections(),
+        fetchPendingComplaints(),
+        fetchTotalVillageCount(userId),
+        fetchComplaintStatusDistribution(),
         fetchWaterConnectionStatus(userId),
         fetchVillageFeeCollectionData(userId),
         fetchPumpHouses(userId),
         fetchVillages(userId),
         fetchComplaints(),
-        fetchOHTCount(userId) // NEW: Added OHT count API call
+        fetchOHTCount(userId),
+        fetchFeeCollectionData(selectedMonth, selectedYear), // FIXED: Now uses selected month/year
+        fetchDistrictAPIs(selectedYear) // NEW: Fetch district data
       ]);
     };
 
     initializeDashboard();
-  }, [userId, userLoading, role]);
+  }, [userId, userLoading, role, selectedMonth, selectedYear]); // Added selectedMonth and selectedYear as dependencies
 
   // Modified refresh function
   const handleRefresh = async () => {
@@ -519,26 +611,36 @@ export default function EnhancedGPDashboard() {
       connections: true,
       complaintStatus: true,
       waterConnection: true,
-      villageFee: true
+      villageFee: true,
+      districtApis: true,
+      villageCount: true
     });
 
     // Clear existing data
     setPumpHouses([]);
     setOHTData([]);
     setFeeData([]);
-    setOHTCount(0); // NEW: Clear OHT count
+    setOHTCount(0);
+    setTotalVillageCount(0);
+    setTopDistrictsByFee([]);
+    setBottomDistrictsByFee([]);
+    setTopDistrictsByComplaint([]);
+    setBottomDistrictsByComplaint([]);
 
     await Promise.all([
-      fetchTotalBeneficiaries(userId),
-      fetchActiveConnections(userId),
-      fetchPendingComplaints(userId),
-      fetchComplaintStatusDistribution(userId),
+      fetchTotalBeneficiaries(),
+      fetchActiveConnections(),
+      fetchPendingComplaints(),
+      fetchTotalVillageCount(userId),
+      fetchComplaintStatusDistribution(),
       fetchWaterConnectionStatus(userId),
       fetchVillageFeeCollectionData(userId),
       fetchPumpHouses(userId),
       fetchVillages(userId),
       fetchComplaints(),
-      fetchOHTCount(userId) // NEW: Added OHT count API call
+      fetchOHTCount(userId),
+      fetchFeeCollectionData(selectedMonth, selectedYear),
+      fetchDistrictAPIs(selectedYear)
     ]);
 
     setRefreshing(false);
@@ -572,7 +674,7 @@ export default function EnhancedGPDashboard() {
   // Calculate real-time metrics from API data
   const activePumps = pumpHouses.filter(p => p.Status === 1).length;
   const totalPumps = pumpHouses.length;
-  const totalOHTs = ohtCount; // UPDATED: Use the new API count instead of array length
+  const totalOHTs = ohtCount;
   const totalCapacity = ohtData.reduce((sum, oht) => sum + (oht.OHTCapacity || 0), 0);
   const totalComplaintsFromData = complaints.length;
   const resolvedComplaints = complaints.filter(c => c.Status === true).length;
@@ -597,7 +699,7 @@ export default function EnhancedGPDashboard() {
     chart: ["#1e293b", "#059669", "#d97706", "#dc2626", "#7c3aed", "#0891b2"]
   };
 
-  // Transform pump data for charts (only from API data)
+  // Transform pump data for charts
   const pumpTypeData = totalPumps > 0 ? [
     { name: 'Electric Pumps', value: electricPumps, fill: '#1e293b' },
     { name: 'Solar Pumps', value: solarPumps, fill: '#059669' }
@@ -608,11 +710,21 @@ export default function EnhancedGPDashboard() {
     { name: 'Inactive', value: totalPumps - activePumps, fill: '#dc2626' }
   ].filter(item => item.value > 0) : [];
 
+  // Generate year options (current year ± 5 years)
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: 11 }, (_, i) => currentYear - 5 + i);
+  const monthOptions = [
+    { value: 1, label: 'January' }, { value: 2, label: 'February' }, { value: 3, label: 'March' },
+    { value: 4, label: 'April' }, { value: 5, label: 'May' }, { value: 6, label: 'June' },
+    { value: 7, label: 'July' }, { value: 8, label: 'August' }, { value: 9, label: 'September' },
+    { value: 10, label: 'October' }, { value: 11, label: 'November' }, { value: 12, label: 'December' }
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200">
       <div className="container mx-auto p-6">
         
-        {/* Header */}
+        {/* Header with Date Controls */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8 gap-4">
           <div className="flex items-center gap-4">
             <div>
@@ -628,6 +740,32 @@ export default function EnhancedGPDashboard() {
           </div>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            {/* NEW: Date Filter Controls */}
+            <div className="flex items-center gap-3 bg-white/90 backdrop-blur-md rounded-xl shadow-lg p-3 border border-white/20">
+              <Icons.Calendar />
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                  className="text-sm font-medium bg-transparent border-none outline-none cursor-pointer text-slate-700"
+                >
+                  {monthOptions.map(month => (
+                    <option key={month.value} value={month.value}>{month.label}</option>
+                  ))}
+                </select>
+                <span className="text-slate-400">•</span>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  className="text-sm font-medium bg-transparent border-none outline-none cursor-pointer text-slate-700"
+                >
+                  {yearOptions.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <button
               onClick={handleRefresh}
               disabled={refreshing || !userId}
@@ -637,10 +775,7 @@ export default function EnhancedGPDashboard() {
               <span className="font-medium">{refreshing ? 'Refreshing...' : 'Refresh Data'}</span>
             </button>
             
-            <div className="text-sm text-slate-600 font-medium bg-white/80 backdrop-blur-md px-4 py-3 rounded-xl shadow-md border border-white/20">
-              <div className="font-semibold">{currentTime.toLocaleDateString('en-IN')}</div>
-              <div className="font-mono text-slate-500">{currentTime.toLocaleTimeString('en-IN')}</div>
-            </div>
+            
           </div>
         </div>
 
@@ -658,7 +793,7 @@ export default function EnhancedGPDashboard() {
           <StatCard
             title="Active Connections"
             value={totalActiveConnections}
-            subtitle={`${villages.length} villages managed`}
+            subtitle={`${totalVillageCount} villages managed`}
             icon={Icons.Water}
             gradient="bg-gradient-to-br from-teal-800 via-teal-700 to-teal-600"
             isLoading={isLoading.connections}
@@ -706,7 +841,7 @@ export default function EnhancedGPDashboard() {
           <StatCard
             title="Fee Collection"
             value={totalCollection > 0 ? `₹${totalCollection.toLocaleString()}` : '₹0'}
-            subtitle={totalOutstanding > 0 ? `₹${totalOutstanding.toLocaleString()} outstanding` : "No outstanding"}
+            subtitle={totalOutstanding > 0 ? `₹${totalOutstanding.toLocaleString()} outstanding` : "All payments current"}
             icon={Icons.Money}
             gradient="bg-gradient-to-br from-green-800 via-green-700 to-green-600"
             isLoading={isLoading.fees}
@@ -714,12 +849,167 @@ export default function EnhancedGPDashboard() {
           
           <StatCard
             title="Villages"
-            value={villages.length}
+            value={totalVillageCount}
             subtitle="Under management"
             icon={Icons.Users}
             gradient="bg-gradient-to-br from-indigo-800 via-indigo-700 to-indigo-600"
-            isLoading={isLoading.villages}
+            isLoading={isLoading.villageCount}
           />
+        </div>
+
+        {/* NEW: District Performance Tables - 4 Tables as requested */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          {/* Top Districts by Fee Collection */}
+          <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-800">Top Districts - Fee Collection</h3>
+              <div className="text-sm text-slate-500 bg-emerald-100 text-emerald-800 px-3 py-1 rounded-lg font-medium">FY {selectedYear}</div>
+            </div>
+            
+            {isLoading.districtApis ? (
+              <LoadingSpinner />
+            ) : topDistrictsByFee.length > 0 ? (
+              <div className="space-y-3">
+                {topDistrictsByFee.map((district, index) => (
+                  <div key={district.DistrictId} className="flex items-center justify-between p-4 bg-gradient-to-r from-emerald-50 to-emerald-100/50 rounded-lg border border-emerald-200/50 hover:from-emerald-100 hover:to-emerald-200/50 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center justify-center w-8 h-8 bg-emerald-600 text-white rounded-full text-sm font-bold">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-slate-800">{district.DistrictName}</div>
+                        <div className="text-sm text-slate-600">District ID: {district.DistrictId}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-emerald-700">₹{district.TotalAmount.toLocaleString()}</div>
+                      <div className="text-xs text-emerald-600 font-medium">Total Collection</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-16 text-slate-500">
+                <Icons.Money />
+                <p className="mt-2 font-medium">No fee collection data</p>
+                <p className="text-sm">Check API connection for FY {selectedYear}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Districts by Fee Collection */}
+          <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-800">Bottom Districts - Fee Collection</h3>
+              <div className="text-sm text-slate-500 bg-amber-100 text-amber-800 px-3 py-1 rounded-lg font-medium">FY {selectedYear}</div>
+            </div>
+            
+            {isLoading.districtApis ? (
+              <LoadingSpinner />
+            ) : bottomDistrictsByFee.length > 0 ? (
+              <div className="space-y-3">
+                {bottomDistrictsByFee.map((district, index) => (
+                  <div key={district.DistrictId} className="flex items-center justify-between p-4 bg-gradient-to-r from-amber-50 to-amber-100/50 rounded-lg border border-amber-200/50 hover:from-amber-100 hover:to-amber-200/50 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center justify-center w-8 h-8 bg-amber-600 text-white rounded-full text-sm font-bold">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-slate-800">{district.DistrictName}</div>
+                        <div className="text-sm text-slate-600">District ID: {district.DistrictId}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-amber-700">₹{district.TotalAmount.toLocaleString()}</div>
+                      <div className="text-xs text-amber-600 font-medium">Total Collection</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-16 text-slate-500">
+                <Icons.Money />
+                <p className="mt-2 font-medium">No fee collection data</p>
+                <p className="text-sm">Check API connection for FY {selectedYear}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Top Districts by Complaint */}
+          <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-800">Top Districts - Complaints</h3>
+              <div className="text-sm text-slate-500 bg-rose-100 text-rose-800 px-3 py-1 rounded-lg font-medium">FY {selectedYear}</div>
+            </div>
+            
+            {isLoading.districtApis ? (
+              <LoadingSpinner />
+            ) : topDistrictsByComplaint.length > 0 ? (
+              <div className="space-y-3">
+                {topDistrictsByComplaint.map((district, index) => (
+                  <div key={district.DistrictId} className="flex items-center justify-between p-4 bg-gradient-to-r from-rose-50 to-rose-100/50 rounded-lg border border-rose-200/50 hover:from-rose-100 hover:to-rose-200/50 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center justify-center w-8 h-8 bg-rose-600 text-white rounded-full text-sm font-bold">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-slate-800">{district.DistrictName}</div>
+                        <div className="text-sm text-slate-600">District ID: {district.DistrictId}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-rose-700">{district.TotalComplaint}</div>
+                      <div className="text-xs text-rose-600 font-medium">Total Complaints</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-16 text-slate-500">
+                <Icons.Warning />
+                <p className="mt-2 font-medium">No complaint data</p>
+                <p className="text-sm">Check API connection for FY {selectedYear}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Districts by Complaint */}
+          <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-800">Bottom Districts - Complaints</h3>
+              <div className="text-sm text-slate-500 bg-blue-100 text-blue-800 px-3 py-1 rounded-lg font-medium">FY {selectedYear}</div>
+            </div>
+            
+            {isLoading.districtApis ? (
+              <LoadingSpinner />
+            ) : bottomDistrictsByComplaint.length > 0 ? (
+              <div className="space-y-3">
+                {bottomDistrictsByComplaint.map((district, index) => (
+                  <div key={district.DistrictId} className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100/50 rounded-lg border border-blue-200/50 hover:from-blue-100 hover:to-blue-200/50 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full text-sm font-bold">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-slate-800">{district.DistrictName}</div>
+                        <div className="text-sm text-slate-600">District ID: {district.DistrictId}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-blue-700">{district.TotalComplaint}</div>
+                      <div className="text-xs text-blue-600 font-medium">Total Complaints</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-16 text-slate-500">
+                <Icons.Warning />
+                <p className="mt-2 font-medium">No complaint data</p>
+                <p className="text-sm">Check API connection for FY {selectedYear}</p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Charts Section - Only API Data */}
@@ -1100,48 +1390,116 @@ export default function EnhancedGPDashboard() {
           )}
         </div>
 
-        {/* Fee Collection Details - Only API Data */}
-        {feeData.length > 0 ? (
-          <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20 mb-8">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-slate-800">Fee Collection Summary</h3>
-              <div className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">Current Month API Data</div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-xl text-white shadow-lg">
-                <div className="text-sm opacity-90 font-medium uppercase tracking-wider">Total Collection</div>
-                <div className="text-3xl font-bold mt-2">₹{totalCollection.toLocaleString()}</div>
-                <div className="text-xs opacity-75 mt-1">From {uniqueBeneficiaries} beneficiaries</div>
+        {/* FIXED Fee Collection Details - Now shows API data properly */}
+        <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20 mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-slate-800">Fee Collection Summary</h3>
+            <div className="flex items-center gap-2">
+              <div className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">
+                {monthOptions.find(m => m.value === selectedMonth)?.label} {selectedYear} Data
               </div>
-              
-              <div className="bg-gradient-to-br from-amber-800 to-amber-900 p-6 rounded-xl text-white shadow-lg">
-                <div className="text-sm opacity-90 font-medium uppercase tracking-wider">Outstanding Amount</div>
-                <div className="text-3xl font-bold mt-2">₹{totalOutstanding.toLocaleString()}</div>
-                <div className="text-xs opacity-75 mt-1">Pending collection</div>
-              </div>
-              
-              <div className="bg-gradient-to-br from-emerald-800 to-emerald-900 p-6 rounded-xl text-white shadow-lg">
-                <div className="text-sm opacity-90 font-medium uppercase tracking-wider">Collection Rate</div>
-                <div className="text-3xl font-bold mt-2">
-                  {totalCollection + totalOutstanding > 0 
-                    ? Math.round((totalCollection / (totalCollection + totalOutstanding)) * 100)
-                    : 0}%
-                </div>
-                <div className="text-xs opacity-75 mt-1">Payment efficiency</div>
-              </div>
+              {isLoading.fees && (
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-400 border-t-transparent"></div>
+              )}
             </div>
           </div>
-        ) : (
-          <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20 mb-8">
-            <h3 className="text-xl font-bold text-slate-800 mb-6">Fee Collection Summary</h3>
+          
+          {isLoading.fees ? (
+            <LoadingSpinner />
+          ) : feeData.length > 0 ? (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-xl text-white shadow-lg">
+                  <div className="text-sm opacity-90 font-medium uppercase tracking-wider">Total Collection</div>
+                  <div className="text-3xl font-bold mt-2">₹{totalCollection.toLocaleString()}</div>
+                  <div className="text-xs opacity-75 mt-1">From {uniqueBeneficiaries} beneficiaries</div>
+                </div>
+                
+                <div className="bg-gradient-to-br from-amber-800 to-amber-900 p-6 rounded-xl text-white shadow-lg">
+                  <div className="text-sm opacity-90 font-medium uppercase tracking-wider">Outstanding Amount</div>
+                  <div className="text-3xl font-bold mt-2">₹{totalOutstanding.toLocaleString()}</div>
+                  <div className="text-xs opacity-75 mt-1">Pending collection</div>
+                </div>
+                
+                <div className="bg-gradient-to-br from-emerald-800 to-emerald-900 p-6 rounded-xl text-white shadow-lg">
+                  <div className="text-sm opacity-90 font-medium uppercase tracking-wider">Collection Rate</div>
+                  <div className="text-3xl font-bold mt-2">
+                    {totalCollection + totalOutstanding > 0 
+                      ? Math.round((totalCollection / (totalCollection + totalOutstanding)) * 100)
+                      : 0}%
+                  </div>
+                  <div className="text-xs opacity-75 mt-1">Payment efficiency</div>
+                </div>
+              </div>
+
+              {/* Fee Collection Details Table */}
+              <div className="bg-slate-50/80 rounded-xl p-4 border border-slate-200/50">
+                <h4 className="text-lg font-semibold text-slate-800 mb-4">Recent Transactions ({feeData.length} records)</h4>
+                <div className="max-h-96 overflow-y-auto">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {feeData.slice(0, 10).map((fee) => (
+                      <div key={fee.FeeCollectionId} className="bg-white p-4 rounded-lg border border-slate-200/50 shadow-sm hover:shadow-md transition-all">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <div className="font-semibold text-slate-800">{fee.BeneficiaryName}</div>
+                            <div className="text-sm text-slate-600">{fee.FatherHusbandName}</div>
+                            <div className="text-xs text-slate-500">{fee.VillageName}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-mono text-slate-500">ID: {fee.FeeCollectionId}</div>
+                            {fee.BalanceAmount > 0 && (
+                              <div className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-medium">
+                                Balance Due
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-xs">
+                          <div>
+                            <span className="text-slate-500">Base Fee:</span>
+                            <span className="font-semibold ml-1">₹{fee.BaseFee}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Paid:</span>
+                            <span className="font-semibold ml-1 text-emerald-600">₹{fee.PaidAmount}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Outstanding:</span>
+                            <span className="font-semibold ml-1 text-rose-600">₹{fee.OutstandingAmount}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Balance:</span>
+                            <span className={`font-semibold ml-1 ${fee.BalanceAmount === 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                              ₹{fee.BalanceAmount}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {feeData.length > 10 && (
+                    <div className="text-center mt-4 text-sm text-slate-500">
+                      Showing 10 of {feeData.length} records • 
+                      <span className="font-medium"> {feeData.length - 10} more available</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : (
             <div className="text-center py-16 text-slate-500">
               <Icons.Money />
               <p className="mt-2 font-medium">No fee collection data available</p>
-              <p className="text-sm">Check API connection or month/year parameters</p>
+              <p className="text-sm">Try selecting a different month/year or check API connection</p>
+              <div className="mt-4 text-xs bg-slate-100 rounded-lg p-3 text-left max-w-md mx-auto">
+                <p><strong>Current Parameters:</strong></p>
+                <p>Month: {selectedMonth} ({monthOptions.find(m => m.value === selectedMonth)?.label})</p>
+                <p>Year: {selectedYear}</p>
+                <p>VillageId: 0 (All villages)</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* System Status Footer */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-xl shadow-xl p-6 border border-slate-700">
@@ -1152,7 +1510,7 @@ export default function EnhancedGPDashboard() {
                 <span className="text-sm font-semibold">System Online</span>
               </div>
               <div className="text-sm opacity-75">
-                Last updated: {currentTime.toLocaleTimeString('en-IN')}
+                Last updated: {currentTime.toLocaleTimeString('en-IN')} • Data for {monthOptions.find(m => m.value === selectedMonth)?.label} {selectedYear}
               </div>
             </div>
             
@@ -1171,7 +1529,11 @@ export default function EnhancedGPDashboard() {
               </div>
               <div className="flex items-center gap-2 opacity-90">
                 <Icons.Water />
-                <span className="font-medium">{villages.length} Villages</span>
+                <span className="font-medium">{totalVillageCount} Villages</span>
+              </div>
+              <div className="flex items-center gap-2 opacity-90">
+                <Icons.Money />
+                <span className="font-medium">₹{totalCollection.toLocaleString()} Collected</span>
               </div>
             </div>
           </div>
