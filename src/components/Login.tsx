@@ -21,6 +21,10 @@ const Login = () => {
 
   const handleLogin = async () => {
     setError("");
+    if (!username.trim() || !password.trim()) {
+    setError("Please enter a valid User ID and Password");
+    return;
+  }
     try {
       const response = await fetch(
         "https://wmsapi.kdsgroup.co.in/api/Login/UserLogin",

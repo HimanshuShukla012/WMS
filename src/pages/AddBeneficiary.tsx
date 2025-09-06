@@ -38,8 +38,27 @@ const AddBeneficiary = () => {
     fatherHusbandName: "",
     aadhaar: "",
     contact: "",
-    familyCount: ""
+    familyCount: "",
+    district: "",
+    block: "",
+    gramPanchayat: "",
+    village: "",
+    waterSupplyStatus: ""
   });
+
+  // Check if all mandatory fields are filled
+  const isMandatoryFieldsFilled = () => {
+    return (
+      selectedDistrictId !== null &&
+      selectedBlockId !== null &&
+      selectedGramPanchayatId !== null &&
+      selectedVillage !== null &&
+      beneficiaryName.trim() !== "" &&
+      fatherHusbandName.trim() !== "" &&
+      familyCount.trim() !== "" &&
+      waterSupplyStatus !== ""
+    );
+  };
 
   // Updated validation functions to support Hindi (Devanagari)
   const validateName = (name: string) => {
@@ -158,7 +177,7 @@ const AddBeneficiary = () => {
       .then((data) => {
         if (data.Status && data.Data.length) {
           setDistricts(data.Data);
-          setSelectedDistrictId(data.Data[0].DistrictId); // default select first district
+          // Don't auto-select first district - let user choose
         }
       })
       .catch(() => toast.error("Failed to fetch districts"));
@@ -176,10 +195,15 @@ const AddBeneficiary = () => {
       .then((data) => {
         if (data.Status && data.Data.length) {
           setBlocks(data.Data);
-          setSelectedBlockId(data.Data[0]?.BlockId || null);
+          // Reset dependent fields when district changes
+          setSelectedBlockId(null);
+          setSelectedGramPanchayatId(null);
+          setSelectedVillage(null);
         } else {
           setBlocks([]);
           setSelectedBlockId(null);
+          setSelectedGramPanchayatId(null);
+          setSelectedVillage(null);
         }
       })
       .catch(() => toast.error("Failed to fetch blocks"));
@@ -197,10 +221,13 @@ const AddBeneficiary = () => {
       .then((data) => {
         if (data.Status && data.Data.length) {
           setGramPanchayats(data.Data);
-          setSelectedGramPanchayatId(data.Data[0]?.Id || null);
+          // Reset dependent fields when block changes
+          setSelectedGramPanchayatId(null);
+          setSelectedVillage(null);
         } else {
           setGramPanchayats([]);
           setSelectedGramPanchayatId(null);
+          setSelectedVillage(null);
         }
       })
       .catch(() => toast.error("Failed to fetch gram panchayats"));
@@ -221,7 +248,8 @@ const AddBeneficiary = () => {
       .then((data) => {
         if (data.Status && data.Data.length) {
           setVillages(data.Data);
-          setSelectedVillage(data.Data[0]);
+          // Reset village selection when gram panchayat changes
+          setSelectedVillage(null);
         } else {
           setVillages([]);
           setSelectedVillage(null);
@@ -233,13 +261,31 @@ const AddBeneficiary = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    // Final validation before submit
+    // Check mandatory fields
+    const mandatoryErrors = {
+      district: !selectedDistrictId ? "District is required" : "",
+      block: !selectedBlockId ? "Block is required" : "",
+      gramPanchayat: !selectedGramPanchayatId ? "Gram Panchayat is required" : "",
+      village: !selectedVillage ? "Village is required" : "",
+      beneficiaryName: !beneficiaryName.trim() ? "Beneficiary name is required" : "",
+      fatherHusbandName: !fatherHusbandName.trim() ? "Father/Husband name is required" : "",
+      familyCount: !familyCount.trim() ? "Family count is required" : "",
+      waterSupplyStatus: !waterSupplyStatus ? "Water supply status is required" : "",
+      aadhaar: "",
+      contact: ""
+    };
+
+    // Final validation for filled fields
     const finalErrors = {
-      beneficiaryName: beneficiaryName && !validateName(beneficiaryName) ? "Invalid name format" : "",
-      fatherHusbandName: fatherHusbandName && !validateName(fatherHusbandName) ? "Invalid name format" : "",
+      ...mandatoryErrors,
+      beneficiaryName: mandatoryErrors.beneficiaryName || 
+        (beneficiaryName && !validateName(beneficiaryName) ? "Invalid name format" : ""),
+      fatherHusbandName: mandatoryErrors.fatherHusbandName || 
+        (fatherHusbandName && !validateName(fatherHusbandName) ? "Invalid name format" : ""),
       aadhaar: aadhaar && !validateAadhaar(aadhaar) ? "Invalid Aadhaar format" : "",
       contact: contact && !validateContact(contact) ? "Invalid contact number" : "",
-      familyCount: familyCount && !validateFamilyCount(familyCount) ? "Family count must be between 1 and 50" : ""
+      familyCount: mandatoryErrors.familyCount || 
+        (familyCount && !validateFamilyCount(familyCount) ? "Family count must be between 1 and 50" : "")
     };
 
     setErrors(finalErrors);
@@ -275,7 +321,8 @@ const AddBeneficiary = () => {
       .then((data) => {
         toast.success(data.Message || "Beneficiary saved successfully");
         if (data.Status) {
-          // reset form or do whatever
+          // reset form on successful save
+          resetForm();
         }
       })
       .catch(() => toast.error("Failed to save beneficiary"));
@@ -297,7 +344,12 @@ const AddBeneficiary = () => {
       fatherHusbandName: "",
       aadhaar: "",
       contact: "",
-      familyCount: ""
+      familyCount: "",
+      district: "",
+      block: "",
+      gramPanchayat: "",
+      village: "",
+      waterSupplyStatus: ""
     });
   };
 
@@ -318,11 +370,13 @@ const AddBeneficiary = () => {
       >
         {/* District */}
         <div>
-          <label className="block font-medium mb-1">District</label>
+          <label className="block font-medium mb-1">
+            District <span className="text-red-500">*</span>
+          </label>
           <select
             value={selectedDistrictId || ""}
             onChange={(e) => setSelectedDistrictId(Number(e.target.value))}
-            className="w-full border rounded-md px-3 py-2"
+            className={`w-full border rounded-md px-3 py-2 ${errors.district ? 'border-red-500' : 'border-gray-300'}`}
           >
             <option value="">Select District</option>
             {districts.map((d) => (
@@ -331,15 +385,21 @@ const AddBeneficiary = () => {
               </option>
             ))}
           </select>
+          {errors.district && (
+            <p className="text-red-500 text-sm mt-1">{errors.district}</p>
+          )}
         </div>
 
         {/* Block */}
         <div>
-          <label className="block font-medium mb-1">Select Block</label>
+          <label className="block font-medium mb-1">
+            Select Block <span className="text-red-500">*</span>
+          </label>
           <select
             value={selectedBlockId || ""}
             onChange={(e) => setSelectedBlockId(Number(e.target.value))}
-            className="w-full border rounded-md px-3 py-2"
+            className={`w-full border rounded-md px-3 py-2 ${errors.block ? 'border-red-500' : 'border-gray-300'}`}
+            disabled={!selectedDistrictId}
           >
             <option value="">Select Block Name</option>
             {blocks.map((b) => (
@@ -348,15 +408,21 @@ const AddBeneficiary = () => {
               </option>
             ))}
           </select>
+          {errors.block && (
+            <p className="text-red-500 text-sm mt-1">{errors.block}</p>
+          )}
         </div>
 
         {/* Gram Panchayat */}
         <div>
-          <label className="block font-medium mb-1">Gram Panchayat</label>
+          <label className="block font-medium mb-1">
+            Gram Panchayat <span className="text-red-500">*</span>
+          </label>
           <select
             value={selectedGramPanchayatId || ""}
             onChange={(e) => setSelectedGramPanchayatId(Number(e.target.value))}
-            className="w-full border rounded-md px-3 py-2"
+            className={`w-full border rounded-md px-3 py-2 ${errors.gramPanchayat ? 'border-red-500' : 'border-gray-300'}`}
+            disabled={!selectedBlockId}
           >
             <option value="">Select Gram Panchayat</option>
             {gramPanchayats.map((gp) => (
@@ -365,15 +431,21 @@ const AddBeneficiary = () => {
               </option>
             ))}
           </select>
+          {errors.gramPanchayat && (
+            <p className="text-red-500 text-sm mt-1">{errors.gramPanchayat}</p>
+          )}
         </div>
 
         {/* Village */}
         <div>
-          <label className="block font-medium mb-1">Village</label>
+          <label className="block font-medium mb-1">
+            Village <span className="text-red-500">*</span>
+          </label>
           <select
             value={selectedVillage?.Id || ""}
             onChange={(e) => setSelectedVillage(villages.find(v => v.Id === Number(e.target.value)))}
-            className="w-full border rounded-md px-3 py-2"
+            className={`w-full border rounded-md px-3 py-2 ${errors.village ? 'border-red-500' : 'border-gray-300'}`}
+            disabled={!selectedGramPanchayatId}
           >
             <option value="">Select Village</option>
             {villages.map((v) => (
@@ -382,11 +454,16 @@ const AddBeneficiary = () => {
               </option>
             ))}
           </select>
+          {errors.village && (
+            <p className="text-red-500 text-sm mt-1">{errors.village}</p>
+          )}
         </div>
 
         {/* Beneficiary Name */}
         <div>
-          <label className="block font-medium mb-1">Beneficiary Name</label>
+          <label className="block font-medium mb-1">
+            Beneficiary Name <span className="text-red-500">*</span>
+          </label>
           <input
             type="text"
             placeholder="Enter Name (English or Hindi)"
@@ -403,7 +480,9 @@ const AddBeneficiary = () => {
 
         {/* Father/Husband Name */}
         <div>
-          <label className="block font-medium mb-1">Father/Husband Name</label>
+          <label className="block font-medium mb-1">
+            Father/Husband Name <span className="text-red-500">*</span>
+          </label>
           <input
             type="text"
             placeholder="Enter Name (English or Hindi)"
@@ -423,7 +502,7 @@ const AddBeneficiary = () => {
           <label className="block font-medium mb-1">Beneficiary Aadhaar</label>
           <input
             type="text"
-            placeholder="Enter 12-digit Aadhaar Number"
+            placeholder="Enter 12-digit Aadhaar Number (Optional)"
             className={`w-full border rounded-md px-3 py-2 ${errors.aadhaar ? 'border-red-500' : 'border-gray-300'}`}
             value={aadhaar}
             onChange={handleAadhaarChange}
@@ -433,7 +512,7 @@ const AddBeneficiary = () => {
           {errors.aadhaar && (
             <p className="text-red-500 text-sm mt-1">{errors.aadhaar}</p>
           )}
-          <p className="text-gray-500 text-xs mt-1">Only numbers, exactly 12 digits</p>
+          <p className="text-gray-500 text-xs mt-1">Optional - Only numbers, exactly 12 digits</p>
         </div>
 
         {/* Contact Number */}
@@ -441,7 +520,7 @@ const AddBeneficiary = () => {
           <label className="block font-medium mb-1">Contact Number</label>
           <input
             type="tel"
-            placeholder="Enter 10-digit Contact Number"
+            placeholder="Enter 10-digit Contact Number (Optional)"
             className={`w-full border rounded-md px-3 py-2 ${errors.contact ? 'border-red-500' : 'border-gray-300'}`}
             value={contact}
             onChange={handleContactChange}
@@ -451,12 +530,14 @@ const AddBeneficiary = () => {
           {errors.contact && (
             <p className="text-red-500 text-sm mt-1">{errors.contact}</p>
           )}
-          <p className="text-gray-500 text-xs mt-1">10 digits, starting with 6, 7, 8, or 9</p>
+          <p className="text-gray-500 text-xs mt-1">Optional - 10 digits, starting with 6, 7, 8, or 9</p>
         </div>
 
         {/* Family Members Count */}
         <div>
-          <label className="block font-medium mb-1">Family Members Count</label>
+          <label className="block font-medium mb-1">
+            Family Members Count <span className="text-red-500">*</span>
+          </label>
           <input
             type="number"
             placeholder="Enter Count (1-50)"
@@ -474,9 +555,11 @@ const AddBeneficiary = () => {
 
         {/* Water Supply Status */}
         <div>
-          <label className="block font-medium mb-1">Water Supply Status</label>
+          <label className="block font-medium mb-1">
+            Water Supply Status <span className="text-red-500">*</span>
+          </label>
           <select
-            className="w-full border rounded-md px-3 py-2"
+            className={`w-full border rounded-md px-3 py-2 ${errors.waterSupplyStatus ? 'border-red-500' : 'border-gray-300'}`}
             value={waterSupplyStatus}
             onChange={(e) => setWaterSupplyStatus(e.target.value)}
           >
@@ -484,6 +567,9 @@ const AddBeneficiary = () => {
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
           </select>
+          {errors.waterSupplyStatus && (
+            <p className="text-red-500 text-sm mt-1">{errors.waterSupplyStatus}</p>
+          )}
         </div>
 
         {/* Buttons */}
@@ -497,7 +583,12 @@ const AddBeneficiary = () => {
           </button>
           <button
             type="submit"
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md"
+            disabled={!isMandatoryFieldsFilled()}
+            className={`px-6 py-2 rounded-md ${
+              isMandatoryFieldsFilled() 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                : 'bg-gray-400 text-gray-600 cursor-not-allowed'
+            }`}
           >
             Add Beneficiary
           </button>

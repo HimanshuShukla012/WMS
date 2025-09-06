@@ -54,6 +54,7 @@ const ManagePumpHouse = () => {
   const [editMode, setEditMode] = useState(false);
   const [search, setSearch] = useState("");
   const [pumpHouses, setPumpHouses] = useState<PumpHouse[]>([]);
+  const [originalPumpHouses, setOriginalPumpHouses] = useState<PumpHouse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -121,6 +122,7 @@ const ManagePumpHouse = () => {
           );
 
           setPumpHouses(grouped);
+          setOriginalPumpHouses(grouped);
           toast.success(`Loaded ${grouped.length} pump house records`);
         } else {
           console.warn("API response missing Status or Data is not array");
@@ -181,6 +183,11 @@ const ManagePumpHouse = () => {
     }
     setEditMode((prev) => !prev);
   };
+  const handleCancel = () => {
+  setPumpHouses(originalPumpHouses);  // reset UI to original
+  setEditedPumps(new Set());
+  setEditMode(false);
+};
 
   const handleSaveChanges = async () => {
     if (editedPumps.size === 0) {
@@ -385,12 +392,13 @@ const ManagePumpHouse = () => {
             ) : (
               <div className="flex gap-2">
                 <button 
-                  className="bg-gray-400 text-white px-4 py-2 rounded-md hover:bg-gray-500 transition-colors" 
-                  onClick={handleEditToggle}
-                  disabled={saving}
-                >
-                  Cancel
-                </button>
+  className="bg-gray-400 text-white px-4 py-2 rounded-md hover:bg-gray-500 transition-colors" 
+  onClick={handleCancel}
+  disabled={saving}
+>
+  Cancel
+</button>
+
                 <button
                   className={`px-4 py-2 rounded-md text-white transition-colors ${
                     saving ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'

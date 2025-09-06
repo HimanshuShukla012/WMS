@@ -26,10 +26,34 @@ const Footer = () => {
           <div>
   <h3 className="font-semibold text-lg mb-4 text-cyan-300 text-right">Social Media</h3>
   <div className="flex justify-end gap-4 text-xl">
-    <a href="#" className="hover:text-cyan-400"><FaFacebookF /></a>
-    <a href="#" className="hover:text-cyan-400"><FaTwitter /></a>
-    <a href="#" className="hover:text-cyan-400"><FaYoutube /></a>
-  </div>
+  <a 
+    href="https://www.facebook.com/uppanchayatiraj/" 
+    className="hover:text-cyan-400" 
+    target="_blank" 
+    rel="noopener noreferrer"
+  >
+    <FaFacebookF />
+  </a>
+
+  <a 
+    href="https://x.com/uppanchayatiraj?lang=en" 
+    className="hover:text-cyan-400" 
+    target="_blank" 
+    rel="noopener noreferrer"
+  >
+    <FaTwitter />
+  </a>
+
+  <a 
+    href="https://www.youtube.com/channel/UCqpE88PN2qtMsPE0wk1GmWg/featured" 
+    className="hover:text-cyan-400" 
+    target="_blank" 
+    rel="noopener noreferrer"
+  >
+    <FaYoutube />
+  </a>
+</div>
+
   <p className="text-gray-400 mt-4 text-xs text-right">
     Follow us on Social Media for all the recent updates!
   </p>

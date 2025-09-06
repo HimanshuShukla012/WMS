@@ -78,6 +78,8 @@ const PumpHouseMaster: React.FC = () => {
   });
 
   const [saving, setSaving] = useState(false);
+  const [isFormValid, setIsFormValid] = useState(false);
+
 
   // Validation functions
   const validateOHTCapacity = (capacity: string) => {
@@ -177,6 +179,21 @@ const PumpHouseMaster: React.FC = () => {
       e.preventDefault();
     }
   };
+
+  // --- Form validity check (all mandatory fields) ---
+useEffect(() => {
+  const mandatoryFieldsFilled =
+    villageId &&
+    ohtCapacity &&
+    validateOHTCapacity(ohtCapacity) &&
+    operatorName.trim() &&
+    validateName(operatorName) &&
+    contact &&
+    validateContact(contact) &&
+    pumps.every((p) => p.horsepower && validateHorsepower(p.horsepower) && p.powerSource);
+
+  setIsFormValid(!!mandatoryFieldsFilled);
+}, [villageId, ohtCapacity, operatorName, contact, pumps]);
 
   // --- INIT: fetch Districts + Power Sources (same as AddBeneficiary pattern) ---
   useEffect(() => {
@@ -538,7 +555,7 @@ const PumpHouseMaster: React.FC = () => {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div>
-          <label className="block text-sm font-medium mb-1">District</label>
+          <label className="block text-sm font-medium mb-1">District<span className="text-red-500">*</span></label>
           <select
             className="border rounded p-2 w-full"
             value={district}
@@ -553,7 +570,7 @@ const PumpHouseMaster: React.FC = () => {
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Select Block</label>
+          <label className="block text-sm font-medium mb-1">Select Block<span className="text-red-500">*</span></label>
           <select
             className="border rounded p-2 w-full"
             value={block}
@@ -569,7 +586,7 @@ const PumpHouseMaster: React.FC = () => {
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Gram Panchayat</label>
+          <label className="block text-sm font-medium mb-1">Gram Panchayat<span className="text-red-500">*</span></label>
           <select
             className="border rounded p-2 w-full"
             value={gramPanchayat}
@@ -585,7 +602,7 @@ const PumpHouseMaster: React.FC = () => {
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Village</label>
+          <label className="block text-sm font-medium mb-1">Village<span className="text-red-500">*</span></label>
           <select
             className="border rounded p-2 w-full"
             value={villageId}
@@ -609,7 +626,7 @@ const PumpHouseMaster: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div>
           <label className="block text-sm font-medium mb-1">
-            OHT Capacity (K L D )
+            OHT Capacity (K L D )<span className="text-red-500">*</span>
           </label>
           <input
             className={`border rounded p-2 w-full ${errors.ohtCapacity ? 'border-red-500' : 'border-gray-300'}`}
@@ -625,7 +642,7 @@ const PumpHouseMaster: React.FC = () => {
           <p className="text-gray-500 text-xs mt-1">Range: 10 - 600 K L D</p>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Number of Pumps</label>
+          <label className="block text-sm font-medium mb-1">Number of Pumps<span className="text-red-500">*</span></label>
           <select
             className="border rounded p-2 w-full"
             value={numPumps}
@@ -650,7 +667,7 @@ const PumpHouseMaster: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">
-                Capacity (HP)
+                Capacity (HP)<span className="text-red-500">*</span>
               </label>
               <input
                 className={`border rounded p-2 w-full ${errors.pumps[index]?.horsepower ? 'border-red-500' : 'border-gray-300'}`}
@@ -665,7 +682,7 @@ const PumpHouseMaster: React.FC = () => {
               <p className="text-gray-500 text-xs mt-1">Maximum: 50 HP</p>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Power Source</label>
+              <label className="block text-sm font-medium mb-1">Power Source<span className="text-red-500">*</span></label>
               <select
                 className="border rounded p-2 w-full"
                 value={pump.powerSource}
@@ -688,7 +705,7 @@ const PumpHouseMaster: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Pump Status</label>
+              <label className="block text-sm font-medium mb-1">Pump Status<span className="text-red-500">*</span></label>
               <select
                 className="border rounded p-2 w-full"
                 value={pump.status}
@@ -703,7 +720,7 @@ const PumpHouseMaster: React.FC = () => {
             {pump.powerSource && pump.powerSource.toLowerCase() === "solar" && (
               <div>
                 <label className="block text-sm font-medium mb-1">
-                  Solar Output (kW)
+                  Solar Output (kW)<span className="text-red-500">*</span>
                 </label>
                 <input
                   className="border rounded p-2 w-full"
@@ -725,7 +742,7 @@ const PumpHouseMaster: React.FC = () => {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div>
-          <label className="block text-sm font-medium mb-1">Operator Name</label>
+          <label className="block text-sm font-medium mb-1">Operator Name<span className="text-red-500">*</span></label>
           <input
             className={`border rounded p-2 w-full ${errors.operatorName ? 'border-red-500' : 'border-gray-300'}`}
             placeholder="Pump House Operator Name (letters, dots, spaces only)"
@@ -738,7 +755,7 @@ const PumpHouseMaster: React.FC = () => {
           )}
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Contact Number</label>
+          <label className="block text-sm font-medium mb-1">Contact Number<span className="text-red-500">*</span></label>
           <input
             className={`border rounded p-2 w-full ${errors.contact ? 'border-red-500' : 'border-gray-300'}`}
             placeholder="10-digit Contact Number"
@@ -757,12 +774,13 @@ const PumpHouseMaster: React.FC = () => {
       {/* Buttons */}
       <div className="flex gap-4">
         <button
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-          onClick={handleSave}
-          disabled={saving}
-        >
-          {saving ? "Saving..." : "Save"}
-        </button>
+  className={`px-4 py-2 rounded text-white ${isFormValid && !saving ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-400 cursor-not-allowed"}`}
+  onClick={handleSave}
+  disabled={!isFormValid || saving}
+>
+  {saving ? "Saving..." : "Save"}
+</button>
+
         <button
           className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded"
           onClick={resetForm}
