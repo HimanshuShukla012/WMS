@@ -16,17 +16,6 @@ const guidelines = [
     version: "v1.0",
     downloadUrl: "/Rural Water Supply GO_21-May-25.pdf"
   },
-  {
-    id: 2,
-    title: "Standard Operating Procedure for Village Water & Sanitation Committees (VWSC)",
-    description: "This document outlines the Standard Operating Procedure (SOP) for the effective functioning, monitoring, and management of Village Water & Sanitation Committees (VWSC) under Jal Jeevan Mission. It provides structured guidelines to ensure transparency, accountability, and efficiency in planning, implementation, and operation of rural water supply schemes.",
-    filename: "GO-VWSC.pdf",
-    filesize: "2.0 MB",
-    uploadDate: "2025-07-01",
-    category: "Guidelines",
-    version: "v1.0",
-    downloadUrl: "/GO-VWSC.pdf"
-  },
   
 ];
 
