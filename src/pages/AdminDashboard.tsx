@@ -809,13 +809,21 @@ export default function EnhancedGPDashboard() {
           />
           
           <StatCard
-            title="Collection Rate"
-            value={`${collectionEfficiency}%`}
-            subtitle={totalCollectedVillage > 0 ? `₹${totalCollectedVillage.toLocaleString()} collected` : "No collection data"}
-            icon={Icons.Money}
-            gradient="bg-gradient-to-br from-emerald-800 via-emerald-700 to-emerald-600"
-            isLoading={isLoading.villageFee}
-          />
+  title="Collection Rate"
+  value={
+    totalCollection + totalOutstanding > 0
+      ? `${Math.round((totalCollection / (totalCollection + totalOutstanding)) * 100)}%`
+      : "0%"
+  }
+  subtitle={
+    totalCollection > 0
+      ? `₹${totalCollection.toLocaleString()} collected`
+      : "No collection data"
+  }
+  icon={Icons.Money}
+  gradient="bg-gradient-to-br from-emerald-800 via-emerald-700 to-emerald-600"
+  isLoading={isLoading.fees}
+/>
         </div>
 
         {/* Secondary Stats Cards - Only API Data */}

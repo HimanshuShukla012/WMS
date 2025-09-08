@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Calendar, AlertCircle, Zap, User, RefreshCw, Eye, Clock, Droplets } from "lucide-react";
+import { useUserInfo } from '../utils/userInfo';
+import { Calendar, AlertCircle, Zap, User, RefreshCw, Eye, Clock, Droplets, MapPin, CheckCircle } from "lucide-react";
 
 // Define interfaces for pump house data
 interface PumpHouseData {
@@ -11,6 +12,32 @@ interface PumpHouseData {
   PowerSource: string;
   SolarOutput: number;
   Status: number;
+}
+
+// Location hierarchy interfaces
+interface District {
+  DistrictId: number;
+  DistrictName: string;
+}
+
+interface Block {
+  BlockId: number;
+  BlockName: string;
+  Id: number;
+  DistrictId: number;
+}
+
+interface GramPanchayat {
+  Id: number;
+  GramPanchayatName: string;
+  BlockId: number;
+}
+
+interface Village {
+  Id: number;
+  GramPanchayatId: number;
+  VillageName: string;
+  VillageNameHindi: string;
 }
 
 // Define interfaces for the monthly roaster data based on your API
@@ -67,9 +94,102 @@ interface RoasterStats {
   avgDistributionHours: number;
 }
 
-// Get current user ID (you may need to modify this based on your authentication system)
-const getCurrentUserId = (): number => {
-  return 5; // You might want to get this from localStorage, context, or props
+// Location API functions
+const fetchDistricts = async (userId: number): Promise<ApiResponse<District[]>> => {
+  try {
+    const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetDistrict?UserId=${userId}`, {
+      method: 'POST',
+      headers: {
+        'accept': '*/*',
+      },
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data;
+    } else {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+  } catch (error) {
+    console.error('Error fetching districts:', error);
+    throw error;
+  }
+};
+
+const fetchBlocks = async (userId: number): Promise<ApiResponse<Block[]>> => {
+  try {
+    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict', {
+      method: 'POST',
+      headers: {
+        'accept': '*/*',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        UserId: userId
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data;
+    } else {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+  } catch (error) {
+    console.error('Error fetching blocks:', error);
+    throw error;
+  }
+};
+
+const fetchGramPanchayats = async (userId: number): Promise<ApiResponse<GramPanchayat[]>> => {
+  try {
+    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock', {
+      method: 'POST',
+      headers: {
+        'accept': '*/*',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        UserId: userId
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data;
+    } else {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+  } catch (error) {
+    console.error('Error fetching gram panchayats:', error);
+    throw error;
+  }
+};
+
+const fetchVillages = async (blockId: number, gramPanchayatId: number): Promise<ApiResponse<Village[]>> => {
+  try {
+    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetVillegeByGramPanchayat', {
+      method: 'POST',
+      headers: {
+        'accept': '*/*',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        BlockId: blockId,
+        GramPanchayatId: gramPanchayatId
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data;
+    } else {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+  } catch (error) {
+    console.error('Error fetching villages:', error);
+    throw error;
+  }
 };
 
 // Fetch pump houses for the current user
@@ -91,6 +211,31 @@ const fetchPumpHouses = async (userId: number): Promise<ApiResponse<PumpHouseDat
   } catch (error) {
     console.error('Error fetching pump houses:', error);
     throw error;
+  }
+};
+
+// Fetch OHT details by VillageId
+const fetchOhtDetails = async (villageId: number) => {
+  try {
+    const response = await fetch(
+      `https://wmsapi.kdsgroup.co.in/api/Master/GetOHTByVillageId?VillageId=${villageId}`,
+      { method: 'GET', headers: { 'accept': '*/*' } }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.Status) {
+        return data.Data;
+      } else {
+        return null;
+      }
+    } else {
+      console.error('Failed to fetch OHT details');
+      return null;
+    }
+  } catch (err) {
+    console.error('Error fetching OHT details:', err);
+    return null;
   }
 };
 
@@ -166,7 +311,17 @@ const ViewRoaster: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState<number>(() => currentDate.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState<number>(() => currentDate.getFullYear());
   const [selectedPumpId, setSelectedPumpId] = useState<number | null>(null);
-  const [selectedVillageId, setSelectedVillageId] = useState<number>(1);
+  
+  // Location hierarchy states
+  const [districts, setDistricts] = useState<District[]>([]);
+  const [blocks, setBlocks] = useState<Block[]>([]);
+  const [gramPanchayats, setGramPanchayats] = useState<GramPanchayat[]>([]);
+  const [villages, setVillages] = useState<Village[]>([]);
+
+  const [selectedDistrictId, setSelectedDistrictId] = useState<number | null>(null);
+  const [selectedBlockId, setSelectedBlockId] = useState<number | null>(null);
+  const [selectedGramPanchayatId, setSelectedGramPanchayatId] = useState<number | null>(null);
+  const [selectedVillageId, setSelectedVillageId] = useState<number | null>(null);
   
   // Data states
   const [pumpHouses, setPumpHouses] = useState<PumpHouseData[]>([]);
@@ -178,28 +333,43 @@ const ViewRoaster: React.FC = () => {
     maintenanceSchedules: 0,
     avgDistributionHours: 0
   });
+  const [ohtData, setOhtData] = useState<any>(null);
   
   // UI states
   const [loading, setLoading] = useState<boolean>(false);
   const [pumpHouseLoading, setPumpHouseLoading] = useState<boolean>(false);
+  const [locationLoading, setLocationLoading] = useState<boolean>(false);
+  const [ohtLoading, setOhtLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [filterActivity, setFilterActivity] = useState<string>('all');
 
-  const currentUserId = getCurrentUserId();
+  // Use the userInfo hook instead of hardcoded userId
+  const { userId } = useUserInfo();
 
-  // Fetch pump houses on component mount
+  // Fetch pump houses and location data when userId is available
   useEffect(() => {
-    const loadPumpHouses = async () => {
+    if (!userId) return;
+    
+    const loadInitialData = async () => {
       setPumpHouseLoading(true);
+      setLocationLoading(true);
+      
       try {
-        const response = await fetchPumpHouses(currentUserId);
+        // Load pump houses and location hierarchy in parallel
+        const [pumpResponse, districtResponse, blockResponse, gpResponse] = await Promise.all([
+          fetchPumpHouses(userId),
+          fetchDistricts(userId),
+          fetchBlocks(userId),
+          fetchGramPanchayats(userId)
+        ]);
         
-        if (response && response.Status && Array.isArray(response.Data)) {
-          setPumpHouses(response.Data);
+        // Handle pump houses
+        if (pumpResponse && pumpResponse.Status && Array.isArray(pumpResponse.Data)) {
+          setPumpHouses(pumpResponse.Data);
           
           // Create unique pump houses based on PumpId
           const uniqueMap = new Map<number, PumpHouseData>();
-          response.Data.forEach(pump => {
+          pumpResponse.Data.forEach(pump => {
             if (!uniqueMap.has(pump.PumpId)) {
               uniqueMap.set(pump.PumpId, pump);
             }
@@ -214,30 +384,95 @@ const ViewRoaster: React.FC = () => {
           } else if (uniquePumps.length > 0) {
             setSelectedPumpId(uniquePumps[0].PumpId);
           }
-        } else {
-          setError(response?.Message || 'Failed to fetch pump houses');
         }
+
+        // Handle location hierarchy
+        if (districtResponse && districtResponse.Status) {
+          setDistricts(districtResponse.Data);
+          // Auto-select first district if only one
+          if (districtResponse.Data.length === 1) {
+            setSelectedDistrictId(districtResponse.Data[0].DistrictId);
+          }
+        }
+
+        if (blockResponse && blockResponse.Status) {
+          setBlocks(blockResponse.Data);
+          // Auto-select first block if only one
+          if (blockResponse.Data.length === 1) {
+            setSelectedBlockId(blockResponse.Data[0].BlockId);
+          }
+        }
+
+        if (gpResponse && gpResponse.Status) {
+          setGramPanchayats(gpResponse.Data);
+          // Auto-select first GP if only one
+          if (gpResponse.Data.length === 1) {
+            setSelectedGramPanchayatId(gpResponse.Data[0].Id);
+          }
+        }
+
       } catch (err) {
-        console.error('Error loading pump houses:', err);
-        setError('Failed to load pump houses. Please refresh and try again.');
+        console.error('Error loading initial data:', err);
+        setError('Failed to load data. Please refresh and try again.');
       } finally {
         setPumpHouseLoading(false);
+        setLocationLoading(false);
       }
     };
 
-    loadPumpHouses();
-  }, [currentUserId]);
+    loadInitialData();
+  }, [userId]);
+
+  // Fetch villages when block and gram panchayat are selected
+  useEffect(() => {
+    if (selectedBlockId && selectedGramPanchayatId) {
+      const loadVillages = async () => {
+        try {
+          const response = await fetchVillages(selectedBlockId, selectedGramPanchayatId);
+          if (response && response.Status) {
+            setVillages(response.Data);
+            // Auto-select first village if only one
+            if (response.Data.length === 1) {
+              setSelectedVillageId(response.Data[0].Id);
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching villages:', err);
+        }
+      };
+      loadVillages();
+    }
+  }, [selectedBlockId, selectedGramPanchayatId]);
+
+  // Fetch OHT details when village is selected
+  useEffect(() => {
+    if (selectedVillageId) {
+      const loadOhtData = async () => {
+        setOhtLoading(true);
+        try {
+          const data = await fetchOhtDetails(selectedVillageId);
+          setOhtData(data);
+        } catch (err) {
+          console.error('Error fetching OHT data:', err);
+          setOhtData(null);
+        } finally {
+          setOhtLoading(false);
+        }
+      };
+      loadOhtData();
+    }
+  }, [selectedVillageId]);
 
   // Fetch monthly roaster data
   const loadMonthlyRoasterData = async (): Promise<void> => {
-    if (!selectedMonth || !selectedYear || !selectedPumpId) return;
+    if (!selectedMonth || !selectedYear || !selectedPumpId || !selectedVillageId) return;
 
     setLoading(true);
     setError('');
 
     try {
       const requestBody: MonthlyRoasterRequest = {
-        GPId: selectedPumpId,
+        GPId: selectedGramPanchayatId,
         VillgeId: selectedVillageId,
         Month: selectedMonth,
         Year: selectedYear
@@ -272,9 +507,9 @@ const ViewRoaster: React.FC = () => {
     }
   };
 
-  // Effect for monthly data
+  // Effect for monthly data - only load when all required data is selected
   useEffect(() => {
-    if (selectedPumpId) {
+    if (selectedPumpId && selectedVillageId) {
       loadMonthlyRoasterData();
     }
   }, [selectedMonth, selectedYear, selectedPumpId, selectedVillageId]);
@@ -379,17 +614,27 @@ const ViewRoaster: React.FC = () => {
     setSelectedYear(newYear);
   };
 
-  const handleVillageIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVillageId = Number(e.target.value);
-    console.log('Village ID changed to:', newVillageId);
-    setSelectedVillageId(newVillageId);
-  };
-
   const handleActivityFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newFilter = e.target.value;
     console.log('Activity filter changed to:', newFilter);
     setFilterActivity(newFilter);
   };
+
+  // Show loading state while userId is being fetched
+  if (!userId) {
+    return (
+      <div className="w-full bg-gray-50 relative z-10">
+        <div className="p-4 md:p-6 space-y-6">
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <span className="ml-3 text-gray-600">Loading user information...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full bg-gray-50 relative z-10">
@@ -433,6 +678,126 @@ const ViewRoaster: React.FC = () => {
             </div>
           )}
 
+          {/* Location Selection */}
+          {!locationLoading && (
+            <div className="bg-white p-6 rounded-lg shadow-sm border">
+              <div className="flex items-center gap-3 mb-6">
+                <MapPin className="w-6 h-6 text-green-600" />
+                <h2 className="text-xl font-semibold text-gray-800">Select Location</h2>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                {/* District Selection */}
+                <div>
+                  <label className="block font-medium text-gray-700 mb-2">District</label>
+                  <select
+                    value={selectedDistrictId || ''}
+                    onChange={(e) => setSelectedDistrictId(Number(e.target.value) || null)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Select District</option>
+                    {districts.map((district) => (
+                      <option key={district.DistrictId} value={district.DistrictId}>
+                        {district.DistrictName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Block Selection */}
+                <div>
+                  <label className="block font-medium text-gray-700 mb-2">Block</label>
+                  <select
+                    value={selectedBlockId || ''}
+                    onChange={(e) => setSelectedBlockId(Number(e.target.value) || null)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={!selectedDistrictId}
+                  >
+                    <option value="">Select Block</option>
+                    {blocks.map((block) => (
+                      <option key={block.BlockId} value={block.BlockId}>
+                        {block.BlockName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Gram Panchayat Selection */}
+                <div>
+                  <label className="block font-medium text-gray-700 mb-2">Gram Panchayat</label>
+                  <select
+                    value={selectedGramPanchayatId || ''}
+                    onChange={(e) => setSelectedGramPanchayatId(Number(e.target.value) || null)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={!selectedBlockId}
+                  >
+                    <option value="">Select Gram Panchayat</option>
+                    {gramPanchayats.map((gp) => (
+                      <option key={gp.Id} value={gp.Id}>
+                        {gp.GramPanchayatName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Village Selection */}
+                <div>
+                  <label className="block font-medium text-gray-700 mb-2">Village</label>
+                  <select
+                    value={selectedVillageId || ''}
+                    onChange={(e) => setSelectedVillageId(Number(e.target.value) || null)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={!selectedGramPanchayatId}
+                  >
+                    <option value="">Select Village</option>
+                    {villages.map((village) => (
+                      <option key={village.Id} value={village.Id}>
+                        {village.VillageName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Selected Location Summary */}
+              {selectedVillageId && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="font-medium text-green-800 mb-2 flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5" />
+                    Selected Location
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-700">District:</span>
+                      <div className="text-gray-900 font-semibold">
+                        {districts.find(d => d.DistrictId === selectedDistrictId)?.DistrictName}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">Block:</span>
+                      <div className="text-gray-900 font-semibold">
+                        {blocks.find(b => b.BlockId === selectedBlockId)?.BlockName}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">Gram Panchayat:</span>
+                      <div className="text-gray-900 font-semibold">
+                        {gramPanchayats.find(gp => gp.Id === selectedGramPanchayatId)?.GramPanchayatName}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">Village:</span>
+                      <div className="text-gray-900 font-semibold">
+                        {villages.find(v => v.Id === selectedVillageId)?.VillageName}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          
           {/* Pump House Loading State */}
           {pumpHouseLoading && (
             <div className="bg-white p-6 rounded-lg shadow-sm border">
@@ -536,8 +901,8 @@ const ViewRoaster: React.FC = () => {
             </div>
           )}
 
-          {/* Filters and Controls - Only show if pump is selected */}
-          {selectedPumpId && (
+          {/* Filters and Controls - Only show if pump and village are selected */}
+          {selectedPumpId && selectedVillageId && (
             <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border">
               <div className="flex flex-col lg:flex-row lg:items-center gap-6">
                 {/* Title */}
@@ -561,7 +926,7 @@ const ViewRoaster: React.FC = () => {
 
               {/* Filters */}
               <div className="mt-6 pt-6 border-t border-gray-200">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block font-medium text-gray-700 mb-2">Month</label>
                     <select
@@ -594,16 +959,6 @@ const ViewRoaster: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block font-medium text-gray-700 mb-2">Village ID</label>
-                    <input
-                      type="number"
-                      value={selectedVillageId}
-                      onChange={handleVillageIdChange}
-                      className="border border-gray-300 rounded-lg px-3 py-2 w-full shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      min="1"
-                    />
-                  </div>
-                  <div>
                     <label className="block font-medium text-gray-700 mb-2">Activity Type</label>
                     <select
                       value={filterActivity}
@@ -617,11 +972,28 @@ const ViewRoaster: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Requirements Info */}
+              {(!selectedPumpId || !selectedVillageId) && (
+                <div className="mt-6 bg-blue-50 border border-blue-200 rounded p-3 text-sm">
+                  <div className="font-medium text-blue-800 mb-1">Selection Requirements:</div>
+                  <div className="text-blue-700 space-y-1">
+                    <div className={`flex items-center gap-2 ${selectedVillageId ? 'text-green-700' : 'text-red-700'}`}>
+                      {selectedVillageId ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                      Village must be selected
+                    </div>
+                    <div className={`flex items-center gap-2 ${selectedPumpId ? 'text-green-700' : 'text-red-700'}`}>
+                      {selectedPumpId ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                      Pump house must be selected
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {/* Statistics Cards */}
-          {selectedPumpId && !loading && (
+          {selectedPumpId && selectedVillageId && !loading && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
               <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border">
                 <div className="flex items-center justify-between">
@@ -676,7 +1048,7 @@ const ViewRoaster: React.FC = () => {
           )}
 
           {/* Monthly Roaster Data */}
-          {!loading && selectedPumpId && (
+          {!loading && selectedPumpId && selectedVillageId && (
             <div className="space-y-6">
               <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
                 <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-4 md:p-6">
@@ -690,6 +1062,9 @@ const ViewRoaster: React.FC = () => {
                     <div className="flex flex-wrap items-center gap-2 md:gap-4">
                       <span className="bg-blue-500 bg-opacity-50 text-blue-100 px-3 py-1 rounded-full text-sm">
                         Pump #{selectedPumpId}
+                      </span>
+                      <span className="bg-blue-500 bg-opacity-50 text-blue-100 px-3 py-1 rounded-full text-sm">
+                        Village #{selectedVillageId}
                       </span>
                       <span className="bg-blue-500 bg-opacity-50 text-blue-100 px-3 py-1 rounded-full text-sm">
                         {filteredMonthlyData.length} records
@@ -791,7 +1166,6 @@ const ViewRoaster: React.FC = () => {
             </div>
           )}
         </div>
-      
     </div>
   );
 };

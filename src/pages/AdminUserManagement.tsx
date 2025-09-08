@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useUserInfo } from '../utils/userInfo'; // same path as WaterQualityPage
+import { useUserInfo } from '../utils/userInfo';
 import {
   Power,
   Lock,
@@ -12,21 +12,21 @@ import {
 
 // -------------------- Types --------------------
 interface LocationUser {
-  id: number;             // maps to UserId
-  district: string;       // maps to DistrictName
-  block: string;          // maps to BlockName
-  grampanchayat: string;  // maps to GPName
-  username: string;       // maps to UserName
-  password: string;       // maps to Password
-  active: boolean;        // maps to Status === 1
+  id: number;
+  district: string;
+  block: string;
+  grampanchayat: string;
+  username: string;
+  password: string;
+  active: boolean;
 }
 
 interface HQUser {
-  id: number;          // maps to UserId
-  role: string;        // maps to RoleName
-  username: string;    // maps to UserName
-  password: string;    // maps to Password
-  active: boolean;     // maps to Status === 1
+  id: number;
+  role: string;
+  username: string;
+  password: string;
+  active: boolean;
 }
 
 type District = { DistrictId: number; DistrictName: string };
@@ -35,12 +35,11 @@ type GramPanchayat = { Id: number; GramPanchayatName: string };
 
 // -------------------- Utils --------------------
 const normalizeKey = (label: string) =>
-  label.toLowerCase().replace(/\s+/g, ""); // "Gram Panchayat" -> "grampanchayat"
+  label.toLowerCase().replace(/\s+/g, "");
 
 const escapeCsv = (val: unknown) => {
   const s = String(val ?? "");
   if (/[",\n]/.test(s)) {
-    // escape quotes and wrap in quotes
     return `"${s.replace(/"/g, '""')}"`;
   }
   return s;
@@ -48,7 +47,6 @@ const escapeCsv = (val: unknown) => {
 
 const downloadCsvFrom = (rows: Array<Record<string, unknown>>, headers: string[], filename: string) => {
   if (!rows || rows.length === 0) {
-    // still create a file with just headers
     const csv = headers.join(",") + "\n";
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -76,7 +74,7 @@ const UserManagement = () => {
   // data
   const [locationUsers, setLocationUsers] = useState<LocationUser[]>([]);
   const [hqUsers, setHqUsers] = useState<HQUser[]>([]);
-  const { userId } = useUserInfo(); // ✅ dynamically fetch logged-in user ID
+  const { userId } = useUserInfo();
 
   // For new password modal
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -88,7 +86,7 @@ const UserManagement = () => {
   const [searchLocation, setSearchLocation] = useState("");
   const [searchHq, setSearchHq] = useState("");
 
-  // -------------------- State for dropdowns (using AddBeneficiary pattern) --------------------
+  // -------------------- State for dropdowns --------------------
   const [districts, setDistricts] = useState<District[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [gramPanchayats, setGramPanchayats] = useState<GramPanchayat[]>([]);
@@ -101,7 +99,7 @@ const UserManagement = () => {
   const [districtSearch, setDistrictSearch] = useState("");
   const [blockSearch, setBlockSearch] = useState("");
   const [gramPanchayatSearch, setGramPanchayatSearch] = useState("");
-  
+
   // Dropdown open/close states
   const [isDistrictOpen, setIsDistrictOpen] = useState(false);
   const [isBlockOpen, setIsBlockOpen] = useState(false);
@@ -120,42 +118,50 @@ const UserManagement = () => {
     confirmPassword: "",
   });
 
-  // -------------------- Fetch Districts (AddBeneficiary pattern) --------------------
+  // -------------------- Fetch Districts --------------------
   useEffect(() => {
-    if (!showModal || newUser.role !== "Gram Panchayat" || !userId) return;
+    if (!showModal || newUser.role !== "Gram Panchayat") return;
 
-    fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetDistrict?UserId=${userId}`, {
+    fetch("https://wmsapi.kdsgroup.co.in/api/Master/AllDistrict", {
       method: "POST",
-      headers: { accept: "*/*" },
+      headers: { accept: "*/*", "Content-Type": "application/json" },
+      body: JSON.stringify({}), // Empty body as no parameters are required
     })
-      .then(res => res.json())
-      .then(data => {
-        if (data.Status && data.Data.length) {
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.Status && data.Data?.length) {
           // Sort districts alphabetically by DistrictName
-          const sortedDistricts = data.Data.sort((a: District, b: District) => 
+          const sortedDistricts = data.Data.sort((a: District, b: District) =>
             a.DistrictName.localeCompare(b.DistrictName)
           );
           setDistricts(sortedDistricts);
-          setSelectedDistrictId(sortedDistricts[0].DistrictId);
+          setSelectedDistrictId(sortedDistricts[0]?.DistrictId || null);
+        } else {
+          setDistricts([]);
+          setSelectedDistrictId(null);
         }
       })
-      .catch(err => console.error(err));
-  }, [showModal, newUser.role, userId]);
+      .catch((err) => {
+        console.error("Error fetching districts:", err);
+        setDistricts([]);
+        setSelectedDistrictId(null);
+      });
+  }, [showModal, newUser.role]);
 
-  // -------------------- Fetch Blocks (AddBeneficiary pattern) --------------------
+  // -------------------- Fetch Blocks --------------------
   useEffect(() => {
-    if (!selectedDistrictId || !userId) return;
+    if (!selectedDistrictId) return;
 
-    fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict`, {
+    fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetAllBlocks?DistrictId=${selectedDistrictId}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ UserId: userId, DistrictId: selectedDistrictId }),
+      headers: { accept: "*/*", "Content-Type": "application/json" },
+      body: JSON.stringify({}), // Empty body as DistrictId is in query
     })
-      .then(res => res.json())
-      .then(data => {
-        if (data.Status && data.Data.length) {
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.Status && data.Data?.length) {
           // Sort blocks alphabetically by BlockName
-          const sortedBlocks = data.Data.sort((a: Block, b: Block) => 
+          const sortedBlocks = data.Data.sort((a: Block, b: Block) =>
             a.BlockName.localeCompare(b.BlockName)
           );
           setBlocks(sortedBlocks);
@@ -165,23 +171,27 @@ const UserManagement = () => {
           setSelectedBlockId(null);
         }
       })
-      .catch(err => console.error(err));
-  }, [selectedDistrictId, userId]);
+      .catch((err) => {
+        console.error("Error fetching blocks:", err);
+        setBlocks([]);
+        setSelectedBlockId(null);
+      });
+  }, [selectedDistrictId]);
 
-  // -------------------- Fetch Gram Panchayats (AddBeneficiary pattern) --------------------
+  // -------------------- Fetch Gram Panchayats --------------------
   useEffect(() => {
-    if (!selectedBlockId || !userId) return;
+    if (!selectedBlockId) return;
 
-    fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock`, {
+    fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetAllGramPanchayat?BlockId=${selectedBlockId}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ UserId: userId, BlockId: selectedBlockId }),
+      headers: { accept: "*/*", "Content-Type": "application/json" },
+      body: JSON.stringify({}), // Empty body as BlockId is in query
     })
-      .then(res => res.json())
-      .then(data => {
-        if (data.Status && data.Data.length) {
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.Status && data.Data?.length) {
           // Sort gram panchayats alphabetically by GramPanchayatName
-          const sortedGramPanchayats = data.Data.sort((a: GramPanchayat, b: GramPanchayat) => 
+          const sortedGramPanchayats = data.Data.sort((a: GramPanchayat, b: GramPanchayat) =>
             a.GramPanchayatName.localeCompare(b.GramPanchayatName)
           );
           setGramPanchayats(sortedGramPanchayats);
@@ -191,8 +201,12 @@ const UserManagement = () => {
           setSelectedGramPanchayatId(null);
         }
       })
-      .catch(err => console.error(err));
-  }, [selectedBlockId, userId]);
+      .catch((err) => {
+        console.error("Error fetching gram panchayats:", err);
+        setGramPanchayats([]);
+        setSelectedGramPanchayatId(null);
+      });
+  }, [selectedBlockId]);
 
   // -------------------- Create User --------------------
   const createUser = () => {
@@ -250,7 +264,7 @@ const UserManagement = () => {
         UpdatedBy: 0,
         DeviceToken: "",
         IPAddress: "",
-        Status: 1, // 1 for active
+        Status: 1,
       };
 
       fetch("https://wmsapi.kdsgroup.co.in/api/User/InsertNewUserDetailsByAdmin", {
@@ -263,7 +277,6 @@ const UserManagement = () => {
           alert(data.Message || "User created");
           if (data.Status) {
             setShowModal(false);
-            // Reset form
             setNewUser({
               role: "",
               district: "",
@@ -274,7 +287,6 @@ const UserManagement = () => {
               password: "",
               confirmPassword: "",
             });
-            // Reset dropdown searches and states
             setDistrictSearch("");
             setBlockSearch("");
             setGramPanchayatSearch("");
@@ -284,15 +296,7 @@ const UserManagement = () => {
             setSelectedDistrictId(null);
             setSelectedBlockId(null);
             setSelectedGramPanchayatId(null);
-            // Reset dropdown searches and states
-            setDistrictSearch("");
-            setBlockSearch("");
-            setGramPanchayatSearch("");
-            setIsDistrictOpen(false);
-            setIsBlockOpen(false);
-            setIsGramPanchayatOpen(false);
-            // Refresh the user list
-            window.location.reload(); // Simple refresh, or you could re-fetch the data
+            window.location.reload();
           }
         })
         .catch((err) => {
@@ -304,7 +308,7 @@ const UserManagement = () => {
         UserName: newUser.userId,
         Password: newUser.password,
         Email: newUser.email,
-        DistrictId: 0, // Admin doesn't need district/block/GP
+        DistrictId: 0,
         BlockId: 0,
         RoleId: roleId,
         GPId: 0,
@@ -312,7 +316,7 @@ const UserManagement = () => {
         UpdatedBy: 0,
         DeviceToken: "",
         IPAddress: "",
-        Status: 1, // 1 for active
+        Status: 1,
       };
 
       fetch("https://wmsapi.kdsgroup.co.in/api/User/InsertNewUserDetailsByAdmin", {
@@ -325,7 +329,6 @@ const UserManagement = () => {
           alert(data.Message || "User created");
           if (data.Status) {
             setShowModal(false);
-            // Reset form
             setNewUser({
               role: "",
               district: "",
@@ -336,8 +339,7 @@ const UserManagement = () => {
               password: "",
               confirmPassword: "",
             });
-            // Refresh the user list
-            window.location.reload(); // Simple refresh, or you could re-fetch the data
+            window.location.reload();
           }
         })
         .catch((err) => {
@@ -356,7 +358,6 @@ const UserManagement = () => {
       .then((res) => res.json())
       .then((data) => {
         if (data.Status && data.Data) {
-          // Map API data to LocationUser format
           const users: LocationUser[] = data.Data.map((u: any) => ({
             id: u.UserId,
             district: u.DistrictName,
@@ -413,31 +414,30 @@ const UserManagement = () => {
     );
   }, [hqUsers, searchHq]);
 
-  // Filtered dropdown options
   const filteredDistricts = useMemo(() => {
     if (!districtSearch.trim()) return districts;
-    return districts.filter(d => 
+    return districts.filter((d) =>
       d.DistrictName.toLowerCase().includes(districtSearch.toLowerCase())
     );
   }, [districts, districtSearch]);
 
   const filteredBlocks = useMemo(() => {
     if (!blockSearch.trim()) return blocks;
-    return blocks.filter(b => 
+    return blocks.filter((b) =>
       b.BlockName.toLowerCase().includes(blockSearch.toLowerCase())
     );
   }, [blocks, blockSearch]);
 
   const filteredGramPanchayats = useMemo(() => {
     if (!gramPanchayatSearch.trim()) return gramPanchayats;
-    return gramPanchayats.filter(gp => 
+    return gramPanchayats.filter((gp) =>
       gp.GramPanchayatName.toLowerCase().includes(gramPanchayatSearch.toLowerCase())
     );
   }, [gramPanchayats, gramPanchayatSearch]);
 
   // actions
   const toggleUserStatus = (userId: number, currentStatus: boolean) => {
-    const newStatus = currentStatus ? 0 : 1; // 1 = active, 0 = inactive
+    const newStatus = currentStatus ? 0 : 1;
 
     fetch("https://wmsapi.kdsgroup.co.in/api/User/UpdateUserStatusByUserId", {
       method: "POST",
@@ -448,7 +448,6 @@ const UserManagement = () => {
       .then((data) => {
         if (data.Status) {
           alert(data.Message || "Status updated successfully");
-
           if (locationUsers.some((u) => u.id === userId)) {
             setLocationUsers((prev) =>
               prev.map((u) =>
@@ -474,7 +473,7 @@ const UserManagement = () => {
 
   const changePassword = (user: LocationUser | HQUser) => {
     setPasswordUser(user);
-    setOldPassword(""); // reset fields
+    setOldPassword("");
     setNewPassword("");
     setShowPasswordModal(true);
   };
@@ -488,8 +487,8 @@ const UserManagement = () => {
   }: {
     title: string;
     data: T[];
-    columns: string[]; // visible columns (no Actions)
-    toolbar?: React.ReactNode; // search + download per table
+    columns: string[];
+    toolbar?: React.ReactNode;
   }) => (
     <div className="bg-white shadow-lg rounded-2xl p-4 mb-6">
       <div className="flex items-center justify-between mb-3">
@@ -501,10 +500,7 @@ const UserManagement = () => {
           <thead className="bg-gray-100">
             <tr>
               {columns.map((col, idx) => (
-                <th
-                  key={idx}
-                  className="px-4 py-2 text-left text-sm font-medium"
-                >
+                <th key={idx} className="px-4 py-2 text-left text-sm font-medium">
                   {col}
                 </th>
               ))}
@@ -526,25 +522,24 @@ const UserManagement = () => {
                     );
                   })}
                   <td className="px-4 py-2 align-middle">
-                    {/* centered action buttons */}
                     <div className="flex items-center justify-center gap-2">
                       <button
                         className={`inline-flex items-center gap-1 px-2 py-1 rounded text-white ${
-                          (user as any).active ? "bg-red-500" : "bg-green-600"
+                          user.active ? "bg-red-500" : "bg-green-600"
                         }`}
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           toggleUserStatus(user.id, user.active);
                         }}
-                        title={(user as any).active ? "Deactivate" : "Activate"}
+                        title={user.active ? "Deactivate" : "Activate"}
                       >
                         <Power size={16} />
-                        {(user as any).active ? "Deactivate" : "Activate"}
+                        {user.active ? "Deactivate" : "Activate"}
                       </button>
                       <button
                         className="inline-flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-                        onClick={() => changePassword(user)} // pass the user object
+                        onClick={() => changePassword(user)}
                         title="Change Password"
                       >
                         <Lock size={16} />
@@ -571,18 +566,18 @@ const UserManagement = () => {
   );
 
   // Custom searchable dropdown component
-  const SearchableDropdown = ({ 
-    label, 
-    options, 
-    selectedValue, 
-    onSelect, 
-    searchValue, 
-    onSearchChange, 
-    isOpen, 
-    setIsOpen, 
-    displayKey, 
-    valueKey, 
-    placeholder = "Select option" 
+  const SearchableDropdown = ({
+    label,
+    options,
+    selectedValue,
+    onSelect,
+    searchValue,
+    onSearchChange,
+    isOpen,
+    setIsOpen,
+    displayKey,
+    valueKey,
+    placeholder = "Select option",
   }: {
     label: string;
     options: any[];
@@ -596,8 +591,8 @@ const UserManagement = () => {
     valueKey: string;
     placeholder?: string;
   }) => {
-    const selectedOption = options.find(opt => opt[valueKey] === selectedValue);
-    
+    const selectedOption = options.find((opt) => opt[valueKey] === selectedValue);
+
     return (
       <div className="relative">
         <label className="block text-sm mb-1">{label}</label>
@@ -610,16 +605,31 @@ const UserManagement = () => {
             <span className={selectedOption ? "text-black" : "text-gray-500"}>
               {selectedOption ? selectedOption[displayKey] : placeholder}
             </span>
-            <svg className={`w-4 h-4 transform transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            <svg
+              className={`w-4 h-4 transform transition-transform ${
+                isOpen ? "rotate-180" : ""
+              }`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
             </svg>
           </button>
-          
+
           {isOpen && (
             <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-hidden">
               <div className="p-2 border-b">
                 <div className="relative">
-                  <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2" size={14} />
+                  <SearchIcon
+                    className="absolute left-2 top-1/2 -translate-y-1/2"
+                    size={14}
+                  />
                   <input
                     type="text"
                     placeholder={`Search ${label.toLowerCase()}...`}
@@ -641,14 +651,18 @@ const UserManagement = () => {
                         setIsOpen(false);
                       }}
                       className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 ${
-                        selectedValue === option[valueKey] ? 'bg-blue-50 text-blue-600' : ''
+                        selectedValue === option[valueKey]
+                          ? "bg-blue-50 text-blue-600"
+                          : ""
                       }`}
                     >
                       {option[displayKey]}
                     </button>
                   ))
                 ) : (
-                  <div className="px-3 py-2 text-sm text-gray-500">No results found</div>
+                  <div className="px-3 py-2 text-sm text-gray-500">
+                    No results found
+                  </div>
                 )}
               </div>
             </div>
@@ -666,7 +680,10 @@ const UserManagement = () => {
   const LocationToolbar = (
     <div className="flex items-center gap-2">
       <div className="relative">
-        <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2" size={16} />
+        <SearchIcon
+          className="absolute left-2 top-1/2 -translate-y-1/2"
+          size={16}
+        />
         <input
           type="text"
           placeholder="Search..."
@@ -695,7 +712,10 @@ const UserManagement = () => {
   const HqToolbar = (
     <div className="flex items-center gap-2">
       <div className="relative">
-        <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2" size={16} />
+        <SearchIcon
+          className="absolute left-2 top-1/2 -translate-y-1/2"
+          size={16}
+        />
         <input
           type="text"
           placeholder="Search..."
@@ -786,7 +806,6 @@ const UserManagement = () => {
 
               {newUser.role === "Gram Panchayat" && (
                 <>
-                  {/* District */}
                   <SearchableDropdown
                     label="District"
                     options={filteredDistricts}
@@ -806,7 +825,6 @@ const UserManagement = () => {
                     placeholder="Select District"
                   />
 
-                  {/* Block */}
                   <SearchableDropdown
                     label="Block"
                     options={filteredBlocks}
@@ -825,7 +843,6 @@ const UserManagement = () => {
                     placeholder="Select Block"
                   />
 
-                  {/* Gram Panchayat */}
                   <SearchableDropdown
                     label="Gram Panchayat"
                     options={filteredGramPanchayats}
@@ -892,13 +909,6 @@ const UserManagement = () => {
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="inline-flex items-center gap-1 px-4 py-2 rounded border hover:bg-gray-50"
-                >
-                  <X size={16} />
-                  Cancel
-                </button>
                 <button
                   onClick={createUser}
                   className="inline-flex items-center gap-1 px-4 py-2 rounded bg-indigo-600 text-white hover:bg-indigo-700"

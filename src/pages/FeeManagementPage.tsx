@@ -18,7 +18,7 @@ type FeeCollectionData = {
   PreviousBalance: number;
   OutstandingAmount: number;
   PaidAmount: number;
-  BalanceAmount: number;
+  BalanceAmount: number; // This will be calculated as OutstandingAmount - PaidAmount
 };
 
 type AnalyticsSummary = {
@@ -82,12 +82,21 @@ const FeeManagementPage: React.FC = () => {
     { value: "12", label: "December" }
   ];
 
+  // ---------- Helper Functions ----------
+  const calculateBalanceAmount = (outstandingAmount: number, paidAmount: number): number => {
+    return outstandingAmount - paidAmount;
+  };
+
+  const processDataWithCalculatedBalance = (data: FeeCollectionData[]): FeeCollectionData[] => {
+    return data.map(item => ({
+      ...item,
+      BalanceAmount: calculateBalanceAmount(item.OutstandingAmount, item.PaidAmount)
+    }));
+  };
+
   // ---------- API Functions ----------
   const fetchVillages = async () => {
-    if (!userId) {
-      setError("User ID not found");
-      return;
-    }
+    
 
     try {
       const response = await fetch(
@@ -163,44 +172,20 @@ const FeeManagementPage: React.FC = () => {
         const data = await fetchFeeCollectionData(villageId, month, year);
         allData = data;
       }
-      // If only village selected, fetch all months
-      else if (selectedVillage) {
-        const villageId = parseInt(selectedVillage);
-        const year = parseInt(selectedYear);
-        
-        for (let month = 1; month <= 12; month++) {
-          try {
-            const data = await fetchFeeCollectionData(villageId, month, year);
-            allData = [...allData, ...data];
-          } catch (error) {
-            console.warn(`Failed to fetch data for month ${month}`);
-          }
-        }
-      }
-      // If no specific village selected, fetch for all villages and all months
-      else {
-        const year = parseInt(selectedYear);
-        
-        for (const village of villages) {
-          for (let month = 1; month <= 12; month++) {
-            try {
-              const data = await fetchFeeCollectionData(village.VillageId, month, year);
-              allData = [...allData, ...data];
-            } catch (error) {
-              console.warn(`Failed to fetch data for village ${village.VillageId}, month ${month}`);
-            }
-          }
-        }
-      }
+      
+          
 
       // Remove duplicates based on FeeCollectionId
       const uniqueData = allData.filter((item, index, self) => 
         index === self.findIndex(t => t.FeeCollectionId === item.FeeCollectionId)
       );
 
-      setFeeData(uniqueData);
-      setFilteredData(uniqueData);
-      calculateAnalytics(uniqueData);
+      // Process data with calculated balance amounts
+      const processedData = processDataWithCalculatedBalance(uniqueData);
+
+      setFeeData(processedData);
+      setFilteredData(processedData);
+      calculateAnalytics(processedData);
 
     } catch (error) {
       setError("Error loading fee collection data");
@@ -213,7 +198,8 @@ const FeeManagementPage: React.FC = () => {
   const calculateAnalytics = (data: FeeCollectionData[]) => {
     const totalCollected = data.reduce((sum, item) => sum + item.PaidAmount, 0);
     const totalOutstanding = data.reduce((sum, item) => sum + item.OutstandingAmount, 0);
-    const totalBalance = data.reduce((sum, item) => sum + item.BalanceAmount, 0);
+    // Calculate total balance as sum of calculated balance amounts
+    const totalBalance = data.reduce((sum, item) => sum + calculateBalanceAmount(item.OutstandingAmount, item.PaidAmount), 0);
     const totalBeneficiaries = new Set(data.map(item => item.BeneficiaryId)).size;
     const totalVillages = new Set(data.map(item => item.VillageId)).size;
 
@@ -230,9 +216,7 @@ const FeeManagementPage: React.FC = () => {
   useEffect(() => {
     if (userId) {
       fetchVillages();
-    } else {
-      setError("User ID not found");
-    }
+    } 
   }, [userId]);
 
   useEffect(() => {
@@ -281,7 +265,7 @@ const FeeManagementPage: React.FC = () => {
       "Previous Balance",
       "Outstanding Amount",
       "Paid Amount",
-      "Balance Amount"
+      "Balance Amount (Calculated)"
     ];
 
     const csvContent = [
@@ -295,7 +279,7 @@ const FeeManagementPage: React.FC = () => {
         row.PreviousBalance,
         row.OutstandingAmount,
         row.PaidAmount,
-        row.BalanceAmount
+        calculateBalanceAmount(row.OutstandingAmount, row.PaidAmount)
       ].join(","))
     ].join("\n");
 
@@ -319,15 +303,7 @@ const FeeManagementPage: React.FC = () => {
   };
 
   // ---------- Render ----------
-  if (!userId) {
-    return (
-      <div className="p-6 relative z-10">
-        <div className="bg-red-100 text-red-700 p-3 rounded">
-          User ID not found. Please login again.
-        </div>
-      </div>
-    );
-  }
+  
 
   return (
     <div className="p-6 relative z-10">
@@ -438,13 +414,14 @@ const FeeManagementPage: React.FC = () => {
         {/* Analytics Summary */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="bg-white border rounded shadow p-4">
-            <p className="text-gray-600 text-sm">Total Collected</p>
-            <p className="text-xl font-semibold text-green-600">₹{analytics.totalCollected.toLocaleString()}</p>
-          </div>
-          <div className="bg-white border rounded shadow p-4">
             <p className="text-gray-600 text-sm">Total Outstanding</p>
             <p className="text-xl font-semibold text-orange-600">₹{analytics.totalOutstanding.toLocaleString()}</p>
           </div>
+          <div className="bg-white border rounded shadow p-4">
+            <p className="text-gray-600 text-sm">Total Collected</p>
+            <p className="text-xl font-semibold text-green-600">₹{analytics.totalCollected.toLocaleString()}</p>
+          </div>
+          
           <div className="bg-white border rounded shadow p-4">
             <p className="text-gray-600 text-sm">Balance Amount</p>
             <p className="text-xl font-semibold text-red-600">₹{analytics.totalBalance.toLocaleString()}</p>
@@ -496,7 +473,9 @@ const FeeManagementPage: React.FC = () => {
                     <td className="border px-4 py-2 text-right">{entry.PreviousBalance.toLocaleString()}</td>
                     <td className="border px-4 py-2 text-right text-orange-600 font-medium">{entry.OutstandingAmount.toLocaleString()}</td>
                     <td className="border px-4 py-2 text-right text-green-600 font-medium">{entry.PaidAmount.toLocaleString()}</td>
-                    <td className="border px-4 py-2 text-right text-red-600 font-medium">{entry.BalanceAmount.toLocaleString()}</td>
+                    <td className="border px-4 py-2 text-right text-red-600 font-medium">
+                      {calculateBalanceAmount(entry.OutstandingAmount, entry.PaidAmount).toLocaleString()}
+                    </td>
                   </tr>
                 ))
               ) : (

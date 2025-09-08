@@ -13,41 +13,36 @@ import {
 
 import { useUserInfo } from "../utils/userInfo";
 
-
 const FeeManagement = () => {
-
   type LatestFeeItem = {
-  FeeId: number;
-  DistrictName: string;
-  BaseFee: number;
-  TotalAmountCollected: number;
-  ApplyFrom: string;
-};
+    FeeId: number;
+    DistrictName: string;
+    BaseFee: number;
+    TotalAmountCollected: number;
+    ApplyFrom: string;
+  };
 
-type DistrictFee = {
-  id: number;
-  name: string;
-  fee: string;  // as you're editing in an <input/>
-  districtId: number;
-  totalCollected: number;
-  applyFrom: string;
-};
+  type DistrictFee = {
+    id: number;
+    name: string;
+    fee: string;
+    districtId: number;
+    totalCollected: number;
+    applyFrom: string;
+  };
 
-const { userId, role, isLoading: userLoading } = useUserInfo();
+  const { userId, role, isLoading: userLoading } = useUserInfo();
 
-
-const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
-
+  const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
   const [mode, setMode] = useState("state");
   const [stateFee, setStateFee] = useState("");
-  const [originalDistrictFees, setOriginalDistrictFees] = useState([]);
-  const [financialYear, setFinancialYear] = useState("2024");
+  const [originalDistrictFees, setOriginalDistrictFees] = useState<DistrictFee[]>([]);
+  const [financialYear, setFinancialYear] = useState("2025-26"); // Fixed default value
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [validationErrors, setValidationErrors] = useState({});
 
-  
   // Base API URL
   const API_BASE = "https://wmsapi.kdsgroup.co.in/api/Master";
 
@@ -69,7 +64,7 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
 
   const validateDistrictFee = (value) => {
     if (!value || value.trim() === "") {
-      return null; // Allow empty for district fees
+      return null;
     }
     return validateFeeAmount(value);
   };
@@ -89,26 +84,35 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
       }
       
       const data = await response.json();
+      console.log('Raw API Response:', data); // Debug log
       
       if (data.Status && data.Data) {
         // Group by district and get the latest entry for each district
         const latestFees = {};
-        data.Data.forEach(item => {
+        data.Data.forEach((item: LatestFeeItem) => {
           const district = item.DistrictName;
           if (!latestFees[district] || new Date(item.ApplyFrom) > new Date(latestFees[district].ApplyFrom)) {
             latestFees[district] = item;
           }
         });
         
+        console.log('Latest fees after grouping:', latestFees); // Debug log
+        
         // Convert to array format for the component
-        const formattedFees = Object.values(latestFees).map((item, index) => ({
-          id: item.FeeId,
-          name: item.DistrictName,
-          fee: item.BaseFee.toString(),
-          districtId: item.FeeId, // Using FeeId as DistrictId for API calls
-          totalCollected: item.TotalAmountCollected,
-          applyFrom: item.ApplyFrom
-        }));
+        const formattedFees: DistrictFee[] = Object.values(latestFees).map((item: LatestFeeItem) => {
+          console.log(`Processing ${item.DistrictName}: TotalAmountCollected = ${item.TotalAmountCollected}`); // Debug log
+          
+          return {
+            id: item.FeeId,
+            name: item.DistrictName,
+            fee: item.BaseFee.toString(),
+            districtId: item.FeeId,
+            totalCollected: item.TotalAmountCollected || 0, // Ensure we have a fallback
+            applyFrom: item.ApplyFrom
+          };
+        });
+        
+        console.log('Formatted fees:', formattedFees); // Debug log
         
         setDistrictFees(formattedFees);
         setOriginalDistrictFees(JSON.parse(JSON.stringify(formattedFees)));
@@ -189,9 +193,9 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
         DistrictId: district.districtId,
         WaterFeeAmount: parseFloat(district.fee),
         ApplyFrom: new Date().toISOString(),
-        UserId: userId, // You may want to get this from user context
+        UserId: userId,
         DeviceToken: "web_app",
-        IPAddress: "192.168.1.1" // You may want to get actual IP
+        IPAddress: "192.168.1.1"
       };
 
       const response = await fetch(
@@ -309,7 +313,7 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
             DistrictId: district.districtId,
             WaterFeeAmount: parseFloat(stateFee),
             ApplyFrom: new Date().toISOString(),
-            UserId: userId, // Use the actual userId from userInfo hook
+            UserId: userId,
             DeviceToken: "web_app",
             IPAddress: "192.168.1.1"
           };
@@ -392,103 +396,6 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
     }
   };
 
-  // Alternative version with batch processing (use this if you want to send all updates at once)
-  const handleSaveStateFeeBatch = async () => {
-    // Validate state fee first
-    const stateError = validateStateFee(stateFee);
-    if (stateError) {
-      setValidationErrors(prev => ({ ...prev, stateFee: stateError }));
-      setMessage({ type: "error", text: stateError });
-      return;
-    }
-
-    if (!userId) {
-      setMessage({ type: "error", text: "User ID not available. Please refresh the page and try again." });
-      return;
-    }
-
-    setSaving(true);
-    setMessage({ type: "", text: "" });
-
-    try {
-      // Prepare all requests
-      const requests = districtFees.map(district => ({
-        DistrictId: district.districtId,
-        WaterFeeAmount: parseFloat(stateFee),
-        ApplyFrom: new Date().toISOString(),
-        UserId: userId,
-        DeviceToken: "web_app",
-        IPAddress: "192.168.1.1"
-      }));
-
-      console.log('Sending batch requests:', requests);
-
-      // Send all requests in parallel (but be careful not to overwhelm the server)
-      const responses = await Promise.allSettled(
-        requests.map(async (requestBody, index) => {
-          // Add small delay for each request
-          await new Promise(resolve => setTimeout(resolve, index * 100));
-          
-          const response = await fetch(
-            `${API_BASE}/UpdateStateAndDistrictWiseWaterFee`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "accept": "*/*"
-              },
-              body: JSON.stringify(requestBody)
-            }
-          );
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`HTTP ${response.status}: ${errorText}`);
-          }
-
-          const data = await response.json();
-          if (!data.Status) {
-            throw new Error(data.Message || data.Error || data.Errror || "Failed to update");
-          }
-
-          return { district: districtFees[index].name, success: true, data };
-        })
-      );
-
-      // Process results
-      const successful = responses.filter(r => r.status === 'fulfilled');
-      const failed = responses.filter(r => r.status === 'rejected');
-
-      if (failed.length === 0) {
-        setMessage({ 
-          type: "success", 
-          text: `State-wide fee of ₹${stateFee} applied to all ${successful.length} districts successfully` 
-        });
-        
-        setTimeout(() => {
-          fetchWaterFeeData();
-          setStateFee("");
-          setValidationErrors(prev => ({ ...prev, stateFee: null }));
-        }, 1000);
-      } else {
-        const errorMessages = failed.map((r, i) => 
-          `${districtFees[responses.indexOf(r)].name}: ${r.reason.message}`
-        );
-        
-        setMessage({ 
-          type: "error", 
-          text: `${successful.length} successful, ${failed.length} failed. Errors: ${errorMessages.slice(0, 2).join('; ')}${errorMessages.length > 2 ? '...' : ''}` 
-        });
-      }
-
-    } catch (error) {
-      console.error("Error in batch save:", error);
-      setMessage({ type: "error", text: `Batch update error: ${error.message}` });
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleDownload = () => {
     // Create CSV content
     const csvHeaders = "District Name,Water Fee (₹),Total Amount Collected (₹),Apply From\n";
@@ -531,6 +438,7 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
         Set and manage water fee rates for the entire state or district-wise.
       </p>
 
+      
       {/* Message Display */}
       {message.text && (
         <div className={`flex items-center gap-2 p-4 rounded-lg ${
@@ -662,7 +570,12 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
                             </div>
                           </td>
                           <td className="p-3 border">
-                            ₹ {district.totalCollected?.toLocaleString('en-IN') || '0'}
+                            <span className="font-semibold text-green-600">
+                              ₹ {district.totalCollected?.toLocaleString('en-IN') || '0'}
+                            </span>
+                            <div className="text-xs text-gray-500">
+                              Raw value: {district.totalCollected}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -780,7 +693,9 @@ const [districtFees, setDistrictFees] = useState<DistrictFee[]>([]);
                       </span>
                     </td>
                     <td className="p-3 border">
-                      ₹ {district.totalCollected?.toLocaleString('en-IN') || '0'}
+                      <span className="font-semibold text-purple-600">
+                        ₹ {district.totalCollected?.toLocaleString('en-IN') || '0'}
+                      </span>
                     </td>
                     <td className="p-3 border text-sm text-gray-500">
                       {new Date(district.applyFrom).toLocaleDateString('en-IN')}

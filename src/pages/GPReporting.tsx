@@ -1,11 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
-
-// Mock userInfo hook - replace with your actual hook
-const useUserInfo = () => ({
-  userId: 1,
-  role: 'Admin',
-  isLoading: false
-});
+import { useUserInfo } from "../utils/userInfo";
 
 // Simple Icons using Unicode symbols
 const Icons = {
@@ -16,7 +10,7 @@ const Icons = {
   Refresh: () => <span className="text-lg">🔄</span>,
   Left: () => <span className="text-lg">←</span>,
   Right: () => <span className="text-lg">→</span>,
-  Report: () => <span className="text-lg">📋</span>
+  Report: () => <span className="text-lg">📋</span>,
 };
 
 const LoadingSpinner = () => (
@@ -55,37 +49,44 @@ const apiCall = async (url, options = {}) => {
   }
 };
 
-// Download CSV function
-const downloadCSV = (data, filename) => {
+// Download CSV function with data processing capability
+const downloadCSV = (data, filename, processRowData = null) => {
   if (!data || data.length === 0) {
-    alert('No data available to download');
+    alert("No data available to download");
     return;
   }
 
   try {
-    const headers = Object.keys(data[0]);
-    const csvContent = [
-      headers.join(','),
-      ...data.map(row => headers.map(header => {
-        const value = row[header];
-        const stringValue = value === null || value === undefined ? '' : String(value);
-        return `"${stringValue.replace(/"/g, '""')}"`;
-      }).join(','))
-    ].join('\n');
+    // Process data if a processing function is provided
+    const processedData = processRowData ? data.map(processRowData) : data;
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+    const headers = Object.keys(processedData[0]);
+    const csvContent = [
+      headers.join(","),
+      ...processedData.map((row) =>
+        headers
+          .map((header) => {
+            const value = row[header];
+            const stringValue = value === null || value === undefined ? "" : String(value);
+            return `"${stringValue.replace(/"/g, '""')}"`;
+          })
+          .join(",")
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   } catch (error) {
-    console.error('Error generating CSV:', error);
-    alert('Error generating CSV file. Please try again.');
+    console.error("Error generating CSV:", error);
+    alert("Error generating CSV file. Please try again.");
   }
 };
 
@@ -123,19 +124,19 @@ const Pagination = ({ currentPage, totalPages, onPageChange, itemsPerPage, total
 };
 
 // Table component with search and pagination
-const DataTable = ({ 
-  title, 
-  data, 
-  columns, 
-  isLoading, 
-  error, 
-  onRetry, 
+const DataTable = ({
+  title,
+  data,
+  columns,
+  isLoading,
+  error,
+  onRetry,
   downloadFilename,
   searchable = true,
   showDateFilter = false,
-  onDateChange
+  onDateChange,
 }) => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
@@ -143,8 +144,8 @@ const DataTable = ({
     if (!data || data.length === 0) return [];
     if (!searchTerm) return data;
 
-    return data.filter(item =>
-      Object.values(item).some(value =>
+    return data.filter((item) =>
+      Object.values(item).some((value) =>
         value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
       )
     );
@@ -159,8 +160,17 @@ const DataTable = ({
 
   const handleDownload = () => {
     if (!data || data.length === 0) return;
-    const timestamp = new Date().toISOString().split('T')[0];
-    downloadCSV(data, `${downloadFilename}_${timestamp}.csv`);
+    const timestamp = new Date().toISOString().split("T")[0];
+
+    // Special processing for fee collection data to calculate correct balance
+    const processRowData = downloadFilename.includes("fee_collection")
+      ? (row) => ({
+          ...row,
+          BalanceAmount: (row.OutstandingAmount || 0) - (row.PaidAmount || 0),
+        })
+      : null;
+
+    downloadCSV(data, `${downloadFilename}_${timestamp}.csv`, processRowData);
   };
 
   // Reset page when search changes
@@ -182,22 +192,26 @@ const DataTable = ({
               <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
                 <Icons.Calendar />
                 <select
-                  onChange={(e) => onDateChange('month', parseInt(e.target.value))}
+                  onChange={(e) => onDateChange("month", parseInt(e.target.value))}
                   className="bg-transparent border-none outline-none text-sm"
                 >
-                  {Array.from({length: 12}, (_, i) => (
-                    <option key={i+1} value={i+1}>
-                      {new Date(0, i).toLocaleString('default', { month: 'long' })}
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {new Date(0, i).toLocaleString("default", { month: "long" })}
                     </option>
                   ))}
                 </select>
                 <select
-                  onChange={(e) => onDateChange('year', parseInt(e.target.value))}
+                  onChange={(e) => onDateChange("year", parseInt(e.target.value))}
                   className="bg-transparent border-none outline-none text-sm"
                 >
-                  {Array.from({length: 5}, (_, i) => {
+                  {Array.from({ length: 5 }, (_, i) => {
                     const year = new Date().getFullYear() - 2 + i;
-                    return <option key={year} value={year}>{year}</option>;
+                    return (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    );
                   })}
                 </select>
               </div>
@@ -280,7 +294,7 @@ const DataTable = ({
 export default function MISTabularReportingDashboard() {
   const { userId, role, isLoading: userLoading } = useUserInfo();
   const abortControllerRef = useRef(null);
-  
+
   // Data States
   const [pumpHouses, setPumpHouses] = useState([]);
   const [ohtData, setOHTData] = useState([]);
@@ -292,11 +306,11 @@ export default function MISTabularReportingDashboard() {
   const [bottomDistrictsByFee, setBottomDistrictsByFee] = useState([]);
   const [topDistrictsByComplaint, setTopDistrictsByComplaint] = useState([]);
   const [bottomDistrictsByComplaint, setBottomDistrictsByComplaint] = useState([]);
-  
+
   // Date Controls
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  
+
   // Loading and Error States
   const [loading, setLoading] = useState({
     pumps: true,
@@ -305,7 +319,7 @@ export default function MISTabularReportingDashboard() {
     fees: true,
     villages: true,
     roaster: true,
-    districts: true
+    districts: true,
   });
 
   const [errors, setErrors] = useState({});
@@ -313,125 +327,236 @@ export default function MISTabularReportingDashboard() {
 
   // Helper function to determine if user is admin
   const isAdmin = useCallback(() => {
-    return role?.toLowerCase() === 'admin' || role?.toLowerCase() === 'administrator';
+    return role?.toLowerCase() === "admin" || role?.toLowerCase() === "administrator";
   }, [role]);
 
   // API Functions
   const fetchPumpHouses = useCallback(async (currentUserId) => {
-    setLoading(prev => ({ ...prev, pumps: true }));
+    setLoading((prev) => ({ ...prev, pumps: true }));
     try {
       const signal = abortControllerRef.current?.signal;
       const data = await apiCall(
         `https://wmsapi.kdsgroup.co.in/api/Master/GetPumpHouseListByUserId?UserId=${currentUserId}`,
         { signal }
       );
-      
+
       if (data.Status && Array.isArray(data.Data)) {
         setPumpHouses(data.Data);
       }
-      setErrors(prev => ({ ...prev, pumps: null }));
+      setErrors((prev) => ({ ...prev, pumps: null }));
     } catch (error) {
-      console.error('Error fetching pump houses:', error);
-      setErrors(prev => ({ ...prev, pumps: error.message }));
+      console.error("Error fetching pump houses:", error);
+      setErrors((prev) => ({ ...prev, pumps: error.message }));
     } finally {
-      setLoading(prev => ({ ...prev, pumps: false }));
+      setLoading((prev) => ({ ...prev, pumps: false }));
     }
   }, []);
 
   const fetchComplaints = useCallback(async (currentUserId) => {
-    setLoading(prev => ({ ...prev, complaints: true }));
+    setLoading((prev) => ({ ...prev, complaints: true }));
     try {
       const signal = abortControllerRef.current?.signal;
-      const data = await apiCall('https://wmsapi.kdsgroup.co.in/api/Complain/GetComplaintListByUserIdVillageAndStatus', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          UserId: isAdmin() ? 0 : (currentUserId || 0),
-          VillageId: 0,
-          Status: null
-        }),
-        signal
-      });
-      
+      const data = await apiCall(
+        "https://wmsapi.kdsgroup.co.in/api/Complain/GetComplaintListByUserIdVillageAndStatus",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            UserId: isAdmin() ? 0 : currentUserId || 0,
+            VillageId: 0,
+            Status: null,
+          }),
+          signal,
+        }
+      );
+
       if (data.Status && Array.isArray(data.Data)) {
         setComplaints(data.Data);
       }
-      setErrors(prev => ({ ...prev, complaints: null }));
+      setErrors((prev) => ({ ...prev, complaints: null }));
     } catch (error) {
-      console.error('Error fetching complaints:', error);
-      setErrors(prev => ({ ...prev, complaints: error.message }));
+      console.error("Error fetching complaints:", error);
+      setErrors((prev) => ({ ...prev, complaints: error.message }));
     } finally {
-      setLoading(prev => ({ ...prev, complaints: false }));
+      setLoading((prev) => ({ ...prev, complaints: false }));
     }
   }, [isAdmin]);
 
   const fetchFeeCollectionData = useCallback(async (month, year) => {
-    setLoading(prev => ({ ...prev, fees: true }));
-    try {
-      const signal = abortControllerRef.current?.signal;
-      const data = await apiCall('https://wmsapi.kdsgroup.co.in/api/Master/GetFeeCollectionDetails', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'accept': '*/*' },
-        body: JSON.stringify({ VillageId: 0, Month: month, Year: year }),
-        signal
-      });
-      
-      if (data.Status && Array.isArray(data.Data)) {
-        setFeeData(data.Data);
-      }
-      setErrors(prev => ({ ...prev, fees: null }));
-    } catch (error) {
-      console.error('Error fetching fee data:', error);
-      setErrors(prev => ({ ...prev, fees: error.message }));
-    } finally {
-      setLoading(prev => ({ ...prev, fees: false }));
-    }
-  }, []);
-
-  const fetchVillages = useCallback(async (currentUserId) => {
-    setLoading(prev => ({ ...prev, villages: true }));
+    setLoading((prev) => ({ ...prev, fees: true }));
     try {
       const signal = abortControllerRef.current?.signal;
       const data = await apiCall(
-        `https://wmsapi.kdsgroup.co.in/api/Master/GetVillageListByUserId?UserId=${currentUserId}`,
-        { signal }
+        "https://wmsapi.kdsgroup.co.in/api/Master/GetFeeCollectionDetails",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", accept: "*/*" },
+          body: JSON.stringify({ VillageId: 0, Month: month, Year: year }),
+          signal,
+        }
       );
-      
+
       if (data.Status && Array.isArray(data.Data)) {
-        setVillages(data.Data);
+        setFeeData(data.Data);
       }
-      setErrors(prev => ({ ...prev, villages: null }));
+      setErrors((prev) => ({ ...prev, fees: null }));
     } catch (error) {
-      console.error('Error fetching villages:', error);
-      setErrors(prev => ({ ...prev, villages: error.message }));
+      console.error("Error fetching fee data:", error);
+      setErrors((prev) => ({ ...prev, fees: error.message }));
     } finally {
-      setLoading(prev => ({ ...prev, villages: false }));
+      setLoading((prev) => ({ ...prev, fees: false }));
+    }
+  }, []);
+
+  const fetchVillages = useCallback(async () => {
+    setLoading((prev) => ({ ...prev, villages: true }));
+    try {
+      const signal = abortControllerRef.current?.signal;
+
+      // Step 1: Fetch all districts
+      const districtData = await apiCall("https://wmsapi.kdsgroup.co.in/api/Master/AllDistrict", {
+        method: "POST",
+        headers: { accept: "*/*", "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+        signal,
+      });
+
+      if (!districtData.Status || !Array.isArray(districtData.Data)) {
+        throw new Error("Failed to fetch districts or no districts available");
+      }
+
+      const districts = districtData.Data.sort((a, b) => a.DistrictName.localeCompare(b.DistrictName));
+      const villageList = [];
+
+      // Step 2: Fetch blocks, gram panchayats, and villages for each district
+      for (const district of districts) {
+        try {
+          // Fetch blocks for the district
+          const blockData = await apiCall(
+            `https://wmsapi.kdsgroup.co.in/api/Master/GetAllBlocks?DistrictId=${district.DistrictId}`,
+            {
+              method: "POST",
+              headers: { accept: "*/*", "Content-Type": "application/json" },
+              body: JSON.stringify({}),
+              signal,
+            }
+          );
+
+          if (!blockData.Status || !Array.isArray(blockData.Data)) {
+            console.warn(`No blocks found for district ${district.DistrictName}`);
+            continue;
+          }
+
+          const blocks = blockData.Data.sort((a, b) => a.BlockName.localeCompare(b.BlockName));
+
+          for (const block of blocks) {
+            try {
+              // Fetch gram panchayats for the block
+              const gpData = await apiCall(
+                `https://wmsapi.kdsgroup.co.in/api/Master/GetAllGramPanchayat?BlockId=${block.BlockId}`,
+                {
+                  method: "POST",
+                  headers: { accept: "*/*", "Content-Type": "application/json" },
+                  body: JSON.stringify({}),
+                  signal,
+                }
+              );
+
+              if (!gpData.Status || !Array.isArray(gpData.Data)) {
+                console.warn(`No gram panchayats found for block ${block.BlockName}`);
+                continue;
+              }
+
+              const gramPanchayats = gpData.Data.sort((a, b) =>
+                a.GramPanchayatName.localeCompare(b.GramPanchayatName)
+              );
+
+              for (const gp of gramPanchayats) {
+                try {
+                  // Fetch villages for the gram panchayat
+                  const villageData = await apiCall(
+                    "https://wmsapi.kdsgroup.co.in/api/Master/GetVillegeByGramPanchayat",
+                    {
+                      method: "POST",
+                      headers: { accept: "*/*", "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        BlockId: block.BlockId,
+                        GramPanchayatId: gp.Id,
+                      }),
+                      signal,
+                    }
+                  );
+
+                  if (!villageData.Status || !Array.isArray(villageData.Data)) {
+                    console.warn(`No villages found for gram panchayat ${gp.GramPanchayatName}`);
+                    continue;
+                  }
+
+                  const villages = villageData.Data.sort((a, b) =>
+                    a.VillageName.localeCompare(b.VillageName)
+                  );
+
+                  // Map villages to include district, block, and gram panchayat names
+                  villageList.push(
+                    ...villages.map((village) => ({
+                      DistrictName: district.DistrictName,
+                      BlockName: block.BlockName,
+                      GramPanchayatName: gp.GramPanchayatName,
+                      VillageName: village.VillageName,
+                    }))
+                  );
+                } catch (error) {
+                  console.warn(
+                    `Error fetching villages for gram panchayat ${gp.GramPanchayatName}:`,
+                    error
+                  );
+                }
+              }
+            } catch (error) {
+              console.warn(`Error fetching gram panchayats for block ${block.BlockName}:`, error);
+            }
+          }
+        } catch (error) {
+          console.warn(`Error fetching blocks for district ${district.DistrictName}:`, error);
+        }
+      }
+
+      setVillages(villageList);
+      setErrors((prev) => ({ ...prev, villages: null }));
+    } catch (error) {
+      console.error("Error fetching villages:", error);
+      setErrors((prev) => ({ ...prev, villages: error.message }));
+    } finally {
+      setLoading((prev) => ({ ...prev, villages: false }));
     }
   }, []);
 
   const fetchRoasterData = useCallback(async () => {
     if (pumpHouses.length === 0) return;
-    
-    setLoading(prev => ({ ...prev, roaster: true }));
+
+    setLoading((prev) => ({ ...prev, roaster: true }));
     try {
       const signal = abortControllerRef.current?.signal;
-      const uniqueGPIds = [...new Set(pumpHouses.map(p => p.PumpId))];
+      const uniqueGPIds = [...new Set(pumpHouses.map((p) => p.PumpId))];
       const allRoasterData = [];
-      
+
       for (const gpId of uniqueGPIds) {
         try {
-          const data = await apiCall('https://wmsapi.kdsgroup.co.in/api/Master/GetMonthlyRoasterWithSchedule', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              GPId: gpId,
-              VillgeId: 0,
-              Month: selectedMonth,
-              Year: selectedYear
-            }),
-            signal
-          });
-          
+          const data = await apiCall(
+            "https://wmsapi.kdsgroup.co.in/api/Master/GetMonthlyRoasterWithSchedule",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                GPId: gpId,
+                VillgeId: 0,
+                Month: selectedMonth,
+                Year: selectedYear,
+              }),
+              signal,
+            }
+          );
+
           if (data.Status && Array.isArray(data.Data)) {
             allRoasterData.push(...data.Data);
           }
@@ -439,48 +564,68 @@ export default function MISTabularReportingDashboard() {
           console.error(`Error fetching roaster data for GP ${gpId}:`, error);
         }
       }
-      
+
       setRoasterData(allRoasterData);
-      setErrors(prev => ({ ...prev, roaster: null }));
+      setErrors((prev) => ({ ...prev, roaster: null }));
     } catch (error) {
-      console.error('Error fetching roaster data:', error);
-      setErrors(prev => ({ ...prev, roaster: error.message }));
+      console.error("Error fetching roaster data:", error);
+      setErrors((prev) => ({ ...prev, roaster: error.message }));
     } finally {
-      setLoading(prev => ({ ...prev, roaster: false }));
+      setLoading((prev) => ({ ...prev, roaster: false }));
     }
   }, [pumpHouses, selectedMonth, selectedYear]);
 
   const fetchDistrictData = useCallback(async (year) => {
     if (!isAdmin()) return;
-    
-    setLoading(prev => ({ ...prev, districts: true }));
+
+    setLoading((prev) => ({ ...prev, districts: true }));
     try {
       const signal = abortControllerRef.current?.signal;
       const [topFeeRes, bottomFeeRes, topComplaintRes, bottomComplaintRes] = await Promise.all([
-        apiCall(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTop10DistrictByFeeCollection?FinancialYear=${year}`, {
-          method: 'POST', headers: { 'accept': '*/*' }, signal
-        }),
-        apiCall(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetBottom10DistrictByFeeCollection?FinancialYear=${year}`, {
-          method: 'POST', headers: { 'accept': '*/*' }, signal
-        }),
-        apiCall(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTop10DistrictByComplaint?FinancialYear=${year}`, {
-          method: 'POST', headers: { 'accept': '*/*' }, signal
-        }),
-        apiCall(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetBottom10DistrictByComplaint?FinancialYear=${year}`, {
-          method: 'POST', headers: { 'accept': '*/*' }, signal
-        })
+        apiCall(
+          `https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTop10DistrictByFeeCollection?FinancialYear=${year}`,
+          {
+            method: "POST",
+            headers: { accept: "*/*" },
+            signal,
+          }
+        ),
+        apiCall(
+          `https://wmsapi.kdsgroup.co.in/api/Dashboard/GetBottom10DistrictByFeeCollection?FinancialYear=${year}`,
+          {
+            method: "POST",
+            headers: { accept: "*/*" },
+            signal,
+          }
+        ),
+        apiCall(
+          `https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTop10DistrictByComplaint?FinancialYear=${year}`,
+          {
+            method: "POST",
+            headers: { accept: "*/*" },
+            signal,
+          }
+        ),
+        apiCall(
+          `https://wmsapi.kdsgroup.co.in/api/Dashboard/GetBottom10DistrictByComplaint?FinancialYear=${year}`,
+          {
+            method: "POST",
+            headers: { accept: "*/*" },
+            signal,
+          }
+        ),
       ]);
 
       if (topFeeRes.Status) setTopDistrictsByFee(topFeeRes.Data || []);
       if (bottomFeeRes.Status) setBottomDistrictsByFee(bottomFeeRes.Data || []);
       if (topComplaintRes.Status) setTopDistrictsByComplaint(topComplaintRes.Data || []);
       if (bottomComplaintRes.Status) setBottomDistrictsByComplaint(bottomComplaintRes.Data || []);
-      setErrors(prev => ({ ...prev, districts: null }));
+      setErrors((prev) => ({ ...prev, districts: null }));
     } catch (error) {
-      console.error('Error fetching district data:', error);
-      setErrors(prev => ({ ...prev, districts: error.message }));
+      console.error("Error fetching district data:", error);
+      setErrors((prev) => ({ ...prev, districts: error.message }));
     } finally {
-      setLoading(prev => ({ ...prev, districts: false }));
+      setLoading((prev) => ({ ...prev, districts: false }));
     }
   }, [isAdmin]);
 
@@ -488,20 +633,20 @@ export default function MISTabularReportingDashboard() {
   useEffect(() => {
     const initializeData = async () => {
       if (!userId || userLoading) return;
-      
+
       abortControllerRef.current = new AbortController();
-      
+
       await Promise.all([
         fetchPumpHouses(userId),
         fetchComplaints(userId),
         fetchFeeCollectionData(selectedMonth, selectedYear),
-        fetchVillages(userId),
-        fetchDistrictData(selectedYear)
+        fetchVillages(),
+        fetchDistrictData(selectedYear),
       ]);
     };
 
     initializeData();
-  }, [userId, userLoading, selectedMonth, selectedYear]);
+  }, [userId, userLoading, selectedMonth, selectedYear, fetchPumpHouses, fetchComplaints, fetchFeeCollectionData, fetchVillages, fetchDistrictData]);
 
   // Fetch roaster data when pump houses are loaded
   useEffect(() => {
@@ -519,24 +664,27 @@ export default function MISTabularReportingDashboard() {
     };
   }, []);
 
-  const handleDateChange = useCallback((type, value) => {
-    if (type === 'month') {
-      setSelectedMonth(value);
-    } else if (type === 'year') {
-      setSelectedYear(value);
-    }
-  }, []);
+  const handleDateChange = useCallback(
+    (type, value) => {
+      if (type === "month") {
+        setSelectedMonth(value);
+      } else if (type === "year") {
+        setSelectedYear(value);
+      }
+    },
+    []
+  );
 
   const handleRefresh = useCallback(async () => {
     if (!userId) return;
 
     setRefreshing(true);
-    
+
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
     abortControllerRef.current = new AbortController();
-    
+
     // Reset all data
     setPumpHouses([]);
     setComplaints([]);
@@ -547,7 +695,7 @@ export default function MISTabularReportingDashboard() {
     setBottomDistrictsByFee([]);
     setTopDistrictsByComplaint([]);
     setBottomDistrictsByComplaint([]);
-    
+
     setErrors({});
     setLoading({
       pumps: true,
@@ -556,7 +704,7 @@ export default function MISTabularReportingDashboard() {
       fees: true,
       villages: true,
       roaster: true,
-      districts: true
+      districts: true,
     });
 
     try {
@@ -564,11 +712,11 @@ export default function MISTabularReportingDashboard() {
         fetchPumpHouses(userId),
         fetchComplaints(userId),
         fetchFeeCollectionData(selectedMonth, selectedYear),
-        fetchVillages(userId),
-        fetchDistrictData(selectedYear)
+        fetchVillages(),
+        fetchDistrictData(selectedYear),
       ]);
     } catch (error) {
-      console.error('Error during refresh:', error);
+      console.error("Error during refresh:", error);
     } finally {
       setRefreshing(false);
     }
@@ -576,133 +724,154 @@ export default function MISTabularReportingDashboard() {
 
   // Table column definitions
   const pumpHouseColumns = [
-    { key: 'OhtId', header: 'OHT ID' },
-    { key: 'OperatorName', header: 'Operator Name' },
-    { key: 'Contact', header: 'Contact' },
-    { key: 'PumpId', header: 'Pump ID' },
-    { key: 'HorsePower', header: 'Horse Power' },
-    { 
-      key: 'PowerSource', 
-      header: 'Power Source',
-      render: (value) => value === '1' ? 'Electric' : value === '2' ? 'Solar' : 'Unknown'
+    { key: "OhtId", header: "OHT ID" },
+    { key: "OperatorName", header: "Operator Name" },
+    { key: "Contact", header: "Contact" },
+    { key: "PumpId", header: "Pump ID" },
+    { key: "HorsePower", header: "Horse Power" },
+    {
+      key: "PowerSource",
+      header: "Power Source",
+      render: (value) => (value === "1" ? "Electric" : value === "2" ? "Solar" : "Unknown"),
     },
-    { key: 'SolarOutput', header: 'Solar Output (kW)' },
-    { 
-      key: 'Status', 
-      header: 'Status',
+    { key: "SolarOutput", header: "Solar Output (kW)" },
+    {
+      key: "Status",
+      header: "Status",
       render: (value) => (
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-          value === 1 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-        }`}>
-          {value === 1 ? 'Active' : 'Inactive'}
+        <span
+          className={`px-2 py-1 rounded-full text-xs font-medium ${
+            value === 1 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+          }`}
+        >
+          {value === 1 ? "Active" : "Inactive"}
         </span>
-      )
-    }
+      ),
+    },
   ];
 
   const complaintColumns = [
-    { key: 'ComplaintID', header: 'Complaint ID' },
-    { key: 'District', header: 'District' },
-    { key: 'Block', header: 'Block' },
-    { key: 'GramPanchayat', header: 'Gram Panchayat' },
-    { key: 'Village', header: 'Village' },
-    { key: 'BeneficiaryName', header: 'Beneficiary Name' },
-    { key: 'Contact', header: 'Contact' },
-    { key: 'Category', header: 'Category' },
-    { 
-      key: 'Status', 
-      header: 'Status',
+    { key: "ComplaintID", header: "Complaint ID" },
+    { key: "District", header: "District" },
+    { key: "Block", header: "Block" },
+    { key: "GramPanchayat", header: "Gram Panchayat" },
+    { key: "Village", header: "Village" },
+    { key: "BeneficiaryName", header: "Beneficiary Name" },
+    { key: "Contact", header: "Contact" },
+    { key: "Category", header: "Category" },
+    {
+      key: "Status",
+      header: "Status",
       render: (value) => (
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-          value ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-        }`}>
-          {value ? 'Resolved' : 'Pending'}
+        <span
+          className={`px-2 py-1 rounded-full text-xs font-medium ${
+            value ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
+          }`}
+        >
+          {value ? "Resolved" : "Pending"}
         </span>
-      )
-    }
+      ),
+    },
   ];
 
   const feeCollectionColumns = [
-    { key: 'FeeCollectionId', header: 'ID' },
-    { key: 'VillageName', header: 'Village' },
-    { key: 'BeneficiaryName', header: 'Beneficiary Name' },
-    { key: 'FatherHusbandName', header: 'Father/Husband Name' },
-    { key: 'BaseFee', header: 'Base Fee (₹)', render: (value) => value?.toLocaleString() },
-    { key: 'PreviousBalance', header: 'Previous Balance (₹)', render: (value) => value?.toLocaleString() },
-    { key: 'OutstandingAmount', header: 'Outstanding (₹)', render: (value) => value?.toLocaleString() },
-    { key: 'PaidAmount', header: 'Paid Amount (₹)', render: (value) => value?.toLocaleString() },
-    { key: 'BalanceAmount', header: 'Balance (₹)', render: (value) => value?.toLocaleString() }
+    { key: "FeeCollectionId", header: "ID" },
+    { key: "VillageName", header: "Village" },
+    { key: "BeneficiaryName", header: "Beneficiary Name" },
+    { key: "FatherHusbandName", header: "Father/Husband Name" },
+    { key: "BaseFee", header: "Base Fee (₹)", render: (value) => value?.toLocaleString() },
+    { key: "PreviousBalance", header: "Previous Balance (₹)", render: (value) => value?.toLocaleString() },
+    { key: "OutstandingAmount", header: "Outstanding (₹)", render: (value) => value?.toLocaleString() },
+    { key: "PaidAmount", header: "Paid Amount (₹)", render: (value) => value?.toLocaleString() },
+    {
+      key: "BalanceAmount",
+      header: "Balance (₹)",
+      render: (value, row) => {
+        const outstanding = row.OutstandingAmount || 0;
+        const paid = row.PaidAmount || 0;
+        const calculatedBalance = outstanding - paid;
+        return calculatedBalance.toLocaleString();
+      },
+    },
   ];
 
   const villageColumns = [
-    { key: 'VillageId', header: 'Village ID' },
-    { key: 'VillageName', header: 'Village Name' }
+    { key: "DistrictName", header: "District" },
+    { key: "BlockName", header: "Block" },
+    { key: "GramPanchayatName", header: "Gram Panchayat" },
+    { key: "VillageName", header: "Village" },
   ];
 
   const roasterColumns = [
-    { key: 'RoasterId', header: 'Roaster ID' },
-    { key: 'GPId', header: 'GP ID' },
-    { key: 'VillageId', header: 'Village ID' },
-    { key: 'RoasterDate', header: 'Roaster Date', render: (value) => new Date(value).toLocaleDateString() },
-    { key: 'ActivityType', header: 'Activity Type' },
-    { key: 'StartDate', header: 'Start Date', render: (value) => new Date(value).toLocaleDateString() },
-    { key: 'EndDate', header: 'End Date', render: (value) => new Date(value).toLocaleDateString() },
-    { key: 'Remark', header: 'Remark' },
-    { 
-      key: 'Status', 
-      header: 'Status',
+    { key: "RoasterId", header: "Roaster ID" },
+    { key: "GPId", header: "GP ID" },
+    { key: "VillageId", header: "Village ID" },
+    { key: "RoasterDate", header: "Roaster Date", render: (value) => new Date(value).toLocaleDateString() },
+    { key: "ActivityType", header: "Activity Type" },
+    { key: "StartDate", header: "Start Date", render: (value) => new Date(value).toLocaleDateString() },
+    { key: "EndDate", header: "End Date", render: (value) => new Date(value).toLocaleDateString() },
+    { key: "Remark", header: "Remark" },
+    {
+      key: "Status",
+      header: "Status",
       render: (value) => (
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-          value === 1 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-        }`}>
-          {value === 1 ? 'Active' : 'Inactive'}
+        <span
+          className={`px-2 py-1 rounded-full text-xs font-medium ${
+            value === 1 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+          }`}
+        >
+          {value === 1 ? "Active" : "Inactive"}
         </span>
-      )
-    }
+      ),
+    },
   ];
 
   const districtFeeColumns = [
-    { key: 'DistrictId', header: 'District ID' },
-    { key: 'DistrictName', header: 'District Name' },
-    { key: 'TotalAmount', header: 'Total Amount (₹)', render: (value) => value?.toLocaleString() }
+    { key: "DistrictId", header: "District ID" },
+    { key: "DistrictName", header: "District Name" },
+    { key: "TotalAmount", header: "Total Amount (₹)", render: (value) => value?.toLocaleString() },
   ];
 
   const districtComplaintColumns = [
-    { key: 'DistrictId', header: 'District ID' },
-    { key: 'DistrictName', header: 'District Name' },
-    { key: 'TotalComplaint', header: 'Total Complaints' }
+    { key: "DistrictId", header: "District ID" },
+    { key: "DistrictName", header: "District Name" },
+    { key: "TotalComplaint", header: "Total Complaints" },
   ];
 
   // Download functions for consolidated reports
   const handleConsolidatedDownload = () => {
-    const timestamp = new Date().toISOString().split('T')[0];
+    const timestamp = new Date().toISOString().split("T")[0];
     const allData = {
-      'Pump Houses': pumpHouses,
-      'Complaints': complaints,
-      'Fee Collection': feeData,
-      'Villages': villages,
-      'Roaster Data': roasterData,
+      "Pump Houses": pumpHouses,
+      Complaints: complaints,
+      "Fee Collection": feeData,
+      Villages: villages,
+      "Roaster Data": roasterData,
       ...(isAdmin() && {
-        'Top Districts by Fee': topDistrictsByFee,
-        'Bottom Districts by Fee': bottomDistrictsByFee,
-        'Top Districts by Complaints': topDistrictsByComplaint,
-        'Bottom Districts by Complaints': bottomDistrictsByComplaint
-      })
+        "Top Districts by Fee": topDistrictsByFee,
+        "Bottom Districts by Fee": bottomDistrictsByFee,
+        "Top Districts by Complaints": topDistrictsByComplaint,
+        "Bottom Districts by Complaints": bottomDistrictsByComplaint,
+      }),
     };
 
     // Create a summary report
-    const summaryData = [{
-      'Report Type': 'Consolidated MIS Report',
-      'Generated Date': new Date().toLocaleDateString(),
-      'Report Period': `${new Date(0, selectedMonth-1).toLocaleString('default', { month: 'long' })} ${selectedYear}`,
-      'User Role': role,
-      'User ID': userId,
-      'Total Pump Houses': pumpHouses.length,
-      'Total Complaints': complaints.length,
-      'Total Fee Records': feeData.length,
-      'Total Villages': villages.length,
-      'Total Roaster Entries': roasterData.length
-    }];
+    const summaryData = [
+      {
+        "Report Type": "Consolidated MIS Report",
+        "Generated Date": new Date().toLocaleDateString(),
+        "Report Period": `${new Date(0, selectedMonth - 1).toLocaleString("default", {
+          month: "long",
+        })} ${selectedYear}`,
+        "User Role": role,
+        "User ID": userId,
+        "Total Pump Houses": pumpHouses.length,
+        "Total Complaints": complaints.length,
+        "Total Fee Records": feeData.length,
+        "Total Villages": villages.length,
+        "Total Roaster Entries": roasterData.length,
+      },
+    ];
 
     downloadCSV(summaryData, `consolidated_mis_report_${timestamp}.csv`);
   };
@@ -733,12 +902,11 @@ export default function MISTabularReportingDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto p-6">
-        
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8 gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">
-              {isAdmin() ? 'Admin MIS Reports' : 'MIS Tabular Reports'}
+              {isAdmin() ? "Admin MIS Reports" : "MIS Tabular Reports"}
             </h1>
             <p className="text-gray-600 mt-1">
               Comprehensive tabular data reports with download capabilities
@@ -757,9 +925,9 @@ export default function MISTabularReportingDashboard() {
                   onChange={(e) => setSelectedMonth(Number(e.target.value))}
                   className="text-sm font-medium bg-transparent border-none outline-none cursor-pointer"
                 >
-                  {Array.from({length: 12}, (_, i) => (
-                    <option key={i+1} value={i+1}>
-                      {new Date(0, i).toLocaleString('default', { month: 'long' })}
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {new Date(0, i).toLocaleString("default", { month: "long" })}
                     </option>
                   ))}
                 </select>
@@ -769,9 +937,13 @@ export default function MISTabularReportingDashboard() {
                   onChange={(e) => setSelectedYear(Number(e.target.value))}
                   className="text-sm font-medium bg-transparent border-none outline-none cursor-pointer"
                 >
-                  {Array.from({length: 5}, (_, i) => {
+                  {Array.from({ length: 5 }, (_, i) => {
                     const year = new Date().getFullYear() - 2 + i;
-                    return <option key={year} value={year}>{year}</option>;
+                    return (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    );
                   })}
                 </select>
               </div>
@@ -783,14 +955,13 @@ export default function MISTabularReportingDashboard() {
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 shadow-md"
             >
               <Icons.Refresh />
-              <span className="font-medium">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+              <span className="font-medium">{refreshing ? "Refreshing..." : "Refresh"}</span>
             </button>
           </div>
         </div>
 
         {/* Data Tables */}
         <div className="space-y-8">
-          
           {/* Pump Houses Table */}
           <DataTable
             title="Pump House Management"
@@ -826,7 +997,6 @@ export default function MISTabularReportingDashboard() {
             downloadFilename={`fee_collection_${selectedMonth}_${selectedYear}`}
             searchable={true}
             showDateFilter={true}
-            onDateChange={handleDateChange}
           />
 
           {/* Villages Table */}
@@ -836,7 +1006,7 @@ export default function MISTabularReportingDashboard() {
             columns={villageColumns}
             isLoading={loading.villages}
             error={errors.villages}
-            onRetry={() => fetchVillages(userId)}
+            onRetry={fetchVillages}
             downloadFilename="villages"
             searchable={true}
           />
@@ -852,7 +1022,6 @@ export default function MISTabularReportingDashboard() {
             downloadFilename={`roaster_schedules_${selectedMonth}_${selectedYear}`}
             searchable={true}
             showDateFilter={true}
-            onDateChange={handleDateChange}
           />
 
           {/* Admin Only District Performance Tables */}
@@ -911,16 +1080,15 @@ export default function MISTabularReportingDashboard() {
             <Icons.Download />
             <h3 className="text-xl font-bold text-gray-900">📥 Download Reports</h3>
             <div className="ml-auto text-sm text-gray-500">
-              Period: {new Date(0, selectedMonth-1).toLocaleString('default', { month: 'long' })} {selectedYear} • 
-              Generated: {new Date().toLocaleString()}
+              Period: {new Date(0, selectedMonth - 1).toLocaleString("default", { month: "long" })}{" "}
+              {selectedYear} • Generated: {new Date().toLocaleString()}
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            
             {/* Individual Report Downloads */}
             <button
-              onClick={() => downloadCSV(pumpHouses, `pump_houses_${new Date().toISOString().split('T')[0]}.csv`)}
+              onClick={() => downloadCSV(pumpHouses, `pump_houses_${new Date().toISOString().split("T")[0]}.csv`)}
               disabled={pumpHouses.length === 0}
               className="flex items-center gap-3 p-4 bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 rounded-lg border border-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -932,7 +1100,7 @@ export default function MISTabularReportingDashboard() {
             </button>
 
             <button
-              onClick={() => downloadCSV(complaints, `complaints_${new Date().toISOString().split('T')[0]}.csv`)}
+              onClick={() => downloadCSV(complaints, `complaints_${new Date().toISOString().split("T")[0]}.csv`)}
               disabled={complaints.length === 0}
               className="flex items-center gap-3 p-4 bg-gradient-to-br from-orange-50 to-orange-100 hover:from-orange-100 hover:to-orange-200 rounded-lg border border-orange-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -944,7 +1112,16 @@ export default function MISTabularReportingDashboard() {
             </button>
 
             <button
-              onClick={() => downloadCSV(feeData, `fee_collection_${selectedMonth}_${selectedYear}_${new Date().toISOString().split('T')[0]}.csv`)}
+              onClick={() => {
+                const processedFeeData = feeData.map((row) => ({
+                  ...row,
+                  BalanceAmount: (row.OutstandingAmount || 0) - (row.PaidAmount || 0),
+                }));
+                downloadCSV(
+                  processedFeeData,
+                  `fee_collection_${selectedMonth}_${selectedYear}_${new Date().toISOString().split("T")[0]}.csv`
+                );
+              }}
               disabled={feeData.length === 0}
               className="flex items-center gap-3 p-4 bg-gradient-to-br from-green-50 to-green-100 hover:from-green-100 hover:to-green-200 rounded-lg border border-green-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -956,7 +1133,9 @@ export default function MISTabularReportingDashboard() {
             </button>
 
             <button
-              onClick={() => downloadCSV(villages, `villages_${new Date().toISOString().split('T')[0]}.csv`)}
+              onClick={() =>
+                downloadCSV(villages, `villages_${new Date().toISOString().split("T")[0]}.csv`)
+              }
               disabled={villages.length === 0}
               className="flex items-center gap-3 p-4 bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 rounded-lg border border-purple-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -968,7 +1147,12 @@ export default function MISTabularReportingDashboard() {
             </button>
 
             <button
-              onClick={() => downloadCSV(roasterData, `roaster_schedules_${selectedMonth}_${selectedYear}_${new Date().toISOString().split('T')[0]}.csv`)}
+              onClick={() =>
+                downloadCSV(
+                  roasterData,
+                  `roaster_schedules_${selectedMonth}_${selectedYear}_${new Date().toISOString().split("T")[0]}.csv`
+                )
+              }
               disabled={roasterData.length === 0}
               className="flex items-center gap-3 p-4 bg-gradient-to-br from-indigo-50 to-indigo-100 hover:from-indigo-100 hover:to-indigo-200 rounded-lg border border-indigo-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -983,7 +1167,12 @@ export default function MISTabularReportingDashboard() {
             {isAdmin() && (
               <>
                 <button
-                  onClick={() => downloadCSV(topDistrictsByFee, `top_districts_fee_${selectedYear}_${new Date().toISOString().split('T')[0]}.csv`)}
+                  onClick={() =>
+                    downloadCSV(
+                      topDistrictsByFee,
+                      `top_districts_fee_${selectedYear}_${new Date().toISOString().split("T")[0]}.csv`
+                    )
+                  }
                   disabled={topDistrictsByFee.length === 0}
                   className="flex items-center gap-3 p-4 bg-gradient-to-br from-cyan-50 to-cyan-100 hover:from-cyan-100 hover:to-cyan-200 rounded-lg border border-cyan-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -995,7 +1184,12 @@ export default function MISTabularReportingDashboard() {
                 </button>
 
                 <button
-                  onClick={() => downloadCSV(topDistrictsByComplaint, `top_districts_complaints_${selectedYear}_${new Date().toISOString().split('T')[0]}.csv`)}
+                  onClick={() =>
+                    downloadCSV(
+                      topDistrictsByComplaint,
+                      `top_districts_complaints_${selectedYear}_${new Date().toISOString().split("T")[0]}.csv`
+                    )
+                  }
                   disabled={topDistrictsByComplaint.length === 0}
                   className="flex items-center gap-3 p-4 bg-gradient-to-br from-rose-50 to-rose-100 hover:from-rose-100 hover:to-rose-200 rounded-lg border border-rose-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -1027,15 +1221,22 @@ export default function MISTabularReportingDashboard() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-600">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${refreshing ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`}></div>
-                <span>{refreshing ? 'Loading data...' : 'System operational'}</span>
+                <div
+                  className={`w-2 h-2 rounded-full ${refreshing ? "bg-yellow-500 animate-pulse" : "bg-green-500"}`}
+                ></div>
+                <span>{refreshing ? "Loading data..." : "System operational"}</span>
               </div>
               <div>Last updated: {new Date().toLocaleTimeString()}</div>
             </div>
-            
+
             <div className="flex items-center gap-6 text-xs">
-              <div>Data Period: {new Date(0, selectedMonth-1).toLocaleString('default', { month: 'long' })} {selectedYear}</div>
-              <div>User: {role} (ID: {userId})</div>
+              <div>
+                Data Period: {new Date(0, selectedMonth - 1).toLocaleString("default", { month: "long" })}{" "}
+                {selectedYear}
+              </div>
+              <div>
+                User: {role} (ID: {userId})
+              </div>
             </div>
           </div>
         </div>

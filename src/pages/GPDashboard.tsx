@@ -632,13 +632,21 @@ export default function EnhancedGPDashboard() {
           />
           
           <StatCard
-            title="Collection Rate"
-            value={`${collectionEfficiency}%`}
-            subtitle={totalCollectedVillage > 0 ? `₹${totalCollectedVillage.toLocaleString()} collected` : "No collection data"}
-            icon={Icons.Money}
-            gradient="bg-gradient-to-br from-emerald-800 via-emerald-700 to-emerald-600"
-            isLoading={isLoading.villageFee}
-          />
+  title="Collection Rate"
+  value={
+    totalCollection + totalOutstanding > 0
+      ? `${Math.round((totalCollection / (totalCollection + totalOutstanding)) * 100)}%`
+      : "0%"
+  }
+  subtitle={
+    totalCollection > 0
+      ? `₹${totalCollection.toLocaleString()} collected`
+      : "No collection data"
+  }
+  icon={Icons.Money}
+  gradient="bg-gradient-to-br from-emerald-800 via-emerald-700 to-emerald-600"
+  isLoading={isLoading.fees}
+/>
         </div>
 
         {/* Secondary Stats Cards - Only API Data */}
@@ -1118,7 +1126,7 @@ export default function EnhancedGPDashboard() {
                         ₹{fee.PaidAmount.toLocaleString()}
                       </td>
                       <td className="p-4 text-right font-semibold text-rose-600">
-                        ₹{fee.BalanceAmount.toLocaleString()}
+                        ₹{(fee.OutstandingAmount - fee.PaidAmount).toLocaleString()}
                       </td>
                     </tr>
                   ))}
@@ -1146,7 +1154,7 @@ export default function EnhancedGPDashboard() {
                 <span className="text-sm font-semibold">System Online</span>
               </div>
               <div className="text-sm opacity-75">
-                Last updated: {currentTime.toLocaleTimeString('en-IN')}
+                Timestamp: {currentTime.toLocaleTimeString('en-IN')}
               </div>
             </div>
             

@@ -1065,12 +1065,7 @@ const ManageBeneficiary = () => {
             </div>
 
             <div className="flex justify-end gap-3">
-              <button 
-                onClick={() => { setShowModal(false); setCsvFile(null); }} 
-                className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-md transition-colors"
-              >
-                Cancel
-              </button>
+              
               <button 
                 onClick={handleUpload} 
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"

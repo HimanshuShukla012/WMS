@@ -28,7 +28,7 @@ const COMPLAINT_CATEGORIES: { label: string; days: number }[] = [
   { label: "Raw Water Scarcity", days: 6 },
   { label: "Water Value Chamber Cover Missing", days: 5 },
   { label: "Water Valve Chamber Repair", days: 6 },
-  { label: "Other", days: 7 }, // Added "Other" option
+  { label: "Other", days: 7 },
 ];
 
 interface District {
@@ -73,17 +73,38 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
 
   // Form fields
   const [form, setForm] = useState({
-    beneficiaryName: "", // we'll store BeneficiaryId as string here
+    beneficiaryName: "",
     beneficiaryContact: "",
     landmark: "",
     category: "",
     resolutionDays: "",
-    otherCategory: "", // Added for "Other" category text input
+    otherCategory: "",
   });
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [role, setRole] = useState<string>("");
+
+  // Validation function to check if all mandatory fields are filled
+  const areAllMandatoryFieldsFilled = (): boolean => {
+    const mandatoryFields = [
+      selectedDistrictId,
+      selectedBlockId,
+      selectedGramPanchayatId,
+      selectedVillage,
+      form.beneficiaryName,
+      form.beneficiaryContact,
+      form.landmark,
+      form.category,
+    ];
+
+    // If category is "Other", also check otherCategory field
+    if (form.category === "Other") {
+      mandatoryFields.push(form.otherCategory.trim());
+    }
+
+    return mandatoryFields.every(field => field !== null && field !== "" && field !== undefined);
+  };
 
   // Get role from token
   useEffect(() => {
@@ -99,7 +120,7 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
 
   // Fetch districts when userId is available
   useEffect(() => {
-    if (!userId) return; // wait until we have userId
+    if (!userId) return;
     fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetDistrict?UserId=${userId}`, {
       method: "POST",
       headers: { accept: "*/*" },
@@ -109,7 +130,7 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
         if (data.Status && data.Data.length) {
           setDistricts(data.Data);
           if (role.toLowerCase() === "grampanchayat") {
-            setSelectedDistrictId(data.Data[0].DistrictId); // default select first district for GP role
+            setSelectedDistrictId(data.Data[0].DistrictId);
           }
         }
       })
@@ -247,7 +268,7 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
     setForm(prev => ({ 
       ...prev, 
       category: value,
-      otherCategory: value === "Other" ? prev.otherCategory : "" // Clear otherCategory if not "Other"
+      otherCategory: value === "Other" ? prev.otherCategory : ""
     }));
   };
 
@@ -275,7 +296,6 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
         return;
       }
 
-      // Validate "Other" category
       if (form.category === "Other" && !form.otherCategory.trim()) {
         toast.error("Please specify the other category details.");
         setLoading(false);
@@ -304,7 +324,7 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
         "Raw Water Scarcity": 14,
         "Water Value Chamber Cover Missing": 15,
         "Water Valve Chamber Repair": 16,
-        "Other": 0, // Added mapping for "Other"
+        "Other": 0,
       };
       const categoryId = categoryMapping[form.category] || 0;
 
@@ -315,7 +335,7 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
         Landmark: form.landmark,
         Categoryid: categoryId,
         Description: form.category === "Other" ? form.otherCategory : form.category,
-        Status: 1, // Changed from boolean true to integer 1
+        Status: 1,
         ResolutionTimelineDays: Number(form.resolutionDays),
         CreatedBy: createdBy,
         UpdatedBy: createdBy,
@@ -324,7 +344,7 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
         DeviceToken: "",
         IPAddress: "",
         OtherCategory: form.category === "Other" ? form.otherCategory : "",
-        uparm: localStorage.getItem("uparm") || "", // Keep original approach
+        uparm: localStorage.getItem("uparm") || "",
       };
 
       const res = await fetch(
@@ -349,9 +369,8 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
           landmark: "",
           category: "",
           resolutionDays: "",
-          otherCategory: "", // Reset otherCategory
+          otherCategory: "",
         });
-        // Reset all dropdowns
         setSelectedDistrictId(null);
         setSelectedBlockId(null);
         setSelectedGramPanchayatId(null);
@@ -383,11 +402,14 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* District */}
         <div className="flex flex-col">
-          <label className="text-sm font-medium mb-1 text-gray-700">District</label>
+          <label className="text-sm font-medium mb-1 text-gray-700">
+            District <span className="text-red-500">*</span>
+          </label>
           <select
             value={selectedDistrictId || ""}
             onChange={(e) => setSelectedDistrictId(Number(e.target.value))}
             className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            required
           >
             <option value="">Select District</option>
             {districts.map((d) => (
@@ -400,11 +422,14 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
 
         {/* Block */}
         <div className="flex flex-col">
-          <label className="text-sm font-medium mb-1 text-gray-700">Select Block</label>
+          <label className="text-sm font-medium mb-1 text-gray-700">
+            Select Block <span className="text-red-500">*</span>
+          </label>
           <select
             value={selectedBlockId || ""}
             onChange={(e) => setSelectedBlockId(Number(e.target.value))}
             className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            required
           >
             <option value="">Select Block</option>
             {blocks.map((b) => (
@@ -417,11 +442,14 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
 
         {/* Gram Panchayat */}
         <div className="flex flex-col">
-          <label className="text-sm font-medium mb-1 text-gray-700">Gram Panchayat</label>
+          <label className="text-sm font-medium mb-1 text-gray-700">
+            Gram Panchayat <span className="text-red-500">*</span>
+          </label>
           <select
             value={selectedGramPanchayatId || ""}
             onChange={(e) => setSelectedGramPanchayatId(Number(e.target.value))}
             className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            required
           >
             <option value="">Select Gram Panchayat</option>
             {gramPanchayats.map((gp) => (
@@ -434,11 +462,14 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
 
         {/* Village */}
         <div className="flex flex-col">
-          <label className="text-sm font-medium mb-1 text-gray-700">Village</label>
+          <label className="text-sm font-medium mb-1 text-gray-700">
+            Village <span className="text-red-500">*</span>
+          </label>
           <select
             value={selectedVillage?.Id || ""}
             onChange={(e) => setSelectedVillage(villages.find(v => v.Id === Number(e.target.value)) || null)}
             className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            required
           >
             <option value="">Select Village</option>
             {villages.map((v) => (
@@ -451,12 +482,15 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
 
         {/* Beneficiary Name */}
         <div className="flex flex-col">
-          <label className="text-sm font-medium mb-1 text-gray-700">Beneficiary Name</label>
+          <label className="text-sm font-medium mb-1 text-gray-700">
+            Beneficiary Name <span className="text-red-500">*</span>
+          </label>
           <select
             id="beneficiaryName"
             value={form.beneficiaryName}
             onChange={(e) => setForm({ ...form, beneficiaryName: e.target.value })}
             className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            required
           >
             <option value="">Select Beneficiary</option>
             {beneficiaries.map((b) => (
@@ -469,7 +503,9 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
 
         {/* Beneficiary Contact Number */}
         <div className="flex flex-col">
-          <label className="text-sm font-medium mb-1 text-gray-700">Beneficiary Contact Number</label>
+          <label className="text-sm font-medium mb-1 text-gray-700">
+            Beneficiary Contact Number <span className="text-red-500">*</span>
+          </label>
           <input
             type="text"
             name="beneficiaryContact"
@@ -477,12 +513,15 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
             onChange={handleChange}
             placeholder="Beneficiary Contact Number"
             className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            required
           />
         </div>
 
         {/* Landmark */}
         <div className="flex flex-col">
-          <label className="text-sm font-medium mb-1 text-gray-700">Landmark</label>
+          <label className="text-sm font-medium mb-1 text-gray-700">
+            Landmark <span className="text-red-500">*</span>
+          </label>
           <input
             type="text"
             name="landmark"
@@ -490,17 +529,21 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
             onChange={handleChange}
             placeholder="Landmark"
             className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            required
           />
         </div>
 
         {/* Complaint Category */}
         <div className="flex flex-col">
-          <label className="text-sm font-medium mb-1 text-gray-700">Complaint Category</label>
+          <label className="text-sm font-medium mb-1 text-gray-700">
+            Complaint Category <span className="text-red-500">*</span>
+          </label>
           <select
             name="category"
             value={form.category}
             onChange={handleCategoryChange}
             className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            required
           >
             <option value="">Select Complaint Category</option>
             {COMPLAINT_CATEGORIES.map((c, i) => (
@@ -514,7 +557,9 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
         {/* Other Category Text Input - Only visible when "Other" is selected */}
         {form.category === "Other" && (
           <div className="flex flex-col">
-            <label className="text-sm font-medium mb-1 text-gray-700">Specify Other Category</label>
+            <label className="text-sm font-medium mb-1 text-gray-700">
+              Specify Other Category <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               name="otherCategory"
@@ -540,6 +585,15 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
         </div>
       </div>
 
+      {/* Display validation message when fields are missing */}
+      {!areAllMandatoryFieldsFilled() && (
+        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+          <p className="text-sm text-yellow-800">
+            <span className="font-medium">Please fill all mandatory fields</span> (marked with <span className="text-red-500">*</span>) to enable the submit button.
+          </p>
+        </div>
+      )}
+
       {message && (
         <p
           className={`mt-4 text-sm ${
@@ -558,8 +612,13 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
         )}
         <button
           onClick={handleSubmitComplaint}
-          disabled={loading}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+          disabled={loading || !areAllMandatoryFieldsFilled()}
+          className={clsx(
+            "px-4 py-2 text-white rounded transition-all duration-200",
+            areAllMandatoryFieldsFilled() && !loading
+              ? "bg-blue-600 hover:bg-blue-700 cursor-pointer"
+              : "bg-gray-400 cursor-not-allowed opacity-50"
+          )}
         >
           {loading ? "Submitting..." : "Submit Complaint"}
         </button>
