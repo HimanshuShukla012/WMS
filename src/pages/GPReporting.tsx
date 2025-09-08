@@ -409,30 +409,40 @@ export default function MISTabularReportingDashboard() {
   }, []);
 
   const fetchVillages = useCallback(async () => {
-    setLoading((prev) => ({ ...prev, villages: true }));
-    try {
-      const signal = abortControllerRef.current?.signal;
+  setLoading((prev) => ({ ...prev, villages: true }));
+  const abortController = new AbortController();
+  const signal = abortController.signal;
 
-      // Step 1: Fetch all districts
-      const districtData = await apiCall("https://wmsapi.kdsgroup.co.in/api/Master/AllDistrict", {
+  try {
+    // Timeout after 30 seconds
+    const timeout = 30000;
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("Request timed out")), timeout);
+    });
+
+    // Fetch all districts
+    const districtData = await Promise.race([
+      apiCall("https://wmsapi.kdsgroup.co.in/api/Master/AllDistrict", {
         method: "POST",
         headers: { accept: "*/*", "Content-Type": "application/json" },
         body: JSON.stringify({}),
         signal,
-      });
+      }),
+      timeoutPromise,
+    ]);
 
-      if (!districtData.Status || !Array.isArray(districtData.Data)) {
-        throw new Error("Failed to fetch districts or no districts available");
-      }
+    if (!districtData.Status || !Array.isArray(districtData.Data)) {
+      throw new Error("Failed to fetch districts or no districts available");
+    }
 
-      const districts = districtData.Data.sort((a, b) => a.DistrictName.localeCompare(b.DistrictName));
-      const villageList = [];
+    const districts = districtData.Data.sort((a, b) => a.DistrictName.localeCompare(b.DistrictName));
+    const villageList = [];
 
-      // Step 2: Fetch blocks, gram panchayats, and villages for each district
-      for (const district of districts) {
-        try {
-          // Fetch blocks for the district
-          const blockData = await apiCall(
+    // Fetch blocks for all districts in parallel
+    const blockPromises = districts.map(async (district) => {
+      try {
+        const blockData = await Promise.race([
+          apiCall(
             `https://wmsapi.kdsgroup.co.in/api/Master/GetAllBlocks?DistrictId=${district.DistrictId}`,
             {
               method: "POST",
@@ -440,97 +450,112 @@ export default function MISTabularReportingDashboard() {
               body: JSON.stringify({}),
               signal,
             }
+          ),
+          timeoutPromise,
+        ]);
+
+        if (!blockData.Status || !Array.isArray(blockData.Data)) {
+          console.warn(`No blocks found for district ${district.DistrictName}`);
+          return [];
+        }
+
+        const blocks = blockData.Data.sort((a, b) => a.BlockName.localeCompare(b.BlockName));
+        return { district, blocks };
+      } catch (error) {
+        console.warn(`Error fetching blocks for district ${district.DistrictName}:`, error);
+        return [];
+      }
+    });
+
+    const blockResults = await Promise.all(blockPromises);
+
+    // Fetch gram panchayats for all blocks in parallel
+    const gpPromises = blockResults.flatMap(({ district, blocks }) =>
+      blocks.map(async (block) => {
+        try {
+          const gpData = await Promise.race([
+            apiCall(
+              `https://wmsapi.kdsgroup.co.in/api/Master/GetAllGramPanchayat?BlockId=${block.BlockId}`,
+              {
+                method: "POST",
+                headers: { accept: "*/*", "Content-Type": "application/json" },
+                body: JSON.stringify({}),
+                signal,
+              }
+            ),
+            timeoutPromise,
+          ]);
+
+          if (!gpData.Status || !Array.isArray(gpData.Data)) {
+            console.warn(`No gram panchayats found for block ${block.BlockName}`);
+            return [];
+          }
+
+          const gramPanchayats = gpData.Data.sort((a, b) =>
+            a.GramPanchayatName.localeCompare(b.GramPanchayatName)
+          );
+          return { district, block, gramPanchayats };
+        } catch (error) {
+          console.warn(`Error fetching gram panchayats for block ${block.BlockName}:`, error);
+          return [];
+        }
+      })
+    );
+
+    const gpResults = await Promise.all(gpPromises);
+
+    // Fetch villages for all gram panchayats in parallel
+    const villagePromises = gpResults.flatMap(({ district, block, gramPanchayats }) =>
+      gramPanchayats.map(async (gp) => {
+        try {
+          const villageData = await Promise.race([
+            apiCall("https://wmsapi.kdsgroup.co.in/api/Master/GetVillegeByGramPanchayat", {
+              method: "POST",
+              headers: { accept: "*/*", "Content-Type": "application/json" },
+              body: JSON.stringify({
+                BlockId: block.BlockId,
+                GramPanchayatId: gp.Id,
+              }),
+              signal,
+            }),
+            timeoutPromise,
+          ]);
+
+          if (!villageData.Status || !Array.isArray(villageData.Data)) {
+            console.warn(`No villages found for gram panchayat ${gp.GramPanchayatName}`);
+            return [];
+          }
+
+          const villages = villageData.Data.sort((a, b) =>
+            a.VillageName.localeCompare(b.VillageName)
           );
 
-          if (!blockData.Status || !Array.isArray(blockData.Data)) {
-            console.warn(`No blocks found for district ${district.DistrictName}`);
-            continue;
-          }
-
-          const blocks = blockData.Data.sort((a, b) => a.BlockName.localeCompare(b.BlockName));
-
-          for (const block of blocks) {
-            try {
-              // Fetch gram panchayats for the block
-              const gpData = await apiCall(
-                `https://wmsapi.kdsgroup.co.in/api/Master/GetAllGramPanchayat?BlockId=${block.BlockId}`,
-                {
-                  method: "POST",
-                  headers: { accept: "*/*", "Content-Type": "application/json" },
-                  body: JSON.stringify({}),
-                  signal,
-                }
-              );
-
-              if (!gpData.Status || !Array.isArray(gpData.Data)) {
-                console.warn(`No gram panchayats found for block ${block.BlockName}`);
-                continue;
-              }
-
-              const gramPanchayats = gpData.Data.sort((a, b) =>
-                a.GramPanchayatName.localeCompare(b.GramPanchayatName)
-              );
-
-              for (const gp of gramPanchayats) {
-                try {
-                  // Fetch villages for the gram panchayat
-                  const villageData = await apiCall(
-                    "https://wmsapi.kdsgroup.co.in/api/Master/GetVillegeByGramPanchayat",
-                    {
-                      method: "POST",
-                      headers: { accept: "*/*", "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        BlockId: block.BlockId,
-                        GramPanchayatId: gp.Id,
-                      }),
-                      signal,
-                    }
-                  );
-
-                  if (!villageData.Status || !Array.isArray(villageData.Data)) {
-                    console.warn(`No villages found for gram panchayat ${gp.GramPanchayatName}`);
-                    continue;
-                  }
-
-                  const villages = villageData.Data.sort((a, b) =>
-                    a.VillageName.localeCompare(b.VillageName)
-                  );
-
-                  // Map villages to include district, block, and gram panchayat names
-                  villageList.push(
-                    ...villages.map((village) => ({
-                      DistrictName: district.DistrictName,
-                      BlockName: block.BlockName,
-                      GramPanchayatName: gp.GramPanchayatName,
-                      VillageName: village.VillageName,
-                    }))
-                  );
-                } catch (error) {
-                  console.warn(
-                    `Error fetching villages for gram panchayat ${gp.GramPanchayatName}:`,
-                    error
-                  );
-                }
-              }
-            } catch (error) {
-              console.warn(`Error fetching gram panchayats for block ${block.BlockName}:`, error);
-            }
-          }
+          return villages.map((village) => ({
+            DistrictName: district.DistrictName,
+            BlockName: block.BlockName,
+            GramPanchayatName: gp.GramPanchayatName,
+            VillageName: village.VillageName,
+          }));
         } catch (error) {
-          console.warn(`Error fetching blocks for district ${district.DistrictName}:`, error);
+          console.warn(`Error fetching villages for gram panchayat ${gp.GramPanchayatName}:`, error);
+          return [];
         }
-      }
+      })
+    );
 
-      setVillages(villageList);
-      setErrors((prev) => ({ ...prev, villages: null }));
-    } catch (error) {
-      console.error("Error fetching villages:", error);
-      setErrors((prev) => ({ ...prev, villages: error.message }));
-    } finally {
-      setLoading((prev) => ({ ...prev, villages: false }));
-    }
-  }, []);
+    const villageResults = await Promise.all(villagePromises);
+    villageList.push(...villageResults.flat());
 
+    setVillages(villageList);
+    setErrors((prev) => ({ ...prev, villages: null }));
+  } catch (error) {
+    console.error("Error fetching villages:", error);
+    setErrors((prev) => ({ ...prev, villages: error.message }));
+  } finally {
+    setLoading((prev) => ({ ...prev, villages: false }));
+    abortController.abort(); // Clean up
+  }
+}, []);
   const fetchRoasterData = useCallback(async () => {
     if (pumpHouses.length === 0) return;
 
