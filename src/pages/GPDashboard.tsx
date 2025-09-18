@@ -684,7 +684,7 @@ export default function EnhancedGPDashboard() {
           />
           
           <StatCard
-            title="Villages"
+            title="Revenue Villages"
             value={villages.length}
             subtitle="Under management"
             icon={Icons.Users}
