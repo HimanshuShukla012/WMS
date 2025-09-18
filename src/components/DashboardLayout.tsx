@@ -199,7 +199,7 @@ const DashboardLayout = ({ role }: { children?: React.ReactNode; role: Role }) =
 
           <div className="flex flex-col items-center mb-10">
             <img src="/logo.png" alt="Logo" className="h-16 w-24 rounded-lg object-cover" />
-            <h1 className="text-2xl font-bold tracking-wide text-center">IWMS</h1>
+            <h1 className="text-2xl font-bold tracking-wide text-center">WMS</h1>
             <span className="text-sm text-indigo-200 mt-1">{roleLabels[role]}</span>
           </div>
           <div className="flex flex-col items-center mb-10">
