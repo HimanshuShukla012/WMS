@@ -812,7 +812,7 @@ export default function EnhancedGPDashboard() {
   title="Collection Rate"
   value={
     totalCollection + totalOutstanding > 0
-      ? `${Math.round((totalCollection / (totalCollection + totalOutstanding)) * 100)}%`
+      ? `${Math.round((totalCollection / (totalOutstanding)) * 100)}%`
       : "0%"
   }
   subtitle={
@@ -849,7 +849,12 @@ export default function EnhancedGPDashboard() {
           <StatCard
             title="Fee Collection"
             value={totalCollection > 0 ? `₹${totalCollection.toLocaleString()}` : '₹0'}
-            subtitle={totalOutstanding > 0 ? `₹${totalOutstanding.toLocaleString()} outstanding` : "All payments current"}
+            subtitle={
+  totalOutstanding - totalCollection > 0
+    ? `₹${(totalOutstanding - totalCollection).toLocaleString()} outstanding`
+    : "No outstanding"
+}
+
             icon={Icons.Money}
             gradient="bg-gradient-to-br from-green-800 via-green-700 to-green-600"
             isLoading={isLoading.fees}
@@ -1433,7 +1438,7 @@ export default function EnhancedGPDashboard() {
                   <div className="text-sm opacity-90 font-medium uppercase tracking-wider">Collection Rate</div>
                   <div className="text-3xl font-bold mt-2">
                     {totalCollection + totalOutstanding > 0 
-                      ? Math.round((totalCollection / (totalCollection + totalOutstanding)) * 100)
+                      ? Math.round((totalCollection / (totalOutstanding)) * 100)
                       : 0}%
                   </div>
                   <div className="text-xs opacity-75 mt-1">Payment efficiency</div>
