@@ -291,16 +291,451 @@ const DataTable = ({
   );
 };
 
+// Enhanced Village Directory with District Filter
+const VillageDirectoryWithFilter = () => {
+  const [allDistricts, setAllDistricts] = useState([]);
+  const [selectedDistrictId, setSelectedDistrictId] = useState('');
+  const [selectedDistrictName, setSelectedDistrictName] = useState('');
+  const [villages, setVillages] = useState([]);
+  const [loading, setLoading] = useState({
+    districts: false,
+    villages: false
+  });
+  const [errors, setErrors] = useState({});
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+
+  // Fetch all districts for the dropdown
+  const fetchDistricts = useCallback(async () => {
+    setLoading(prev => ({ ...prev, districts: true }));
+    try {
+      const districtData = await apiCall("https://wmsapi.kdsgroup.co.in/api/Master/AllDistrict", {
+        method: "POST",
+        headers: { accept: "*/*", "Content-Type": "application/json" },
+        body: JSON.stringify({})
+      });
+
+      if (districtData?.Status && Array.isArray(districtData?.Data)) {
+        const sortedDistricts = districtData.Data.sort((a, b) =>
+          a.DistrictName?.localeCompare(b.DistrictName) || 0
+        );
+        setAllDistricts(sortedDistricts);
+        setErrors(prev => ({ ...prev, districts: null }));
+      } else {
+        throw new Error("Invalid districts data received");
+      }
+    } catch (error) {
+      console.error("Error fetching districts:", error);
+      setErrors(prev => ({ ...prev, districts: error.message }));
+    } finally {
+      setLoading(prev => ({ ...prev, districts: false }));
+    }
+  }, []);
+
+  // Fetch villages for a specific district
+  const fetchDistrictVillages = useCallback(async (districtId, districtName) => {
+    if (!districtId) return;
+
+    setLoading(prev => ({ ...prev, villages: true }));
+    setVillages([]); // Clear previous data
+    setErrors(prev => ({ ...prev, villages: null }));
+
+    try {
+      console.log(`Fetching villages for district: ${districtName} (ID: ${districtId})`);
+      
+      // Step 1: Fetch blocks for this district
+      const blockData = await apiCall(
+        `https://wmsapi.kdsgroup.co.in/api/Master/GetAllBlocks?DistrictId=${districtId}`,
+        {
+          method: "POST",
+          headers: { accept: "*/*", "Content-Type": "application/json" },
+          body: JSON.stringify({})
+        }
+      );
+
+      if (!blockData?.Status || !Array.isArray(blockData?.Data)) {
+        throw new Error(`No blocks found for district ${districtName}`);
+      }
+
+      const blocks = blockData.Data.sort((a, b) => 
+        a.BlockName?.localeCompare(b.BlockName) || 0
+      );
+      console.log(`Found ${blocks.length} blocks in ${districtName}`);
+
+      const allVillages = [];
+      let processedBlocks = 0;
+
+      // Process blocks sequentially to avoid overwhelming the API
+      for (const block of blocks) {
+        try {
+          console.log(`Processing block ${block.BlockName} (${processedBlocks + 1}/${blocks.length})`);
+
+          // Step 2: Fetch gram panchayats for this block
+          const gpData = await apiCall(
+            `https://wmsapi.kdsgroup.co.in/api/Master/GetAllGramPanchayat?BlockId=${block.BlockId}`,
+            {
+              method: "POST",
+              headers: { accept: "*/*", "Content-Type": "application/json" },
+              body: JSON.stringify({})
+            }
+          );
+
+          if (!gpData?.Status || !Array.isArray(gpData?.Data)) {
+            console.warn(`No gram panchayats found for block ${block.BlockName}`);
+            processedBlocks++;
+            continue;
+          }
+
+          const gramPanchayats = gpData.Data.sort((a, b) =>
+            a.GramPanchayatName?.localeCompare(b.GramPanchayatName) || 0
+          );
+
+          // Step 3: Fetch villages for each gram panchayat (with controlled concurrency)
+          const gpChunks = [];
+          for (let i = 0; i < gramPanchayats.length; i += 2) {
+            gpChunks.push(gramPanchayats.slice(i, i + 2));
+          }
+
+          for (const gpChunk of gpChunks) {
+            const gpPromises = gpChunk.map(async (gp) => {
+              try {
+                const villageData = await apiCall(
+                  "https://wmsapi.kdsgroup.co.in/api/Master/GetVillegeByGramPanchayat",
+                  {
+                    method: "POST",
+                    headers: { accept: "*/*", "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      BlockId: block.BlockId,
+                      GramPanchayatId: gp.Id,
+                    })
+                  }
+                );
+
+                if (!villageData?.Status || !Array.isArray(villageData?.Data)) {
+                  console.warn(`No villages found for GP ${gp.GramPanchayatName}`);
+                  return [];
+                }
+
+                const villages = villageData.Data.sort((a, b) =>
+                  a.VillageName?.localeCompare(b.VillageName) || 0
+                );
+
+                return villages.map((village) => ({
+                  DistrictName: districtName,
+                  BlockName: block.BlockName || "Unknown",
+                  GramPanchayatName: gp.GramPanchayatName || "Unknown",
+                  VillageName: village.VillageName || "Unknown",
+                  DistrictId: districtId,
+                  BlockId: block.BlockId,
+                  GramPanchayatId: gp.Id,
+                  VillageId: village.VillageId || village.Id
+                }));
+              } catch (error) {
+                console.warn(`Error fetching villages for GP ${gp.GramPanchayatName}:`, error.message);
+                return [];
+              }
+            });
+
+            const gpResults = await Promise.allSettled(gpPromises);
+            gpResults.forEach(result => {
+              if (result.status === 'fulfilled' && result.value.length > 0) {
+                allVillages.push(...result.value);
+              }
+            });
+
+            // Small delay to be API-friendly
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+
+          processedBlocks++;
+          console.log(`Completed block ${block.BlockName}. Total villages so far: ${allVillages.length}`);
+
+        } catch (error) {
+          console.error(`Error processing block ${block.BlockName}:`, error.message);
+          processedBlocks++;
+        }
+
+        // Small delay between blocks
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+
+      console.log(`Fetched ${allVillages.length} villages for district ${districtName}`);
+      setVillages(allVillages);
+
+      if (allVillages.length === 0) {
+        setErrors(prev => ({ ...prev, villages: `No villages found for district ${districtName}` }));
+      }
+
+    } catch (error) {
+      console.error(`Error fetching villages for district ${districtName}:`, error);
+      setErrors(prev => ({ ...prev, villages: error.message }));
+    } finally {
+      setLoading(prev => ({ ...prev, villages: false }));
+    }
+  }, []);
+
+  // Initialize districts on component mount
+  useEffect(() => {
+    fetchDistricts();
+  }, [fetchDistricts]);
+
+  const handleDistrictChange = (e) => {
+    const districtId = e.target.value;
+    const district = allDistricts.find(d => d.DistrictId.toString() === districtId);
+    
+    setSelectedDistrictId(districtId);
+    setSelectedDistrictName(district?.DistrictName || '');
+    setVillages([]); // Clear previous villages
+    setErrors(prev => ({ ...prev, villages: null }));
+    setSearchTerm(""); // Reset search
+    setCurrentPage(1); // Reset pagination
+  };
+
+  const handleFetchDirectory = () => {
+    if (selectedDistrictId && selectedDistrictName) {
+      fetchDistrictVillages(selectedDistrictId, selectedDistrictName);
+    }
+  };
+
+  // Filter and pagination logic for villages
+  const filteredVillages = useMemo(() => {
+    if (!villages || villages.length === 0) return [];
+    if (!searchTerm) return villages;
+
+    return villages.filter((village) =>
+      Object.values(village).some((value) =>
+        value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    );
+  }, [villages, searchTerm]);
+
+  const paginatedVillages = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredVillages.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredVillages, currentPage, itemsPerPage]);
+
+  const totalPages = Math.ceil(filteredVillages.length / itemsPerPage);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  const villageColumns = [
+    { key: "DistrictName", header: "District" },
+    { key: "BlockName", header: "Block" },
+    { key: "GramPanchayatName", header: "Gram Panchayat" },
+    { key: "VillageName", header: "Village" },
+  ];
+
+  return (
+    <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+      {/* Enhanced Header with District Filter */}
+      <div className="px-6 py-4 border-b border-gray-200">
+        <div className="flex flex-col gap-4">
+          {/* Title Row */}
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-bold text-gray-900">Village Directory</h3>
+            <div className="text-sm text-gray-500">
+              {villages.length > 0 && `${villages.length} villages found`}
+            </div>
+          </div>
+
+          {/* Filter and Action Row */}
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+            {/* District Filter */}
+            <div className="flex items-center gap-3 flex-1">
+              <label htmlFor="district-select" className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                Select District:
+              </label>
+              <select
+                id="district-select"
+                value={selectedDistrictId}
+                onChange={handleDistrictChange}
+                disabled={loading.districts}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <option value="">-- Choose a District --</option>
+                {allDistricts.map((district) => (
+                  <option key={district.DistrictId} value={district.DistrictId}>
+                    {district.DistrictName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Search Box */}
+            {villages.length > 0 && (
+              <div className="relative">
+                <Icons.Search />
+                <input
+                  type="text"
+                  placeholder="Search villages..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleFetchDirectory}
+                disabled={!selectedDistrictId || loading.villages}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+              >
+                {loading.villages ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Fetching...
+                  </>
+                ) : (
+                  <>
+                    <Icons.Download />
+                    Fetch Directory
+                  </>
+                )}
+              </button>
+
+              {villages.length > 0 && (
+                <button
+                  onClick={() => {
+                    const timestamp = new Date().toISOString().split("T")[0];
+                    downloadCSV(villages, `${selectedDistrictName.toLowerCase().replace(/\s+/g, '_')}_villages_${timestamp}.csv`);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
+                >
+                  <Icons.Download />
+                  Download CSV
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Status Messages */}
+          {errors.districts && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <div className="text-red-800 text-sm">Error loading districts: {errors.districts}</div>
+            </div>
+          )}
+
+          {selectedDistrictName && !loading.villages && villages.length === 0 && !errors.villages && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="text-blue-800 text-sm">
+                Click "Fetch Directory" to load villages for {selectedDistrictName}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Loading State */}
+      {loading.districts && (
+        <div className="p-8">
+          <LoadingSpinner />
+          <p className="text-center text-gray-600 mt-2">Loading districts...</p>
+        </div>
+      )}
+
+      {/* Villages Table */}
+      {!loading.districts && (
+        <>
+          {loading.villages && (
+            <div className="p-8">
+              <LoadingSpinner />
+              <p className="text-center text-gray-600 mt-2">
+                Fetching villages for {selectedDistrictName}...
+              </p>
+              <p className="text-center text-gray-500 text-sm mt-1">
+                This may take a few minutes depending on the district size
+              </p>
+            </div>
+          )}
+
+          {errors.villages && (
+            <div className="p-6">
+              <ErrorMessage 
+                message={errors.villages} 
+                onRetry={() => handleFetchDirectory()}
+              />
+            </div>
+          )}
+
+          {!loading.villages && villages.length > 0 && (
+            <>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {villageColumns.map((column, index) => (
+                        <th
+                          key={index}
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        >
+                          {column.header}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {paginatedVillages.map((village, rowIndex) => (
+                      <tr key={rowIndex} className="hover:bg-gray-50">
+                        {villageColumns.map((column, colIndex) => (
+                          <td key={colIndex} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {village[column.key]}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={setCurrentPage}
+                  itemsPerPage={itemsPerPage}
+                  totalItems={filteredVillages.length}
+                />
+              )}
+            </>
+          )}
+
+          {!loading.villages && villages.length === 0 && !errors.villages && selectedDistrictName && (
+            <div className="p-8 text-center text-gray-500">
+              <div className="text-4xl mb-4">📍</div>
+              <h4 className="text-lg font-medium text-gray-700 mb-2">No Data Available</h4>
+              <p>No villages found for {selectedDistrictName}</p>
+            </div>
+          )}
+
+          {!selectedDistrictId && !loading.villages && (
+            <div className="p-8 text-center text-gray-500">
+              <div className="text-4xl mb-4">🏘️</div>
+              <h4 className="text-lg font-medium text-gray-700 mb-2">Select a District</h4>
+              <p>Choose a district from the dropdown above to view its village directory</p>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
 export default function MISTabularReportingDashboard() {
   const { userId, role, isLoading: userLoading } = useUserInfo();
   const abortControllerRef = useRef(null);
 
-  // Data States
+  // Data States (removed villages state as it's now handled in VillageDirectoryWithFilter)
   const [pumpHouses, setPumpHouses] = useState([]);
   const [ohtData, setOHTData] = useState([]);
   const [complaints, setComplaints] = useState([]);
   const [feeData, setFeeData] = useState([]);
-  const [villages, setVillages] = useState([]);
   const [roasterData, setRoasterData] = useState([]);
   const [topDistrictsByFee, setTopDistrictsByFee] = useState([]);
   const [bottomDistrictsByFee, setBottomDistrictsByFee] = useState([]);
@@ -311,13 +746,12 @@ export default function MISTabularReportingDashboard() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  // Loading and Error States
+  // Loading and Error States (removed villages from loading state)
   const [loading, setLoading] = useState({
     pumps: true,
     ohts: true,
     complaints: true,
     fees: true,
-    villages: true,
     roaster: true,
     districts: true,
   });
@@ -407,175 +841,6 @@ export default function MISTabularReportingDashboard() {
       setLoading((prev) => ({ ...prev, fees: false }));
     }
   }, []);
-
-  const fetchVillages = useCallback(async () => {
-  setLoading((prev) => ({ ...prev, villages: true }));
-  const abortController = new AbortController();
-  const signal = abortController.signal;
-
-  try {
-    // Timeout after 30 seconds for each API call
-    const timeout = 30000;
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error("Request timed out")), timeout);
-    });
-
-    // Fetch all districts
-    console.log("Fetching districts...");
-    const districtData = await Promise.race([
-      apiCall("https://wmsapi.kdsgroup.co.in/api/Master/AllDistrict", {
-        method: "POST",
-        headers: { accept: "*/*", "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-        signal,
-      }),
-      timeoutPromise,
-    ]);
-
-    if (!districtData?.Status || !Array.isArray(districtData?.Data)) {
-      throw new Error(`Failed to fetch districts: ${JSON.stringify(districtData)}`);
-    }
-
-    const districts = districtData.Data.sort((a, b) =>
-      a.DistrictName?.localeCompare(b.DistrictName) || 0
-    );
-    console.log(`Fetched ${districts.length} districts`);
-
-    const villageList = [];
-
-    // Fetch blocks for all districts in parallel
-    const blockPromises = districts.map(async (district) => {
-      try {
-        console.log(`Fetching blocks for district ${district.DistrictName} (ID: ${district.DistrictId})...`);
-        const blockData = await Promise.race([
-          apiCall(
-            `https://wmsapi.kdsgroup.co.in/api/Master/GetAllBlocks?DistrictId=${district.DistrictId}`,
-            {
-              method: "POST",
-              headers: { accept: "*/*", "Content-Type": "application/json" },
-              body: JSON.stringify({}),
-              signal,
-            }
-          ),
-          timeoutPromise,
-        ]);
-
-        if (!blockData?.Status || !Array.isArray(blockData?.Data)) {
-          console.warn(`No valid blocks found for district ${district.DistrictName}: ${JSON.stringify(blockData)}`);
-          return [];
-        }
-
-        const blocks = blockData.Data.sort((a, b) => a.BlockName?.localeCompare(b.BlockName) || 0);
-        console.log(`Fetched ${blocks.length} blocks for district ${district.DistrictName}`);
-        return { district, blocks };
-      } catch (error) {
-        console.warn(`Error fetching blocks for district ${district.DistrictName}:`, error.message);
-        return [];
-      }
-    });
-
-    const blockResults = await Promise.all(blockPromises);
-
-    // Fetch gram panchayats for all blocks in parallel
-    const gpPromises = blockResults.flatMap(({ district, blocks }) => {
-      if (!Array.isArray(blocks)) {
-        console.warn(`Blocks array is invalid for district ${district.DistrictName}`);
-        return [];
-      }
-      return blocks.map(async (block) => {
-        try {
-          console.log(`Fetching gram panchayats for block ${block.BlockName} (ID: ${block.BlockId})...`);
-          const gpData = await Promise.race([
-            apiCall(
-              `https://wmsapi.kdsgroup.co.in/api/Master/GetAllGramPanchayat?BlockId=${block.BlockId}`,
-              {
-                method: "POST",
-                headers: { accept: "*/*", "Content-Type": "application/json" },
-                body: JSON.stringify({}),
-                signal,
-              }
-            ),
-            timeoutPromise,
-          ]);
-
-          if (!gpData?.Status || !Array.isArray(gpData?.Data)) {
-            console.warn(`No valid gram panchayats found for block ${block.BlockName}: ${JSON.stringify(gpData)}`);
-            return [];
-          }
-
-          const gramPanchayats = gpData.Data.sort((a, b) =>
-            a.GramPanchayatName?.localeCompare(b.GramPanchayatName) || 0
-          );
-          console.log(`Fetched ${gramPanchayats.length} gram panchayats for block ${block.BlockName}`);
-          return { district, block, gramPanchayats };
-        } catch (error) {
-          console.warn(`Error fetching gram panchayats for block ${block.BlockName}:`, error.message);
-          return [];
-        }
-      });
-    });
-
-    const gpResults = await Promise.all(gpPromises);
-
-    // Fetch villages for all gram panchayats in parallel
-    const villagePromises = gpResults.flatMap(({ district, block, gramPanchayats }) => {
-      if (!Array.isArray(gramPanchayats)) {
-        console.warn(`Gram panchayats array is invalid for block ${block.BlockName}`);
-        return [];
-      }
-      return gramPanchayats.map(async (gp) => {
-        try {
-          console.log(`Fetching villages for gram panchayat ${gp.GramPanchayatName} (ID: ${gp.Id})...`);
-          const villageData = await Promise.race([
-            apiCall("https://wmsapi.kdsgroup.co.in/api/Master/GetVillegeByGramPanchayat", {
-              method: "POST",
-              headers: { accept: "*/*", "Content-Type": "application/json" },
-              body: JSON.stringify({
-                BlockId: block.BlockId,
-                GramPanchayatId: gp.Id,
-              }),
-              signal,
-            }),
-            timeoutPromise,
-          ]);
-
-          if (!villageData?.Status || !Array.isArray(villageData?.Data)) {
-            console.warn(`No valid villages found for gram panchayat ${gp.GramPanchayatName}: ${JSON.stringify(villageData)}`);
-            return [];
-          }
-
-          const villages = villageData.Data.sort((a, b) =>
-            a.VillageName?.localeCompare(b.VillageName) || 0
-          );
-          console.log(`Fetched ${villages.length} villages for gram panchayat ${gp.GramPanchayatName}`);
-
-          return villages.map((village) => ({
-            DistrictName: district.DistrictName || "Unknown",
-            BlockName: block.BlockName || "Unknown",
-            GramPanchayatName: gp.GramPanchayatName || "Unknown",
-            VillageName: village.VillageName || "Unknown",
-          }));
-        } catch (error) {
-          console.warn(`Error fetching villages for gram panchayat ${gp.GramPanchayatName}:`, error.message);
-          return [];
-        }
-      });
-    });
-
-    const villageResults = await Promise.all(villagePromises);
-    villageList.push(...villageResults.flat());
-
-    console.log(`Total villages fetched: ${villageList.length}`);
-    setVillages(villageList);
-    setErrors((prev) => ({ ...prev, villages: villageList.length === 0 ? "No villages found" : null }));
-  } catch (error) {
-    console.error("Error fetching villages:", error.message);
-    setErrors((prev) => ({ ...prev, villages: error.message }));
-  } finally {
-    setLoading((prev) => ({ ...prev, villages: false }));
-    abortController.abort();
-  }
-}, []);
 
   const fetchRoasterData = useCallback(async () => {
     if (pumpHouses.length === 0) return;
@@ -675,7 +940,7 @@ export default function MISTabularReportingDashboard() {
     }
   }, [isAdmin]);
 
-  // Initialize data
+  // Initialize data (removed fetchVillages from the array)
   useEffect(() => {
     const initializeData = async () => {
       if (!userId || userLoading) return;
@@ -686,13 +951,12 @@ export default function MISTabularReportingDashboard() {
         fetchPumpHouses(userId),
         fetchComplaints(userId),
         fetchFeeCollectionData(selectedMonth, selectedYear),
-        fetchVillages(),
         fetchDistrictData(selectedYear),
       ]);
     };
 
     initializeData();
-  }, [userId, userLoading, selectedMonth, selectedYear, fetchPumpHouses, fetchComplaints, fetchFeeCollectionData, fetchVillages, fetchDistrictData]);
+  }, [userId, userLoading, selectedMonth, selectedYear, fetchPumpHouses, fetchComplaints, fetchFeeCollectionData, fetchDistrictData]);
 
   // Fetch roaster data when pump houses are loaded
   useEffect(() => {
@@ -731,11 +995,10 @@ export default function MISTabularReportingDashboard() {
     }
     abortControllerRef.current = new AbortController();
 
-    // Reset all data
+    // Reset all data (removed villages from reset)
     setPumpHouses([]);
     setComplaints([]);
     setFeeData([]);
-    setVillages([]);
     setRoasterData([]);
     setTopDistrictsByFee([]);
     setBottomDistrictsByFee([]);
@@ -748,7 +1011,6 @@ export default function MISTabularReportingDashboard() {
       ohts: true,
       complaints: true,
       fees: true,
-      villages: true,
       roaster: true,
       districts: true,
     });
@@ -758,7 +1020,6 @@ export default function MISTabularReportingDashboard() {
         fetchPumpHouses(userId),
         fetchComplaints(userId),
         fetchFeeCollectionData(selectedMonth, selectedYear),
-        fetchVillages(),
         fetchDistrictData(selectedYear),
       ]);
     } catch (error) {
@@ -766,7 +1027,7 @@ export default function MISTabularReportingDashboard() {
     } finally {
       setRefreshing(false);
     }
-  }, [userId, selectedMonth, selectedYear, fetchPumpHouses, fetchComplaints, fetchFeeCollectionData, fetchVillages, fetchDistrictData]);
+  }, [userId, selectedMonth, selectedYear, fetchPumpHouses, fetchComplaints, fetchFeeCollectionData, fetchDistrictData]);
 
   // Table column definitions
   const pumpHouseColumns = [
@@ -841,13 +1102,6 @@ export default function MISTabularReportingDashboard() {
     },
   ];
 
-  const villageColumns = [
-    { key: "DistrictName", header: "District" },
-    { key: "BlockName", header: "Block" },
-    { key: "GramPanchayatName", header: "Gram Panchayat" },
-    { key: "VillageName", header: "Village" },
-  ];
-
   const roasterColumns = [
     { key: "RoasterId", header: "Roaster ID" },
     { key: "GPId", header: "GP ID" },
@@ -884,14 +1138,13 @@ export default function MISTabularReportingDashboard() {
     { key: "TotalComplaint", header: "Total Complaints" },
   ];
 
-  // Download functions for consolidated reports
+  // Download functions for consolidated reports (removed villages from consolidation)
   const handleConsolidatedDownload = () => {
     const timestamp = new Date().toISOString().split("T")[0];
     const allData = {
       "Pump Houses": pumpHouses,
       Complaints: complaints,
       "Fee Collection": feeData,
-      Villages: villages,
       "Roaster Data": roasterData,
       ...(isAdmin() && {
         "Top Districts by Fee": topDistrictsByFee,
@@ -901,7 +1154,7 @@ export default function MISTabularReportingDashboard() {
       }),
     };
 
-    // Create a summary report
+    // Create a summary report (removed villages count)
     const summaryData = [
       {
         "Report Type": "Consolidated MIS Report",
@@ -914,7 +1167,6 @@ export default function MISTabularReportingDashboard() {
         "Total Pump Houses": pumpHouses.length,
         "Total Complaints": complaints.length,
         "Total Fee Records": feeData.length,
-        "Total Villages": villages.length,
         "Total Roaster Entries": roasterData.length,
       },
     ];
@@ -1008,8 +1260,6 @@ export default function MISTabularReportingDashboard() {
 
         {/* Data Tables */}
         <div className="space-y-8">
-
-          
           {/* Pump Houses Table */}
           <DataTable
             title="Pump House Management"
@@ -1047,17 +1297,8 @@ export default function MISTabularReportingDashboard() {
             showDateFilter={true}
           />
 
-          {/* Villages Table */}
-          <DataTable
-  title="Village Directory"
-  data={villages}
-  columns={villageColumns}
-  isLoading={loading.villages}
-  error={errors.villages}
-  onRetry={fetchVillages}
-  downloadFilename="villages"
-  searchable={true}
-/>
+          {/* Enhanced Village Directory with District Filter */}
+          <VillageDirectoryWithFilter />
 
           {/* Roaster Schedule Table */}
           <DataTable
@@ -1122,7 +1363,7 @@ export default function MISTabularReportingDashboard() {
           )}
         </div>
 
-        {/* Download Reports Section */}
+        {/* Download Reports Section (removed village downloads from individual section) */}
         <div className="mt-12 bg-white rounded-xl shadow-lg p-6 border">
           <div className="flex items-center gap-3 mb-6">
             <Icons.Download />
@@ -1177,20 +1418,6 @@ export default function MISTabularReportingDashboard() {
               <div className="text-left">
                 <div className="font-semibold text-green-800">Fee Collection</div>
                 <div className="text-sm text-green-600">{feeData.length} records</div>
-              </div>
-            </button>
-
-            <button
-              onClick={() =>
-                downloadCSV(villages, `villages_${new Date().toISOString().split("T")[0]}.csv`)
-              }
-              disabled={villages.length === 0}
-              className="flex items-center gap-3 p-4 bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 rounded-lg border border-purple-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Icons.Report />
-              <div className="text-left">
-                <div className="font-semibold text-purple-800">Villages</div>
-                <div className="text-sm text-purple-600">{villages.length} records</div>
               </div>
             </button>
 

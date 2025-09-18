@@ -1518,7 +1518,7 @@ export default function EnhancedGPDashboard() {
                 <span className="text-sm font-semibold">System Online</span>
               </div>
               <div className="text-sm opacity-75">
-                Last updated: {currentTime.toLocaleTimeString('en-IN')} • Data for {monthOptions.find(m => m.value === selectedMonth)?.label} {selectedYear}
+                • Data for {monthOptions.find(m => m.value === selectedMonth)?.label} {selectedYear}
               </div>
             </div>
             
