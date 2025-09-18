@@ -1087,8 +1087,8 @@ const ViewRoaster: React.FC = () => {
                           <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Roaster Date</th>
                           <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Activity Type</th>
                           <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Duration</th>
-                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Distribution Shifts</th>
                           <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Filling Shifts</th>
+                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Distribution Shifts</th>
                           <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Remark</th>
                           <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Status</th>
                           <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Updated</th>
