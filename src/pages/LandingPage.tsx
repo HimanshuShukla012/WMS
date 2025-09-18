@@ -74,11 +74,6 @@ const dignitaries = [
     designation: "Shri Amit Kumar Singh (I.A.S.)",
     image: "director.png",
   },
-  {
-    name: "Deputy Director Panchayati Raj U.P.",
-    designation: "Shri Raghvendra Kumar Dwivedi",
-    image: "ddsir.png",
-  },
   
 ];
 
@@ -161,7 +156,7 @@ const LandingPage = () => {
         <h2 className="text-4xl font-bold mb-16 text-white tracking-wide">
           Honorable Representatives
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-10 px-8 md:px-20">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-10 px-8 md:px-20">
           {dignitaries.map((person, idx) => (
             <div
               key={idx}

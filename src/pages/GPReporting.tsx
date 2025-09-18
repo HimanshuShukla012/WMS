@@ -414,13 +414,14 @@ export default function MISTabularReportingDashboard() {
   const signal = abortController.signal;
 
   try {
-    // Timeout after 30 seconds
+    // Timeout after 30 seconds for each API call
     const timeout = 30000;
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error("Request timed out")), timeout);
     });
 
     // Fetch all districts
+    console.log("Fetching districts...");
     const districtData = await Promise.race([
       apiCall("https://wmsapi.kdsgroup.co.in/api/Master/AllDistrict", {
         method: "POST",
@@ -431,16 +432,21 @@ export default function MISTabularReportingDashboard() {
       timeoutPromise,
     ]);
 
-    if (!districtData.Status || !Array.isArray(districtData.Data)) {
-      throw new Error("Failed to fetch districts or no districts available");
+    if (!districtData?.Status || !Array.isArray(districtData?.Data)) {
+      throw new Error(`Failed to fetch districts: ${JSON.stringify(districtData)}`);
     }
 
-    const districts = districtData.Data.sort((a, b) => a.DistrictName.localeCompare(b.DistrictName));
+    const districts = districtData.Data.sort((a, b) =>
+      a.DistrictName?.localeCompare(b.DistrictName) || 0
+    );
+    console.log(`Fetched ${districts.length} districts`);
+
     const villageList = [];
 
     // Fetch blocks for all districts in parallel
     const blockPromises = districts.map(async (district) => {
       try {
+        console.log(`Fetching blocks for district ${district.DistrictName} (ID: ${district.DistrictId})...`);
         const blockData = await Promise.race([
           apiCall(
             `https://wmsapi.kdsgroup.co.in/api/Master/GetAllBlocks?DistrictId=${district.DistrictId}`,
@@ -454,15 +460,16 @@ export default function MISTabularReportingDashboard() {
           timeoutPromise,
         ]);
 
-        if (!blockData.Status || !Array.isArray(blockData.Data)) {
-          console.warn(`No blocks found for district ${district.DistrictName}`);
+        if (!blockData?.Status || !Array.isArray(blockData?.Data)) {
+          console.warn(`No valid blocks found for district ${district.DistrictName}: ${JSON.stringify(blockData)}`);
           return [];
         }
 
-        const blocks = blockData.Data.sort((a, b) => a.BlockName.localeCompare(b.BlockName));
+        const blocks = blockData.Data.sort((a, b) => a.BlockName?.localeCompare(b.BlockName) || 0);
+        console.log(`Fetched ${blocks.length} blocks for district ${district.DistrictName}`);
         return { district, blocks };
       } catch (error) {
-        console.warn(`Error fetching blocks for district ${district.DistrictName}:`, error);
+        console.warn(`Error fetching blocks for district ${district.DistrictName}:`, error.message);
         return [];
       }
     });
@@ -470,9 +477,14 @@ export default function MISTabularReportingDashboard() {
     const blockResults = await Promise.all(blockPromises);
 
     // Fetch gram panchayats for all blocks in parallel
-    const gpPromises = blockResults.flatMap(({ district, blocks }) =>
-      blocks.map(async (block) => {
+    const gpPromises = blockResults.flatMap(({ district, blocks }) => {
+      if (!Array.isArray(blocks)) {
+        console.warn(`Blocks array is invalid for district ${district.DistrictName}`);
+        return [];
+      }
+      return blocks.map(async (block) => {
         try {
+          console.log(`Fetching gram panchayats for block ${block.BlockName} (ID: ${block.BlockId})...`);
           const gpData = await Promise.race([
             apiCall(
               `https://wmsapi.kdsgroup.co.in/api/Master/GetAllGramPanchayat?BlockId=${block.BlockId}`,
@@ -486,28 +498,34 @@ export default function MISTabularReportingDashboard() {
             timeoutPromise,
           ]);
 
-          if (!gpData.Status || !Array.isArray(gpData.Data)) {
-            console.warn(`No gram panchayats found for block ${block.BlockName}`);
+          if (!gpData?.Status || !Array.isArray(gpData?.Data)) {
+            console.warn(`No valid gram panchayats found for block ${block.BlockName}: ${JSON.stringify(gpData)}`);
             return [];
           }
 
           const gramPanchayats = gpData.Data.sort((a, b) =>
-            a.GramPanchayatName.localeCompare(b.GramPanchayatName)
+            a.GramPanchayatName?.localeCompare(b.GramPanchayatName) || 0
           );
+          console.log(`Fetched ${gramPanchayats.length} gram panchayats for block ${block.BlockName}`);
           return { district, block, gramPanchayats };
         } catch (error) {
-          console.warn(`Error fetching gram panchayats for block ${block.BlockName}:`, error);
+          console.warn(`Error fetching gram panchayats for block ${block.BlockName}:`, error.message);
           return [];
         }
-      })
-    );
+      });
+    });
 
     const gpResults = await Promise.all(gpPromises);
 
     // Fetch villages for all gram panchayats in parallel
-    const villagePromises = gpResults.flatMap(({ district, block, gramPanchayats }) =>
-      gramPanchayats.map(async (gp) => {
+    const villagePromises = gpResults.flatMap(({ district, block, gramPanchayats }) => {
+      if (!Array.isArray(gramPanchayats)) {
+        console.warn(`Gram panchayats array is invalid for block ${block.BlockName}`);
+        return [];
+      }
+      return gramPanchayats.map(async (gp) => {
         try {
+          console.log(`Fetching villages for gram panchayat ${gp.GramPanchayatName} (ID: ${gp.Id})...`);
           const villageData = await Promise.race([
             apiCall("https://wmsapi.kdsgroup.co.in/api/Master/GetVillegeByGramPanchayat", {
               method: "POST",
@@ -521,41 +539,44 @@ export default function MISTabularReportingDashboard() {
             timeoutPromise,
           ]);
 
-          if (!villageData.Status || !Array.isArray(villageData.Data)) {
-            console.warn(`No villages found for gram panchayat ${gp.GramPanchayatName}`);
+          if (!villageData?.Status || !Array.isArray(villageData?.Data)) {
+            console.warn(`No valid villages found for gram panchayat ${gp.GramPanchayatName}: ${JSON.stringify(villageData)}`);
             return [];
           }
 
           const villages = villageData.Data.sort((a, b) =>
-            a.VillageName.localeCompare(b.VillageName)
+            a.VillageName?.localeCompare(b.VillageName) || 0
           );
+          console.log(`Fetched ${villages.length} villages for gram panchayat ${gp.GramPanchayatName}`);
 
           return villages.map((village) => ({
-            DistrictName: district.DistrictName,
-            BlockName: block.BlockName,
-            GramPanchayatName: gp.GramPanchayatName,
-            VillageName: village.VillageName,
+            DistrictName: district.DistrictName || "Unknown",
+            BlockName: block.BlockName || "Unknown",
+            GramPanchayatName: gp.GramPanchayatName || "Unknown",
+            VillageName: village.VillageName || "Unknown",
           }));
         } catch (error) {
-          console.warn(`Error fetching villages for gram panchayat ${gp.GramPanchayatName}:`, error);
+          console.warn(`Error fetching villages for gram panchayat ${gp.GramPanchayatName}:`, error.message);
           return [];
         }
-      })
-    );
+      });
+    });
 
     const villageResults = await Promise.all(villagePromises);
     villageList.push(...villageResults.flat());
 
+    console.log(`Total villages fetched: ${villageList.length}`);
     setVillages(villageList);
-    setErrors((prev) => ({ ...prev, villages: null }));
+    setErrors((prev) => ({ ...prev, villages: villageList.length === 0 ? "No villages found" : null }));
   } catch (error) {
-    console.error("Error fetching villages:", error);
+    console.error("Error fetching villages:", error.message);
     setErrors((prev) => ({ ...prev, villages: error.message }));
   } finally {
     setLoading((prev) => ({ ...prev, villages: false }));
-    abortController.abort(); // Clean up
+    abortController.abort();
   }
 }, []);
+
   const fetchRoasterData = useCallback(async () => {
     if (pumpHouses.length === 0) return;
 
@@ -987,6 +1008,8 @@ export default function MISTabularReportingDashboard() {
 
         {/* Data Tables */}
         <div className="space-y-8">
+
+          
           {/* Pump Houses Table */}
           <DataTable
             title="Pump House Management"
@@ -1026,15 +1049,15 @@ export default function MISTabularReportingDashboard() {
 
           {/* Villages Table */}
           <DataTable
-            title="Village Directory"
-            data={villages}
-            columns={villageColumns}
-            isLoading={loading.villages}
-            error={errors.villages}
-            onRetry={fetchVillages}
-            downloadFilename="villages"
-            searchable={true}
-          />
+  title="Village Directory"
+  data={villages}
+  columns={villageColumns}
+  isLoading={loading.villages}
+  error={errors.villages}
+  onRetry={fetchVillages}
+  downloadFilename="villages"
+  searchable={true}
+/>
 
           {/* Roaster Schedule Table */}
           <DataTable
