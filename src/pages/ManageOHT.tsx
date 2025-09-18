@@ -560,7 +560,7 @@ const ManageOHT = () => {
                 <p className="text-xl font-bold text-green-600">
                   {filteredData.length > 0 ? 
                     Math.round(filteredData.reduce((sum, o) => sum + o.OHTCapacity, 0) / filteredData.length).toLocaleString() : 0
-                  }L
+                  }KL
                 </p>
               </div>
             </div>
@@ -574,7 +574,7 @@ const ManageOHT = () => {
               <div>
                 <p className="text-sm text-gray-600">Total Capacity</p>
                 <p className="text-xl font-bold text-blue-600">
-                  {filteredData.reduce((sum, o) => sum + o.OHTCapacity, 0).toLocaleString()}L
+                  {filteredData.reduce((sum, o) => sum + o.OHTCapacity, 0).toLocaleString()}KL
                 </p>
               </div>
             </div>
@@ -607,7 +607,7 @@ const ManageOHT = () => {
                 <th className="border border-gray-300 p-3 text-left font-medium">Block Name</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">Gram Panchayat</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">Village</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Capacity (L)</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Capacity (KL)</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">No. of Pumps</th>
               </tr>
             </thead>
@@ -643,7 +643,7 @@ const ManageOHT = () => {
                           min="0"
                         />
                       ) : (
-                        <span className="font-medium">{o.OHTCapacity.toLocaleString()}L</span>
+                        <span className="font-medium">{o.OHTCapacity.toLocaleString()}KL</span>
                       )}
                     </td>
 
