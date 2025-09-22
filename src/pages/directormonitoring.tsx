@@ -510,57 +510,62 @@ const DirectorMonitoring: React.FC = () => {
   });
 
   // --- Calculate comprehensive stats ---
-  const calculateLocationStats = (
-    beneficiaries: BeneficiaryData[], 
-    ohts: OHTData[], 
-    pumpHouses: PumpHouseData[], 
-    waterQuality: WaterQualityData[],
-    feeSummary: WaterFeeSummaryData[]
-  ) => {
-    const filteredBeneficiaries = filterByLocation(beneficiaries);
-    const filteredOHTs = filterOHTsByLocation(ohts);
-    const filteredPumpHouses = filterPumpHousesByOHT(pumpHouses, filteredOHTs);
-    const filteredFeeSummary = filterWaterFeeSummaryByLocation(feeSummary);
+  // Fix the collection efficiency calculation in the calculateLocationStats function
 
-    const totalBeneficiaries = filteredBeneficiaries.length;
-    const activeBeneficiaries = filteredBeneficiaries.filter(b => b.Status === 1 || b.Status === 'Active').length;
+const calculateLocationStats = (
+  beneficiaries: BeneficiaryData[], 
+  ohts: OHTData[], 
+  pumpHouses: PumpHouseData[], 
+  waterQuality: WaterQualityData[],
+  feeSummary: WaterFeeSummaryData[]
+) => {
+  const filteredBeneficiaries = filterByLocation(beneficiaries);
+  const filteredOHTs = filterOHTsByLocation(ohts);
+  const filteredPumpHouses = filterPumpHousesByOHT(pumpHouses, filteredOHTs);
+  const filteredFeeSummary = filterWaterFeeSummaryByLocation(feeSummary);
 
-    const totalFamilyMembers = filteredBeneficiaries.reduce((sum, b) => {
-      const fm = b.FamilyMembers ?? b.FamilyCount ?? b.familyCount ?? 0;
-      return sum + (Number(fm) || 0);
-    }, 0);
+  const totalBeneficiaries = filteredBeneficiaries.length;
+  const activeBeneficiaries = filteredBeneficiaries.filter(b => b.Status === 1 || b.Status === 'Active').length;
 
-    const totalOHTs = filteredOHTs.length;
-    const totalOHTCapacity = filteredOHTs.reduce((s, o) => s + (o.OHTCapacity || 0), 0);
+  const totalFamilyMembers = filteredBeneficiaries.reduce((sum, b) => {
+    const fm = b.FamilyMembers ?? b.FamilyCount ?? b.familyCount ?? 0;
+    return sum + (Number(fm) || 0);
+  }, 0);
 
-    const totalPumps = filteredPumpHouses.length;
-    const activePumps = filteredPumpHouses.filter(p => p.Status === 1).length;
-    const solarPumps = filteredPumpHouses.filter(p => p.PowerSource === '2').length;
+  const totalOHTs = filteredOHTs.length;
+  const totalOHTCapacity = filteredOHTs.reduce((s, o) => s + (o.OHTCapacity || 0), 0);
 
-    // Water fee summary stats
-    const totalBaseFee = filteredFeeSummary.reduce((sum, item) => sum + (item.BaseFee || 0), 0);
-    const totalPreviousBalance = filteredFeeSummary.reduce((sum, item) => sum + (item.PreviousBalance || 0), 0);
-    const totalOutstanding = filteredFeeSummary.reduce((sum, item) => sum + (item.OutstandingAmount || 0), 0);
-    const totalPaidAmount = filteredFeeSummary.reduce((sum, item) => sum + (item.PaidAmount || 0), 0);
-    const collectionEfficiency = totalOutstanding > 0 ? (totalPaidAmount / totalOutstanding) * 100 : 0;
+  const totalPumps = filteredPumpHouses.length;
+  const activePumps = filteredPumpHouses.filter(p => p.Status === 1).length;
+  const solarPumps = filteredPumpHouses.filter(p => p.PowerSource === '2').length;
 
-    setStats({ 
-      totalBeneficiaries, 
-      activeBeneficiaries, 
-      totalFamilyMembers, 
-      totalOHTs, 
-      totalOHTCapacity, 
-      totalPumps, 
-      activePumps, 
-      solarPumps,
-      totalBaseFee,
-      totalPreviousBalance,
-      totalOutstanding,
-      totalPaidAmount,
-      collectionEfficiency
-    });
-  };
+  // Water fee summary stats
+  const totalBaseFee = filteredFeeSummary.reduce((sum, item) => sum + (item.BaseFee || 0), 0);
+  const totalPreviousBalance = filteredFeeSummary.reduce((sum, item) => sum + (item.PreviousBalance || 0), 0);
+  const totalOutstanding = filteredFeeSummary.reduce((sum, item) => sum + (item.OutstandingAmount || 0), 0);
+  const totalPaidAmount = filteredFeeSummary.reduce((sum, item) => sum + (item.PaidAmount || 0), 0);
+  
+  // FIXED: Collection efficiency calculation
+  // Check if denominator (totalBaseFee + totalPreviousBalance) > 0 instead of totalOutstanding > 0
+  const denominator = totalBaseFee + totalPreviousBalance;
+  const collectionEfficiency = denominator > 0 ? (totalPaidAmount / denominator) * 100 : 0;
 
+  setStats({ 
+    totalBeneficiaries, 
+    activeBeneficiaries, 
+    totalFamilyMembers, 
+    totalOHTs, 
+    totalOHTCapacity, 
+    totalPumps, 
+    activePumps, 
+    solarPumps,
+    totalBaseFee,
+    totalPreviousBalance,
+    totalOutstanding,
+    totalPaidAmount,
+    collectionEfficiency
+  });
+};
   // Recalculate stats when fee summary data changes
   useEffect(() => {
     calculateLocationStats(beneficiariesData, ohtData, pumpHouseData, waterQualityData, waterFeeSummaryData);
@@ -656,7 +661,6 @@ const waterQualityTrend = waterQualityData.map((item) => {
       'Total Previous Balance (₹)': stats.totalPreviousBalance,
       'Total Outstanding (₹)': stats.totalOutstanding,
       'Total Paid Amount (₹)': stats.totalPaidAmount,
-      'Collection Efficiency (%)': stats.collectionEfficiency.toFixed(2)
     }];
     
     wb.Sheets['Summary'] = { A1: { v: 'Summary Data' } };
@@ -1002,8 +1006,12 @@ const waterQualityTrend = waterQualityData.map((item) => {
           {activeTab === 'overview' && (
             <div className="space-y-6">
               {/* Enhanced KPI Cards */}
+              {/* Enhanced KPI Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+                <button 
+                  onClick={() => setActiveTab('beneficiaries')}
+                  className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500 hover:shadow-xl transition-shadow duration-200 cursor-pointer text-left"
+                >
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-3xl font-bold text-blue-600">{stats.totalBeneficiaries.toLocaleString()}</div>
@@ -1011,12 +1019,18 @@ const waterQualityTrend = waterQualityData.map((item) => {
                       <div className="text-xs text-green-600 mt-1">
                         {stats.totalBeneficiaries > 0 ? Math.round((stats.activeBeneficiaries / stats.totalBeneficiaries) * 100) : 0}% active
                       </div>
+                      <div className="text-xs text-blue-500 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        Click to view details →
+                      </div>
                     </div>
                     <Users className="w-12 h-12 text-blue-500 opacity-20" />
                   </div>
-                </div>
+                </button>
 
-                <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+                <button 
+                  onClick={() => setActiveTab('beneficiaries')}
+                  className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500 hover:shadow-xl transition-shadow duration-200 cursor-pointer text-left"
+                >
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-3xl font-bold text-green-600">{stats.totalFamilyMembers.toLocaleString()}</div>
@@ -1024,12 +1038,18 @@ const waterQualityTrend = waterQualityData.map((item) => {
                       <div className="text-xs text-gray-500 mt-1">
                         {stats.totalBeneficiaries > 0 ? (stats.totalFamilyMembers / stats.totalBeneficiaries).toFixed(1) : 0} avg per family
                       </div>
+                      <div className="text-xs text-green-500 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        Click to view details →
+                      </div>
                     </div>
                     <Users className="w-12 h-12 text-green-500 opacity-20" />
                   </div>
-                </div>
+                </button>
 
-                <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-indigo-500">
+                <button 
+                  onClick={() => setActiveTab('infrastructure')}
+                  className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-indigo-500 hover:shadow-xl transition-shadow duration-200 cursor-pointer text-left"
+                >
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-3xl font-bold text-indigo-600">{stats.totalOHTs.toLocaleString()}</div>
@@ -1037,12 +1057,18 @@ const waterQualityTrend = waterQualityData.map((item) => {
                       <div className="text-xs text-gray-500 mt-1">
                         {stats.totalOHTCapacity.toLocaleString()} KL capacity
                       </div>
+                      <div className="text-xs text-indigo-500 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        Click to view details →
+                      </div>
                     </div>
                     <Droplets className="w-12 h-12 text-indigo-500 opacity-20" />
                   </div>
-                </div>
+                </button>
 
-                <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500">
+                <button 
+                  onClick={() => setActiveTab('infrastructure')}
+                  className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500 hover:shadow-xl transition-shadow duration-200 cursor-pointer text-left"
+                >
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-3xl font-bold text-orange-600">{stats.totalPumps.toLocaleString()}</div>
@@ -1050,12 +1076,14 @@ const waterQualityTrend = waterQualityData.map((item) => {
                       <div className="text-xs text-gray-500 mt-1">
                         {stats.activePumps} active • {stats.solarPumps} solar
                       </div>
+                      <div className="text-xs text-orange-500 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        Click to view details →
+                      </div>
                     </div>
                     <Zap className="w-12 h-12 text-orange-500 opacity-20" />
                   </div>
-                </div>
+                </button>
               </div>
-
               {/* Financial KPIs */}
               {waterFeeSummaryData.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1089,15 +1117,7 @@ const waterQualityTrend = waterQualityData.map((item) => {
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-2xl font-bold text-purple-600">{stats.collectionEfficiency.toFixed(1)}%</div>
-                        <div className="text-sm font-medium text-gray-600">Collection Efficiency</div>
-                      </div>
-                      <Activity className="w-10 h-10 text-purple-500 opacity-20" />
-                    </div>
-                  </div>
+                  
                 </div>
               )}
 
@@ -1513,7 +1533,7 @@ const waterQualityTrend = waterQualityData.map((item) => {
               {waterFeeSummaryData.length > 0 ? (
                 <>
                   {/* Financial Summary Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     
                     <div className="bg-yellow-50 rounded-lg p-4">
                       <div className="text-2xl font-bold text-yellow-600">₹{stats.totalPreviousBalance.toLocaleString()}</div>
@@ -1527,12 +1547,7 @@ const waterQualityTrend = waterQualityData.map((item) => {
                       <div className="text-2xl font-bold text-green-600">₹{stats.totalPaidAmount.toLocaleString()}</div>
                       <div className="text-sm text-green-800">Paid Amount</div>
                     </div>
-                    <div className="bg-purple-50 rounded-lg p-4">
-                      <div className="text-2xl font-bold text-purple-600">
-                        {stats.collectionEfficiency.toFixed(1)}%
-                      </div>
-                      <div className="text-sm text-purple-800">Collection Efficiency</div>
-                    </div>
+                    
                   </div>
 
                   <div className="mb-4 text-sm text-gray-600">
