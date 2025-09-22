@@ -6,6 +6,7 @@ import {
   Zap,
   AlertTriangle,
   CheckCircle,
+  MessageSquare, Clock, CheckCircle2, XCircle,
   RefreshCw,
   Download,
   TrendingUp,
@@ -91,6 +92,26 @@ interface WaterQualityData {
   ContaminatedVillagesCount: number;
 }
 
+interface ComplaintData {
+  ComplaintID: number;
+  District: string;
+  DistrictId: number;
+  Block: string;
+  BlockId: number;
+  GramPanchayat: string;
+  GramPanchayatId: number;
+  Village: string;
+  VillageId: number;
+  BeneficiaryName: string;
+  Contact: string;
+  Landmark: string;
+  Category: string;
+  CategoryId: number;
+  OtherCategory: string;
+  Status: number; // 0 = Pending, 1 = Resolved, 2 = Closed
+  ComplaintDetails: string;
+}
+
 interface WaterFeeSummaryData {
   DistrictName: string;
   BlockName: string;
@@ -110,6 +131,10 @@ interface LocationStats {
   totalFamilyMembers: number; 
   totalOHTs: number; 
   totalOHTCapacity: number; 
+  totalComplaints: number;
+  pendingComplaints: number;
+  resolvedComplaints: number;
+  closedComplaints: number;
   totalPumps: number; 
   activePumps: number; 
   solarPumps: number;
@@ -142,6 +167,7 @@ const DirectorMonitoring: React.FC = () => {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [gramPanchayats, setGramPanchayats] = useState<GramPanchayat[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
+  const [complaintsData, setComplaintsData] = useState<ComplaintData[]>([]);
 
   // Multi-level selection - director can pick any level
   const [selectedDistrictId, setSelectedDistrictId] = useState<number | null>(null);
@@ -161,7 +187,7 @@ const DirectorMonitoring: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
   const [error, setError] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'beneficiaries' | 'infrastructure' | 'finance' | 'quality'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'beneficiaries' | 'infrastructure' | 'finance' | 'quality' | 'complaints'>('overview');
 
   // Date range for fee collection
   const [fromDate, setFromDate] = useState<string>(() => {
@@ -186,7 +212,11 @@ const DirectorMonitoring: React.FC = () => {
     totalPreviousBalance: 0,
     totalOutstanding: 0,
     totalPaidAmount: 0,
-    collectionEfficiency: 0
+    collectionEfficiency: 0,
+    totalComplaints: 0,        // Add this
+  pendingComplaints: 0,      // Add this
+  resolvedComplaints: 0,     // Add this
+  closedComplaints: 0   
   });
 
   // --- API Functions ---
@@ -201,6 +231,27 @@ const DirectorMonitoring: React.FC = () => {
       return j.Status ? j.Data : [];
     } catch (e) { console.error(e); return [] }
   };
+
+const fetchComplaintsData = async () => {
+  try {
+    const effectiveUserId = role === 'Admin' ? 0 : userId;
+    const r = await fetch('https://wmsapi.kdsgroup.co.in/api/Complain/GetComplaintListByUserIdVillageAndStatus', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        UserId: effectiveUserId, 
+        VillageId: selectedVillageId || 0, 
+        Status: 0 // 0 for all statuses
+      })
+    });
+    if (!r.ok) return [];
+    const j = await r.json();
+    return j.Status ? j.Data || [] : [];
+  } catch (e) { 
+    console.error(e); 
+    return [] 
+  }
+};
 
   const fetchBlocks = async (districtId: number) => {
     try {
@@ -409,12 +460,13 @@ const DirectorMonitoring: React.FC = () => {
     setError('');
     
     try {
-      const [ben, ohts, pumps, wq, feeSummary] = await Promise.all([
+      const [ben, ohts, pumps, wq, feeSummary, complaints] = await Promise.all([
         fetchBeneficiaries(), 
         fetchOHTData(), 
         fetchPumpHouseData(), 
         fetchWaterQualityData(),
-        fetchWaterFeeSummaryData()
+        fetchWaterFeeSummaryData(),
+        fetchComplaintsData()
       ]);
       
       setBeneficiariesData(ben); 
@@ -422,8 +474,9 @@ const DirectorMonitoring: React.FC = () => {
       setPumpHouseData(pumps); 
       setWaterQualityData(wq);
       setWaterFeeSummaryData(feeSummary);
+      setComplaintsData(complaints),
 
-      calculateLocationStats(ben, ohts, pumps, wq, feeSummary);
+    calculateLocationStats(ben, ohts, pumps, wq, feeSummary, complaints); // Update parameters
     } catch (e) { 
       console.error(e); 
       setError('Failed to load monitoring data') 
@@ -463,6 +516,28 @@ const DirectorMonitoring: React.FC = () => {
     }
     return true;
   });
+
+const filterComplaintsByLocation = (data: ComplaintData[]) => data.filter(item => {
+  if (selectedDistrictId) {
+    const sd = districts.find(d => d.DistrictId === selectedDistrictId);
+    if (sd && item.District !== sd.DistrictName) return false;
+  }
+  if (selectedBlockId) {
+    const sb = blocks.find(b => b.BlockId === selectedBlockId);
+    if (sb && item.Block !== sb.BlockName) return false;
+  }
+  if (selectedGramPanchayatId) {
+    const sg = gramPanchayats.find(g => g.Id === selectedGramPanchayatId);
+    if (sg && item.GramPanchayat !== sg.GramPanchayatName) return false;
+  }
+  if (selectedVillageId) {
+    const sv = villages.find(v => v.Id === selectedVillageId);
+    if (sv && item.Village !== sv.VillageName) return false;
+  }
+  return true;
+});
+
+
 
   const filterOHTsByLocation = (data: OHTData[]) => data.filter(item => {
     if (selectedDistrictId) { 
@@ -517,7 +592,8 @@ const calculateLocationStats = (
   ohts: OHTData[], 
   pumpHouses: PumpHouseData[], 
   waterQuality: WaterQualityData[],
-  feeSummary: WaterFeeSummaryData[]
+  feeSummary: WaterFeeSummaryData[],
+  complaints: ComplaintData[]
 ) => {
   const filteredBeneficiaries = filterByLocation(beneficiaries);
   const filteredOHTs = filterOHTsByLocation(ohts);
@@ -550,6 +626,12 @@ const calculateLocationStats = (
   const denominator = totalBaseFee + totalPreviousBalance;
   const collectionEfficiency = denominator > 0 ? (totalPaidAmount / denominator) * 100 : 0;
 
+  const filteredComplaints = filterComplaintsByLocation(complaints);
+  const totalComplaints = filteredComplaints.length;
+  const pendingComplaints = filteredComplaints.filter(c => c.Status === 0).length;
+  const resolvedComplaints = filteredComplaints.filter(c => c.Status === 1).length;
+  const closedComplaints = filteredComplaints.filter(c => c.Status === 2).length;
+
   setStats({ 
     totalBeneficiaries, 
     activeBeneficiaries, 
@@ -563,13 +645,17 @@ const calculateLocationStats = (
     totalPreviousBalance,
     totalOutstanding,
     totalPaidAmount,
-    collectionEfficiency
+    collectionEfficiency,
+    totalComplaints,
+    pendingComplaints,
+    resolvedComplaints,
+    closedComplaints
   });
 };
   // Recalculate stats when fee summary data changes
   useEffect(() => {
-    calculateLocationStats(beneficiariesData, ohtData, pumpHouseData, waterQualityData, waterFeeSummaryData);
-  }, [waterFeeSummaryData, beneficiariesData, ohtData, pumpHouseData, waterQualityData, selectedDistrictId, selectedBlockId, selectedGramPanchayatId, selectedVillageId]);
+  calculateLocationStats(beneficiariesData, ohtData, pumpHouseData, waterQualityData, waterFeeSummaryData, complaintsData);
+}, [waterFeeSummaryData, beneficiariesData, ohtData, pumpHouseData, waterQualityData, complaintsData, selectedDistrictId, selectedBlockId, selectedGramPanchayatId, selectedVillageId]);
 
   // --- Chart data preparation ---
   const beneficiaryTrend = useMemo(() => {
@@ -765,7 +851,7 @@ const waterQualityTrend = waterQualityData.map((item) => {
       <div className="bg-white p-8 rounded-lg shadow-lg text-center">
         <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
         <h2 className="text-xl font-semibold mb-2">Authentication Required</h2>
-        <p className="text-gray-600">Please log in to access the Director Monitoring Dashboard</p>
+        <p className="text-gray-600">Please log in to access the Monitoring Dashboard for Directorate</p>
       </div>
     </div>
   );
@@ -776,7 +862,7 @@ const waterQualityTrend = waterQualityData.map((item) => {
       <div className="bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 rounded-2xl p-6 shadow-2xl text-white mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Director Monitoring Dashboard</h1>
+            <h1 className="text-3xl font-bold mb-2">Monitoring Dashboard for Directorate</h1>
             <div className="flex items-center gap-4 text-blue-100">
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4" />
@@ -977,6 +1063,7 @@ const waterQualityTrend = waterQualityData.map((item) => {
                 { id: 'infrastructure', label: 'Infrastructure', icon: Zap },
                 { id: 'finance', label: 'Financial', icon: DollarSign },
                 { id: 'quality', label: 'Water Quality', icon: Droplets },
+                { id: 'complaints', label: 'Complaints', icon: MessageSquare }, // Add this line
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -1053,7 +1140,7 @@ const waterQualityTrend = waterQualityData.map((item) => {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-3xl font-bold text-indigo-600">{stats.totalOHTs.toLocaleString()}</div>
-                      <div className="text-sm font-medium text-gray-600">OHT Tanks</div>
+                      <div className="text-sm font-medium text-gray-600">Overhead Tank</div>
                       <div className="text-xs text-gray-500 mt-1">
                         {stats.totalOHTCapacity.toLocaleString()} KL capacity
                       </div>
@@ -1072,9 +1159,9 @@ const waterQualityTrend = waterQualityData.map((item) => {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-3xl font-bold text-orange-600">{stats.totalPumps.toLocaleString()}</div>
-                      <div className="text-sm font-medium text-gray-600">Pump Houses</div>
+                      <div className="text-sm font-medium text-gray-600">Pumping Station</div>
                       <div className="text-xs text-gray-500 mt-1">
-                        {stats.activePumps} active • {stats.solarPumps} solar
+                        {stats.activePumps} active • {stats.totalPumps - stats.activePumps} inactive
                       </div>
                       <div className="text-xs text-orange-500 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         Click to view details →
@@ -1084,45 +1171,45 @@ const waterQualityTrend = waterQualityData.map((item) => {
                   </div>
                 </button>
               </div>
-              {/* Financial KPIs */}
-              {waterFeeSummaryData.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-2xl font-bold text-green-600">₹{stats.totalPaidAmount.toLocaleString()}</div>
-                        <div className="text-sm font-medium text-gray-600">Total Collected</div>
-                      </div>
-                      <CheckCircle className="w-10 h-10 text-green-500 opacity-20" />
-                    </div>
-                  </div>
+              {/* Water Fee Detail Card */}
+{waterFeeSummaryData.length > 0 && (
+  <div className="bg-white rounded-xl shadow-lg p-6">
+    {/* Heading */}
+    <h3 className="text-xl font-semibold text-gray-800 mb-4">
+      Water Fee Detail
+    </h3>
 
-                  <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-2xl font-bold text-orange-600">₹{stats.totalOutstanding.toLocaleString()}</div>
-                        <div className="text-sm font-medium text-gray-600">Total Outstanding</div>
-                      </div>
-                      <AlertTriangle className="w-10 h-10 text-orange-500 opacity-20" />
-                    </div>
-                  </div>
+    {/* Sub-details */}
+    <div className="space-y-3">
+      {/* Proposed Amount */}
+      <div className="flex items-center justify-between border-b pb-2">
+        <span className="text-sm font-medium text-gray-600">Proposed Amount</span>
+        <span className="text-lg font-semibold text-blue-600">
+          ₹{stats.totalBaseFee.toLocaleString()}
+        </span>
+      </div>
 
-                  <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-2xl font-bold text-blue-600">₹{stats.totalBaseFee.toLocaleString()}</div>
-                        <div className="text-sm font-medium text-gray-600">Base Fee</div>
-                      </div>
-                      <DollarSign className="w-10 h-10 text-blue-500 opacity-20" />
-                    </div>
-                  </div>
+      {/* Collected Amount */}
+      <div className="flex items-center justify-between border-b pb-2">
+        <span className="text-sm font-medium text-gray-600">Collected Amount</span>
+        <span className="text-lg font-semibold text-green-600">
+          ₹{stats.totalPaidAmount.toLocaleString()}
+        </span>
+      </div>
 
-                  
-                </div>
-              )}
+      {/* Outstanding Amount */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium text-gray-600">Outstanding Amount</span>
+        <span className="text-lg font-semibold text-orange-600">
+          ₹{stats.totalOutstanding.toLocaleString()}
+        </span>
+      </div>
+    </div>
+  </div>
+)}
 
               {/* Charts Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
                 {/* Beneficiary Trend */}
 <div className="bg-white rounded-xl shadow-lg p-6">
   <div className="flex items-center justify-between mb-4">
@@ -1171,51 +1258,7 @@ const waterQualityTrend = waterQualityData.map((item) => {
   </div>
 </div>
 
-                {/* Pump Status Distribution */}
-<div className="bg-white rounded-xl shadow-lg p-6">
-  <div className="flex items-center justify-between mb-4">
-    <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-      <BarChart3 className="w-5 h-5 text-orange-600" />
-      Pump Status Distribution
-    </h4>
-    <button 
-      onClick={() => exportCSV(
-        pumpStatusData.filter(item => item.name !== "Solar"), 
-        'pump_status'
-      )}
-      className="text-blue-600 hover:text-blue-800 text-sm"
-    >
-      Export
-    </button>
-  </div>
-  <div style={{ height: 280 }}>
-    <ResponsiveContainer width="100%" height="100%">
-      <PieChart>
-        <Pie
-          data={pumpStatusData.filter(item => item.name !== "Solar")}
-          cx="50%"
-          cy="50%"
-          labelLine={false}
-          label={({ name, value, percent }) => 
-            `${name}: ${value} (${(percent * 100).toFixed(1)}%)`
-          }
-          outerRadius={80}
-          fill="#8884d8"
-          dataKey="value"
-        >
-          {pumpStatusData
-            .filter(item => item.name !== "Solar")
-            .map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} />
-          ))}
-        </Pie>
-        <Tooltip />
-      </PieChart>
-    </ResponsiveContainer>
-  </div>
-</div>
-
-                {/* Fee Collection Trend */}
+{/* Fee Collection Trend */}
 {feeCollectionTrend.length > 0 && (
   <div className="bg-white rounded-xl shadow-lg p-6">
     <div className="flex items-center justify-between mb-4">
@@ -1232,12 +1275,18 @@ const waterQualityTrend = waterQualityData.map((item) => {
     </div>
     <div style={{ height: 280 }}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={feeCollectionTrend} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+        <BarChart 
+          data={feeCollectionTrend} 
+          margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+        >
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis dataKey="month" tick={{ fontSize: 12 }} />
           <YAxis tick={{ fontSize: 12 }} />
           <Tooltip 
-            formatter={(value: any) => [`₹${Number(value).toLocaleString()}`, '']}
+            formatter={(value: any, name: any) => [
+              `₹${Number(value).toLocaleString()}`, 
+              name
+            ]}
             contentStyle={{ 
               backgroundColor: 'white', 
               border: '1px solid #e2e8f0', 
@@ -1246,6 +1295,17 @@ const waterQualityTrend = waterQualityData.map((item) => {
             }} 
           />
           <Legend />
+
+          {/* Base Fee Bar */}
+          <Bar 
+            dataKey="baseFee" 
+            fill="#3b82f6" 
+            name="Base Fee"
+            barSize={40}
+            radius={[6, 6, 0, 0]} 
+          />
+
+          {/* Collected Bar */}
           <Bar 
             dataKey="collected" 
             fill="#10b981" 
@@ -1253,6 +1313,8 @@ const waterQualityTrend = waterQualityData.map((item) => {
             barSize={40}
             radius={[6, 6, 0, 0]} 
           />
+
+          {/* Outstanding Bar */}
           <Bar 
             dataKey="outstanding" 
             fill="#f97316" 
@@ -1270,84 +1332,245 @@ const waterQualityTrend = waterQualityData.map((item) => {
             </div>
           )}
 
-          {/* Beneficiaries Tab */}
-          {activeTab === 'beneficiaries' && (
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-                  <Users className="w-6 h-6 text-blue-600" />
-                  Beneficiaries Data
-                </h3>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => exportCSV(filterByLocation(beneficiariesData), 'beneficiaries')}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
-                    disabled={filterByLocation(beneficiariesData).length === 0}
-                  >
-                    <Download className="w-4 h-4" />
-                    Export CSV
-                  </button>
-                </div>
-              </div>
+{/* Complaints Tab */}
+{activeTab === 'complaints' && (
+  <div className="bg-white rounded-xl shadow-lg p-6">
+    <div className="flex items-center justify-between mb-6">
+      <h3 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+        <MessageSquare className="w-6 h-6 text-purple-600" />
+        Complaint Management
+      </h3>
+      <button 
+        onClick={() => exportCSV(filterComplaintsByLocation(complaintsData), 'complaints_data')}
+        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+        disabled={filterComplaintsByLocation(complaintsData).length === 0}
+      >
+        <Download className="w-4 h-4" />
+        Export CSV
+      </button>
+    </div>
 
-              <div className="mb-4 text-sm text-gray-600">
-                Showing {filterByLocation(beneficiariesData).length} beneficiaries for {getSelectedLocationName()}
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Beneficiary ID</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Name</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">District</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Block</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">GP</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Village</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Family Members</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {filterByLocation(beneficiariesData).slice(0, 50).map((beneficiary, index) => (
-                      <tr key={beneficiary.BeneficiaryId} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        <td className="px-4 py-3 text-sm text-gray-900">#{beneficiary.BeneficiaryId}</td>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{beneficiary.BeneficiaryName}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{beneficiary.DistrictName || 'N/A'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{beneficiary.BlockName || 'N/A'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{beneficiary.GrampanchayatName || 'N/A'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{beneficiary.VillageName}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600 text-center">
-                          {beneficiary.FamilyMembers ?? beneficiary.FamilyCount ?? beneficiary.familyCount ?? 0}
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            beneficiary.Status === 1 || beneficiary.Status === 'Active'
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {beneficiary.Status === 1 || beneficiary.Status === 'Active' ? 'Active' : 'Inactive'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {filterByLocation(beneficiariesData).length > 50 && (
-                <div className="mt-4 text-center text-sm text-gray-600">
-                  Showing first 50 records out of {filterByLocation(beneficiariesData).length} total beneficiaries.
-                  <button 
-                    onClick={() => exportCSV(filterByLocation(beneficiariesData), 'all_beneficiaries')}
-                    className="ml-2 text-blue-600 hover:text-blue-800 underline"
-                  >
-                    Export all records
-                  </button>
-                </div>
-              )}
+    {complaintsData.length > 0 ? (
+      <>
+        {/* Complaint Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-blue-50 rounded-lg p-4">
+            <div className="text-2xl font-bold text-blue-600">
+              {filterComplaintsByLocation(complaintsData).length}
             </div>
-          )}
+            <div className="text-sm text-blue-800">Total Complaints</div>
+          </div>
+          <div className="bg-yellow-50 rounded-lg p-4">
+            <div className="text-2xl font-bold text-yellow-600">
+              {filterComplaintsByLocation(complaintsData).filter(c => c.Status === 0).length}
+            </div>
+            <div className="text-sm text-yellow-800">Pending</div>
+          </div>
+          <div className="bg-green-50 rounded-lg p-4">
+            <div className="text-2xl font-bold text-green-600">
+              {filterComplaintsByLocation(complaintsData).filter(c => c.Status === 1).length}
+            </div>
+            <div className="text-sm text-green-800">Resolved</div>
+          </div>
+          <div className="bg-gray-50 rounded-lg p-4">
+            <div className="text-2xl font-bold text-gray-600">
+              {filterComplaintsByLocation(complaintsData).filter(c => c.Status === 2).length}
+            </div>
+            <div className="text-sm text-gray-800">Closed</div>
+          </div>
+        </div>
+
+        <div className="mb-4 text-sm text-gray-600">
+          Showing {filterComplaintsByLocation(complaintsData).length} complaints for {getSelectedLocationName()}
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Complaint ID</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">District</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Block</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">GP</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Village</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Beneficiary</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Contact</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Category</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {filterComplaintsByLocation(complaintsData).slice(0, 50).map((complaint, index) => (
+                <tr key={complaint.ComplaintID} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">#{complaint.ComplaintID}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{complaint.District}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{complaint.Block}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{complaint.GramPanchayat}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{complaint.Village}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{complaint.BeneficiaryName}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{complaint.Contact}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">
+                    <div>
+                      <div className="font-medium">{complaint.Category}</div>
+                      {complaint.Landmark && (
+                        <div className="text-xs text-gray-500">📍 {complaint.Landmark}</div>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      complaint.Status === 0 ? 'bg-yellow-100 text-yellow-800' :
+                      complaint.Status === 1 ? 'bg-green-100 text-green-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {complaint.Status === 0 ? 'Pending' : 
+                       complaint.Status === 1 ? 'Resolved' : 'Closed'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {filterComplaintsByLocation(complaintsData).length > 50 && (
+          <div className="mt-4 text-center text-sm text-gray-600">
+            Showing first 50 records out of {filterComplaintsByLocation(complaintsData).length} total complaints.
+            <button 
+              onClick={() => exportCSV(filterComplaintsByLocation(complaintsData), 'all_complaints')}
+              className="ml-2 text-blue-600 hover:text-blue-800 underline"
+            >
+              Export all records
+            </button>
+          </div>
+        )}
+      </>
+    ) : (
+      <div className="text-center py-12">
+        <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+        <h4 className="text-lg font-medium text-gray-600 mb-2">No Complaint Data</h4>
+        <p className="text-gray-500">
+          No complaint records found for the selected criteria. 
+          Try adjusting your filters or check if complaints have been registered.
+        </p>
+      </div>
+    )}
+  </div>
+)}
+
+          {/* Beneficiaries Tab */}
+{activeTab === 'beneficiaries' && (
+  <div className="bg-white rounded-xl shadow-lg p-6">
+    <div className="flex items-center justify-between mb-6">
+      <h3 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+        <Users className="w-6 h-6 text-blue-600" />
+        Beneficiaries Data
+      </h3>
+      <div className="flex gap-2">
+        <button 
+          onClick={() => exportCSV(filterByLocation(beneficiariesData), 'beneficiaries')}
+          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+          disabled={filterByLocation(beneficiariesData).length === 0}
+        >
+          <Download className="w-4 h-4" />
+          Export CSV
+        </button>
+      </div>
+    </div>
+
+    {/* --- Summary Stat Cards --- */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      {/* Total Beneficiaries */}
+      <div className="bg-blue-50 rounded-lg p-4 shadow-sm border border-blue-200">
+        <div className="text-sm font-medium text-gray-600">Total Beneficiaries</div>
+        <div className="text-2xl font-bold text-blue-700">
+          {filterByLocation(beneficiariesData).length.toLocaleString()}
+        </div>
+      </div>
+
+      {/* Total Family Members */}
+<div className="bg-green-50 rounded-lg p-4 shadow-sm border border-green-200">
+  <div className="text-sm font-medium text-gray-600">Total Family Members</div>
+  <div className="text-2xl font-bold text-green-700">
+    {filterByLocation(beneficiariesData).reduce(
+      (sum, b) => sum + Number(b.FamilyMembers ?? b.FamilyCount ?? b.familyCount ?? 0), 
+      0
+    ).toLocaleString()}
+  </div>
+</div>
+
+
+      {/* Total Active Households */}
+      <div className="bg-orange-50 rounded-lg p-4 shadow-sm border border-orange-200">
+        <div className="text-sm font-medium text-gray-600">Total Active Households</div>
+        <div className="text-2xl font-bold text-orange-700">
+          {filterByLocation(beneficiariesData).filter(
+            (b) => b.Status === 1 || b.Status === 'Active'
+          ).length.toLocaleString()}
+        </div>
+      </div>
+    </div>
+
+    <div className="mb-4 text-sm text-gray-600">
+      Showing {filterByLocation(beneficiariesData).length} beneficiaries for {getSelectedLocationName()}
+    </div>
+
+    {/* --- Table --- */}
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead>
+          <tr className="bg-gray-50 border-b border-gray-200">
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Beneficiary ID</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Name</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">District</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Block</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">GP</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Village</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Family Members</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-200">
+          {filterByLocation(beneficiariesData).slice(0, 50).map((beneficiary, index) => (
+            <tr key={beneficiary.BeneficiaryId} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+              <td className="px-4 py-3 text-sm text-gray-900">#{beneficiary.BeneficiaryId}</td>
+              <td className="px-4 py-3 text-sm font-medium text-gray-900">{beneficiary.BeneficiaryName}</td>
+              <td className="px-4 py-3 text-sm text-gray-600">{beneficiary.DistrictName || 'N/A'}</td>
+              <td className="px-4 py-3 text-sm text-gray-600">{beneficiary.BlockName || 'N/A'}</td>
+              <td className="px-4 py-3 text-sm text-gray-600">{beneficiary.GrampanchayatName || 'N/A'}</td>
+              <td className="px-4 py-3 text-sm text-gray-600">{beneficiary.VillageName}</td>
+              <td className="px-4 py-3 text-sm text-gray-600 text-center">
+                {beneficiary.FamilyMembers ?? beneficiary.FamilyCount ?? beneficiary.familyCount ?? 0}
+              </td>
+              <td className="px-4 py-3 text-sm">
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                  beneficiary.Status === 1 || beneficiary.Status === 'Active'
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-red-100 text-red-800'
+                }`}>
+                  {beneficiary.Status === 1 || beneficiary.Status === 'Active' ? 'Active' : 'Inactive'}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    {filterByLocation(beneficiariesData).length > 50 && (
+      <div className="mt-4 text-center text-sm text-gray-600">
+        Showing first 50 records out of {filterByLocation(beneficiariesData).length} total beneficiaries.
+        <button 
+          onClick={() => exportCSV(filterByLocation(beneficiariesData), 'all_beneficiaries')}
+          className="ml-2 text-blue-600 hover:text-blue-800 underline"
+        >
+          Export all records
+        </button>
+      </div>
+    )}
+  </div>
+)}
+
 
           {/* Infrastructure Tab */}
           {activeTab === 'infrastructure' && (
@@ -1370,9 +1593,9 @@ const waterQualityTrend = waterQualityData.map((item) => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  <div className="bg-indigo-50 rounded-lg p-4">
-                    <div className="text-2xl font-bold text-indigo-600">{filterOHTsByLocation(ohtData).length}</div>
-                    <div className="text-sm text-indigo-800">Total OHTs</div>
+                  <div className="bg-yellow-100 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-grey-900">{filterOHTsByLocation(ohtData).length}</div>
+                    <div className="text-sm text-grey-900">Total Overhead Tanks</div>
                   </div>
                   <div className="bg-blue-50 rounded-lg p-4">
                     <div className="text-2xl font-bold text-blue-600">
@@ -1438,11 +1661,11 @@ const waterQualityTrend = waterQualityData.map((item) => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                  <div className="bg-orange-50 rounded-lg p-4">
-                    <div className="text-2xl font-bold text-orange-600">
+                  <div className="bg-yellow-100 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-grey-900">
                       {filterPumpHousesByOHT(pumpHouseData, filterOHTsByLocation(ohtData)).length}
                     </div>
-                    <div className="text-sm text-orange-800">Total Pumps</div>
+                    <div className="text-sm text-grey-900">Total Pumps</div>
                   </div>
                   <div className="bg-green-50 rounded-lg p-4">
                     <div className="text-2xl font-bold text-green-600">
@@ -1456,11 +1679,11 @@ const waterQualityTrend = waterQualityData.map((item) => {
                     </div>
                     <div className="text-sm text-blue-800">Solar Pumps</div>
                   </div>
-                  <div className="bg-purple-50 rounded-lg p-4">
-                    <div className="text-2xl font-bold text-purple-600">
+                  <div className="bg-red-100 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-red-800">
                       {filterPumpHousesByOHT(pumpHouseData, filterOHTsByLocation(ohtData)).filter(p => p.Status !== 1).length}
                     </div>
-                    <div className="text-sm text-purple-800">Inactive Pumps</div>
+                    <div className="text-sm text-red-800">Inactive Pumps</div>
                   </div>
                 </div>
 
@@ -1472,7 +1695,7 @@ const waterQualityTrend = waterQualityData.map((item) => {
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">OHT ID</th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Operator</th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Contact</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Horse Power</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Capacity (HP)</th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Power Source</th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Solar Output</th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Status</th>

@@ -70,6 +70,26 @@ interface BlockApi {
   Code?: string;
 }
 
+interface ComplaintData {
+  ComplaintID: number;
+  District: string;
+  DistrictId: number;
+  Block: string;
+  BlockId: number;
+  GramPanchayat: string;
+  GramPanchayatId: number;
+  Village: string;
+  VillageId: number;
+  BeneficiaryName: string;
+  Contact: string;
+  Landmark: string;
+  Category: string;
+  CategoryId: number;
+  OtherCategory: string;
+  Status: number; // 0 = Pending, 1 = Resolved, 2 = Closed
+  ComplaintDetails: string;
+}
+
 interface GramPanchayatApi {
   Id: number;
   BlockId: number;
@@ -320,8 +340,13 @@ const fetchComplaints = async () => {
   setLoading(true);
 
   try {
+    // MODIFIED: Use userId=0 for Admin role, otherwise use actual userId
+    const effectiveUserId = role?.toLowerCase() === "admin" ? 0 : userId;
+    
+    console.log("Using effective userId:", effectiveUserId, "for role:", role);
+
     const requestBody = {
-      UserId: userId,
+      UserId: effectiveUserId,
       VillageId: selectedVillageId || 0,
       Status: filterStatus === "Pending" ? 0 : 
              filterStatus === "Resolved" ? 1 : 
@@ -360,7 +385,7 @@ const fetchComplaints = async () => {
       return;
     }
 
-    // FIXED: Map only the fields that actually exist in the API response
+    // Map only the fields that actually exist in the API response
     let mappedData = (apiData?.Data || []).map((item) => ({
       id: item.ComplaintID || 0,
       beneficiaryId: 0, // Not provided in API response
@@ -390,15 +415,19 @@ const fetchComplaints = async () => {
 
     console.log("Mapped Data:", mappedData);
 
-    // FIXED: Role-based filtering with strict comparison
-    if (role?.toLowerCase() === "block officer" && userBlockId !== null) {
-      const beforeFilter = mappedData.length;
-      mappedData = mappedData.filter((c) => c.blockId === userBlockId);
-      console.log(`Block Officer filter: ${beforeFilter} -> ${mappedData.length} complaints`);
-    } else if (role?.toLowerCase() === "gram panchayat" && userGramPanchayatId !== null) {
-      const beforeFilter = mappedData.length;
-      mappedData = mappedData.filter((c) => c.gramPanchayatId === userGramPanchayatId);
-      console.log(`Gram Panchayat filter: ${beforeFilter} -> ${mappedData.length} complaints`);
+    // MODIFIED: Skip role-based filtering for Admin role
+    if (role?.toLowerCase() !== "admin") {
+      if (role?.toLowerCase() === "block officer" && userBlockId !== null) {
+        const beforeFilter = mappedData.length;
+        mappedData = mappedData.filter((c) => c.blockId === userBlockId);
+        console.log(`Block Officer filter: ${beforeFilter} -> ${mappedData.length} complaints`);
+      } else if (role?.toLowerCase() === "gram panchayat" && userGramPanchayatId !== null) {
+        const beforeFilter = mappedData.length;
+        mappedData = mappedData.filter((c) => c.gramPanchayatId === userGramPanchayatId);
+        console.log(`Gram Panchayat filter: ${beforeFilter} -> ${mappedData.length} complaints`);
+      }
+    } else {
+      console.log("Admin role detected - showing all complaint data without filtering");
     }
 
     console.log("Final filtered data:", mappedData);
@@ -406,7 +435,8 @@ const fetchComplaints = async () => {
     setComplaints(mappedData);
     
     if (mappedData.length > 0) {
-      toast.success(`Loaded ${mappedData.length} complaint records`);
+      const roleText = role?.toLowerCase() === "admin" ? " (Admin - All Data)" : "";
+      toast.success(`Loaded ${mappedData.length} complaint records${roleText}`);
     } else {
       toast.info("No complaint records found for the selected criteria");
     }

@@ -21,7 +21,7 @@ import {
 import { BiBuildingHouse, BiDroplet, BiMoney } from "react-icons/bi";
 
 
-type Role = "admin" | "gp" | "callcenter";
+type Role = "admin" | "gp" | "callcenter" | "Director";
 
 type MenuItem = {
   name: string;
@@ -34,6 +34,7 @@ const roleLabels: Record<Role, string> = {
   admin: "Admin Dashboard",
   gp: "Gram Panchayat Dashboard",
   callcenter: "Call Center Dashboard",
+  director: "Director's Dashboard",
 };
 
 const getMenuLinks = (role: Role): MenuItem[] => {
@@ -43,6 +44,7 @@ const getMenuLinks = (role: Role): MenuItem[] => {
       { name: "Real-Time Monitoring", to: "/admin/location-reporting", icon: <BarChart3 size={18} /> },
       { name: "User Management", to: "/admin/user-management", icon: <Users size={18} /> },
       { name: "Fee Management", to: "/admin/fee-management", icon: <BiMoney size={18} /> },
+      { name: "Complaint Status", to: "/admin/manage-complaint", icon: <ClipboardList size={16} /> },
       { name: "Manage Beneficiaries", to: "/admin/manage-beneficiary", icon: <Users2 size={16} /> },
       { name: "Manage OHT", to: "/admin/manage-oht", icon: <Calendar size={16} /> },
       { name: "Manage Pump House", to: "/admin/manage-pumphouse", icon: <ClipboardList size={16} /> },
@@ -50,7 +52,23 @@ const getMenuLinks = (role: Role): MenuItem[] => {
       { name: "View Water Quality", to: "/admin/view-water-quality", icon: <BiDroplet size={16} /> },
       
     ];
-  } else if (role === "gp") {
+  }
+  else if (role === "director") {
+    return [
+      { name: "Dashboard", to: "/director/dashboard", icon: <LayoutDashboard size={18} /> },
+      { name: "Real-Time Monitoring", to: "/director/location-reporting", icon: <BarChart3 size={18} /> },
+      { name: "User Management", to: "/director/user-management", icon: <Users size={18} /> },
+      { name: "Fee Management", to: "/director/fee-management", icon: <BiMoney size={18} /> },
+      { name: "Complaint Status", to: "/director/manage-complaint", icon: <ClipboardList size={16} /> },
+      { name: "Manage Beneficiaries", to: "/director/manage-beneficiary", icon: <Users2 size={16} /> },
+      { name: "Manage OHT", to: "/director/manage-oht", icon: <Calendar size={16} /> },
+      { name: "Manage Pump House", to: "/director/manage-pumphouse", icon: <ClipboardList size={16} /> },
+      { name: "View Roaster", to: "/director/view-roaster", icon: <ClipboardList size={16} /> },
+      { name: "View Water Quality", to: "/director/view-water-quality", icon: <BiDroplet size={16} /> },
+      
+    ];
+  }
+  else if (role === "gp") {
     return [
       { name: "Dashboard", to: "/gp/dashboard", icon: <LayoutDashboard size={18} /> },
       {
