@@ -623,7 +623,7 @@ export default function EnhancedGPDashboard() {
           />
           
           <StatCard
-            title="Pump Infrastructure"
+            title="Total Pumphouses"
             value={totalPumps}
             subtitle={totalPumps > 0 ? `${activePumps} active, ${solarPumps} solar` : "No pump data"}
             icon={Icons.Pump}
@@ -661,7 +661,7 @@ export default function EnhancedGPDashboard() {
           />
           
           <StatCard
-            title="OHT Infrastructure"
+            title="Total Overhead Tanks"
             value={totalOHTs}
             subtitle={totalCapacity > 0 ? `${(totalCapacity / 1000).toFixed(0)}K L capacity` : `${totalOHTs} overhead tanks`}
             icon={Icons.Tank}

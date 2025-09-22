@@ -95,78 +95,61 @@ interface RoasterStats {
 }
 
 // Location API functions
-const fetchDistricts = async (userId: number): Promise<ApiResponse<District[]>> => {
+const fetchDistricts = async () => {
   try {
-    const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetDistrict?UserId=${userId}`, {
+    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/AllDistrict', {
       method: 'POST',
-      headers: {
-        'accept': '*/*',
-      },
+      headers: { 'accept': '*/*' },
     });
-
+    
     if (response.ok) {
       const data = await response.json();
-      return data;
-    } else {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      return data.Status ? data.Data : [];
     }
+    return [];
   } catch (error) {
     console.error('Error fetching districts:', error);
-    throw error;
+    return [];
   }
 };
 
-const fetchBlocks = async (userId: number): Promise<ApiResponse<Block[]>> => {
+const fetchBlocks = async (districtId: number) => {
   try {
-    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict', {
+    const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetAllBlocks?DistrictId=${districtId}`, {
       method: 'POST',
-      headers: {
-        'accept': '*/*',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        UserId: userId
-      }),
+      headers: { 'accept': '*/*' },
     });
 
     if (response.ok) {
       const data = await response.json();
-      return data;
-    } else {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      return data.Status ? data.Data : [];
     }
+    return [];
   } catch (error) {
     console.error('Error fetching blocks:', error);
-    throw error;
+    return [];
   }
 };
 
-const fetchGramPanchayats = async (userId: number): Promise<ApiResponse<GramPanchayat[]>> => {
+const fetchGramPanchayats = async (blockId: number) => {
   try {
-    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock', {
+    const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetAllGramPanchayat?BlockId=${blockId}`, {
       method: 'POST',
-      headers: {
-        'accept': '*/*',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        UserId: userId
-      }),
+      headers: { 'accept': '*/*' },
     });
 
     if (response.ok) {
       const data = await response.json();
-      return data;
-    } else {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      return data.Status ? data.Data : [];
     }
+    return [];
   } catch (error) {
     console.error('Error fetching gram panchayats:', error);
-    throw error;
+    return [];
   }
 };
 
-const fetchVillages = async (blockId: number, gramPanchayatId: number): Promise<ApiResponse<Village[]>> => {
+const fetchVillages = async (blockId: number, gramPanchayatId: number) => {
   try {
     const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetVillegeByGramPanchayat', {
       method: 'POST',
@@ -182,13 +165,12 @@ const fetchVillages = async (blockId: number, gramPanchayatId: number): Promise<
 
     if (response.ok) {
       const data = await response.json();
-      return data;
-    } else {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      return data.Status ? data.Data : [];
     }
+    return [];
   } catch (error) {
     console.error('Error fetching villages:', error);
-    throw error;
+    return [];
   }
 };
 
@@ -346,22 +328,38 @@ const ViewRoaster: React.FC = () => {
   // Use the userInfo hook instead of hardcoded userId
   const { userId } = useUserInfo();
 
-  // Fetch pump houses and location data when userId is available
+  // Fetch districts on component mount
+  useEffect(() => {
+    const loadDistricts = async () => {
+      setLocationLoading(true);
+      try {
+        const districtData = await fetchDistricts();
+        setDistricts(districtData || []);
+        
+        // Auto-select first district if only one
+        if (districtData && districtData.length === 1) {
+          setSelectedDistrictId(districtData[0].DistrictId);
+        }
+      } catch (err) {
+        console.error('Error loading districts:', err);
+        setError('Failed to load districts. Please refresh and try again.');
+      } finally {
+        setLocationLoading(false);
+      }
+    };
+
+    loadDistricts();
+  }, []);
+
+  // Fetch pump houses when userId is available
   useEffect(() => {
     if (!userId) return;
     
-    const loadInitialData = async () => {
+    const loadPumpHouses = async () => {
       setPumpHouseLoading(true);
-      setLocationLoading(true);
       
       try {
-        // Load pump houses and location hierarchy in parallel
-        const [pumpResponse, districtResponse, blockResponse, gpResponse] = await Promise.all([
-          fetchPumpHouses(userId),
-          fetchDistricts(userId),
-          fetchBlocks(userId),
-          fetchGramPanchayats(userId)
-        ]);
+        const pumpResponse = await fetchPumpHouses(userId);
         
         // Handle pump houses
         if (pumpResponse && pumpResponse.Status && Array.isArray(pumpResponse.Data)) {
@@ -386,61 +384,104 @@ const ViewRoaster: React.FC = () => {
           }
         }
 
-        // Handle location hierarchy
-        if (districtResponse && districtResponse.Status) {
-          setDistricts(districtResponse.Data);
-          // Auto-select first district if only one
-          if (districtResponse.Data.length === 1) {
-            setSelectedDistrictId(districtResponse.Data[0].DistrictId);
-          }
-        }
-
-        if (blockResponse && blockResponse.Status) {
-          setBlocks(blockResponse.Data);
-          // Auto-select first block if only one
-          if (blockResponse.Data.length === 1) {
-            setSelectedBlockId(blockResponse.Data[0].BlockId);
-          }
-        }
-
-        if (gpResponse && gpResponse.Status) {
-          setGramPanchayats(gpResponse.Data);
-          // Auto-select first GP if only one
-          if (gpResponse.Data.length === 1) {
-            setSelectedGramPanchayatId(gpResponse.Data[0].Id);
-          }
-        }
-
       } catch (err) {
-        console.error('Error loading initial data:', err);
-        setError('Failed to load data. Please refresh and try again.');
+        console.error('Error loading pump houses:', err);
+        setError('Failed to load pump houses. Please refresh and try again.');
       } finally {
         setPumpHouseLoading(false);
-        setLocationLoading(false);
       }
     };
 
-    loadInitialData();
+    loadPumpHouses();
   }, [userId]);
+
+  // Fetch blocks when district is selected
+  useEffect(() => {
+    if (selectedDistrictId) {
+      const loadBlocks = async () => {
+        try {
+          const blockData = await fetchBlocks(selectedDistrictId);
+          setBlocks(blockData || []);
+          
+          // Reset dependent selections
+          setSelectedBlockId(null);
+          setSelectedGramPanchayatId(null);
+          setSelectedVillageId(null);
+          setGramPanchayats([]);
+          setVillages([]);
+          
+          // Auto-select first block if only one
+          if (blockData && blockData.length === 1) {
+            setSelectedBlockId(blockData[0].BlockId);
+          }
+        } catch (err) {
+          console.error('Error fetching blocks:', err);
+        }
+      };
+      loadBlocks();
+    } else {
+      setBlocks([]);
+      setSelectedBlockId(null);
+      setSelectedGramPanchayatId(null);
+      setSelectedVillageId(null);
+      setGramPanchayats([]);
+      setVillages([]);
+    }
+  }, [selectedDistrictId]);
+
+  // Fetch gram panchayats when block is selected
+  useEffect(() => {
+    if (selectedBlockId) {
+      const loadGramPanchayats = async () => {
+        try {
+          const gpData = await fetchGramPanchayats(selectedBlockId);
+          setGramPanchayats(gpData || []);
+          
+          // Reset dependent selections
+          setSelectedGramPanchayatId(null);
+          setSelectedVillageId(null);
+          setVillages([]);
+          
+          // Auto-select first GP if only one
+          if (gpData && gpData.length === 1) {
+            setSelectedGramPanchayatId(gpData[0].Id);
+          }
+        } catch (err) {
+          console.error('Error fetching gram panchayats:', err);
+        }
+      };
+      loadGramPanchayats();
+    } else {
+      setGramPanchayats([]);
+      setSelectedGramPanchayatId(null);
+      setSelectedVillageId(null);
+      setVillages([]);
+    }
+  }, [selectedBlockId]);
 
   // Fetch villages when block and gram panchayat are selected
   useEffect(() => {
     if (selectedBlockId && selectedGramPanchayatId) {
       const loadVillages = async () => {
         try {
-          const response = await fetchVillages(selectedBlockId, selectedGramPanchayatId);
-          if (response && response.Status) {
-            setVillages(response.Data);
-            // Auto-select first village if only one
-            if (response.Data.length === 1) {
-              setSelectedVillageId(response.Data[0].Id);
-            }
+          const villageData = await fetchVillages(selectedBlockId, selectedGramPanchayatId);
+          setVillages(villageData || []);
+          
+          // Reset village selection
+          setSelectedVillageId(null);
+          
+          // Auto-select first village if only one
+          if (villageData && villageData.length === 1) {
+            setSelectedVillageId(villageData[0].Id);
           }
         } catch (err) {
           console.error('Error fetching villages:', err);
         }
       };
       loadVillages();
+    } else {
+      setVillages([]);
+      setSelectedVillageId(null);
     }
   }, [selectedBlockId, selectedGramPanchayatId]);
 
@@ -465,7 +506,7 @@ const ViewRoaster: React.FC = () => {
 
   // Fetch monthly roaster data
   const loadMonthlyRoasterData = async (): Promise<void> => {
-    if (!selectedMonth || !selectedYear || !selectedPumpId || !selectedVillageId) return;
+    if (!selectedMonth || !selectedYear || !selectedPumpId || !selectedVillageId || !selectedGramPanchayatId) return;
 
     setLoading(true);
     setError('');
@@ -509,10 +550,10 @@ const ViewRoaster: React.FC = () => {
 
   // Effect for monthly data - only load when all required data is selected
   useEffect(() => {
-    if (selectedPumpId && selectedVillageId) {
+    if (selectedPumpId && selectedVillageId && selectedGramPanchayatId) {
       loadMonthlyRoasterData();
     }
-  }, [selectedMonth, selectedYear, selectedPumpId, selectedVillageId]);
+  }, [selectedMonth, selectedYear, selectedPumpId, selectedVillageId, selectedGramPanchayatId]);
 
   const getMonthName = (month: number): string => {
     const months: string[] = [
@@ -808,99 +849,6 @@ const ViewRoaster: React.FC = () => {
             </div>
           )}
 
-          {/* Pump House Selection */}
-          {!pumpHouseLoading && uniquePumpHouses.length > 0 && (
-            <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border">
-              <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-                <div className="flex items-center gap-3">
-                  <Zap className="w-6 h-6 text-blue-600" />
-                  <h2 className="text-xl font-semibold text-gray-800">Select Pump House</h2>
-                </div>
-                <div className="text-sm text-gray-500">
-                  {uniquePumpHouses.length} pump house(s) available
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                {uniquePumpHouses.map((pump) => (
-                  <div
-                    key={pump.PumpId}
-                    onClick={() => handlePumpSelect(pump.PumpId)}
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md text-left w-full ${
-                      selectedPumpId === pump.PumpId
-                        ? 'border-blue-500 bg-blue-50 shadow-md'
-                        : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="font-semibold text-lg text-gray-800">Pump #{pump.PumpId}</div>
-                      <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getStatusBadgeClass(pump.Status)}`}>
-                        {getStatusText(pump.Status)}
-                      </span>
-                    </div>
-                    <div className="text-sm text-gray-600 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4" />
-                        <span>{pump.OperatorName && pump.OperatorName !== '0' ? pump.OperatorName : 'No operator assigned'}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Zap className="w-4 h-4" />
-                        <span>{pump.HorsePower} HP ({getPowerSourceText(pump.PowerSource)})</span>
-                      </div>
-                      {pump.SolarOutput > 0 && (
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 bg-yellow-400 rounded-full"></div>
-                          <span>Solar: {pump.SolarOutput} kW</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Selected Pump Details */}
-              {selectedPumpDetails && (
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
-                  <div className="font-medium text-blue-800 mb-3 flex items-center gap-2">
-                    <Eye className="w-5 h-5" />
-                    Selected Pump House Details
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium text-gray-700">Pump ID:</span>
-                      <div className="text-gray-900">{selectedPumpDetails.PumpId}</div>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-700">OHT ID:</span>
-                      <div className="text-gray-900">{selectedPumpDetails.OhtId}</div>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-700">Horse Power:</span>
-                      <div className="text-gray-900">{selectedPumpDetails.HorsePower} HP</div>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-700">Contact:</span>
-                      <div className="text-gray-900">{selectedPumpDetails.Contact || 'N/A'}</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* No Pump Houses Available */}
-          {!pumpHouseLoading && uniquePumpHouses.length === 0 && !error && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-              <div className="flex items-center gap-3 text-yellow-800">
-                <AlertCircle className="w-6 h-6" />
-                <div>
-                  <div className="font-semibold text-lg">No Pump Houses Assigned</div>
-                  <div className="text-sm text-yellow-700">No pump houses are currently assigned to your user account. Please contact your administrator.</div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Filters and Controls - Only show if pump and village are selected */}
           {selectedPumpId && selectedVillageId && (
             <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border">
@@ -958,18 +906,7 @@ const ViewRoaster: React.FC = () => {
                       })}
                     </select>
                   </div>
-                  <div>
-                    <label className="block font-medium text-gray-700 mb-2">Activity Type</label>
-                    <select
-                      value={filterActivity}
-                      onChange={handleActivityFilterChange}
-                      className="border border-gray-300 rounded-lg px-3 py-2 w-full shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="all">All Activities</option>
-                      <option value="monthly">Monthly</option>
-                      <option value="maintenance">Maintenance</option>
-                    </select>
-                  </div>
+                  
                 </div>
               </div>
 
@@ -1085,7 +1022,6 @@ const ViewRoaster: React.FC = () => {
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-200">
                           <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Roaster Date</th>
-                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Activity Type</th>
                           <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Duration</th>
                           <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Filling Shifts</th>
                           <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Distribution Shifts</th>
@@ -1100,31 +1036,11 @@ const ViewRoaster: React.FC = () => {
                             <td className="p-3 md:p-4 font-medium text-gray-900">
                               {formatDate(item.RoasterDate)}
                             </td>
-                            <td className="p-3 md:p-4">
-                              <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getActivityBadgeClass(item.ActivityType)}`}>
-                                {item.ActivityType || 'N/A'}
-                              </span>
-                            </td>
+                            
                             <td className="p-3 md:p-4 text-gray-700">
                               <div className="text-xs">
                                 <div><strong>From:</strong> {formatDate(item.StartDate)}</div>
                                 <div><strong>To:</strong> {formatDate(item.EndDate)}</div>
-                              </div>
-                            </td>
-                            <td className="p-3 md:p-4">
-                              <div className="space-y-1 text-xs">
-                                <div className="flex items-center gap-2">
-                                  <span className="w-16 font-medium text-gray-600">Shift 1:</span>
-                                  <span className="text-gray-900">{formatTime(item.Shift1DistributionFrom)} - {formatTime(item.Shift1DistributionTo)}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="w-16 font-medium text-gray-600">Shift 2:</span>
-                                  <span className="text-gray-900">{formatTime(item.Shift2DistributionFrom)} - {formatTime(item.Shift2DistributionTo)}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="w-16 font-medium text-gray-600">Shift 3:</span>
-                                  <span className="text-gray-900">{formatTime(item.Shift3DistributionFrom)} - {formatTime(item.Shift3DistributionTo)}</span>
-                                </div>
                               </div>
                             </td>
                             <td className="p-3 md:p-4">
@@ -1140,6 +1056,22 @@ const ViewRoaster: React.FC = () => {
                                 <div className="flex items-center gap-2">
                                   <span className="w-16 font-medium text-gray-600">Shift 3:</span>
                                   <span className="text-gray-900">{formatTime(item.Shift3FillingFrom)} - {formatTime(item.Shift3FillingTo)}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-3 md:p-4">
+                              <div className="space-y-1 text-xs">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-16 font-medium text-gray-600">Shift 1:</span>
+                                  <span className="text-gray-900">{formatTime(item.Shift1DistributionFrom)} - {formatTime(item.Shift1DistributionTo)}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="w-16 font-medium text-gray-600">Shift 2:</span>
+                                  <span className="text-gray-900">{formatTime(item.Shift2DistributionFrom)} - {formatTime(item.Shift2DistributionTo)}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="w-16 font-medium text-gray-600">Shift 3:</span>
+                                  <span className="text-gray-900">{formatTime(item.Shift3DistributionFrom)} - {formatTime(item.Shift3DistributionTo)}</span>
                                 </div>
                               </div>
                             </td>

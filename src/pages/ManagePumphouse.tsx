@@ -9,11 +9,22 @@ interface Pump {
   status: string;
 }
 
+interface OHTLocation {
+  ohtId: number;
+  districtName: string;
+  blockName: string;
+  gramPanchayatName: string;
+  villageName: string;
+  ohtCapacity: number;
+  noOfPumps: number;
+}
+
 interface PumpHouse {
   id: number;
   operatorName: string;
   contact: string;
   pumps: Pump[];
+  location?: OHTLocation;
 }
 
 // Simple toast notification function
@@ -56,14 +67,56 @@ const ManagePumpHouse = () => {
   const [pumpHouses, setPumpHouses] = useState<PumpHouse[]>([]);
   const [originalPumpHouses, setOriginalPumpHouses] = useState<PumpHouse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [locationLoading, setLocationLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [editedPumps, setEditedPumps] = useState<Set<number>>(new Set());
+  const [selectedDistrict, setSelectedDistrict] = useState("");
+  const [selectedBlock, setSelectedBlock] = useState("");
+  const [selectedGP, setSelectedGP] = useState("");
+  const [selectedVillage, setSelectedVillage] = useState("");
 
   useEffect(() => {
     console.log("Pump Houses state updated:", pumpHouses);
   }, [pumpHouses]);
+
+  // Function to fetch OHT location data
+  const fetchOHTLocationData = async (userId: string): Promise<OHTLocation[]> => {
+    try {
+      setLocationLoading(true);
+      const res = await fetch(
+        `https://wmsapi.kdsgroup.co.in/api/Master/GetOHTListByVillage?VillageId=0&UserId=${userId}`,
+        { method: "GET" }
+      );
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      
+      if (data?.Status && Array.isArray(data.Data)) {
+        return data.Data.map((item: any) => ({
+          ohtId: item.OhtId,
+          districtName: item.Districtname || "Unknown District",
+          blockName: item.BlockName || "Unknown Block",
+          gramPanchayatName: item.GramPanchayatName || "Unknown GP",
+          villageName: item.VillageName || "Unknown Village",
+          ohtCapacity: item.OHTCapacity || 0,
+          noOfPumps: item.NoOfPumps || 0,
+        }));
+      }
+      
+      return [];
+    } catch (err) {
+      console.error("Error fetching OHT location data:", err);
+      toast.error("Failed to load location data");
+      return [];
+    } finally {
+      setLocationLoading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchPumpHouses = async (userId: string) => {
@@ -78,6 +131,7 @@ const ManagePumpHouse = () => {
           return;
         }
 
+        // Fetch pump house data
         const res = await fetch(
           `https://wmsapi.kdsgroup.co.in/api/Master/GetPumpHouseListByUserId?UserId=${userId}`,
           { method: "GET" }
@@ -92,6 +146,7 @@ const ManagePumpHouse = () => {
         if (data?.Status && Array.isArray(data.Data)) {
           const dataArray = data.Data;
 
+          // Group pump house data
           const grouped: PumpHouse[] = dataArray.reduce(
             (acc: PumpHouse[], item: any) => {
               const ohtId = item.OhtId ?? 0;
@@ -121,9 +176,18 @@ const ManagePumpHouse = () => {
             []
           );
 
-          setPumpHouses(grouped);
-          setOriginalPumpHouses(grouped);
-          toast.success(`Loaded ${grouped.length} pump house records`);
+          // Fetch location data and merge with pump house data
+          const locationData = await fetchOHTLocationData(userId);
+          const locationMap = new Map(locationData.map(loc => [loc.ohtId, loc]));
+
+          const pumpHousesWithLocation = grouped.map(house => ({
+            ...house,
+            location: locationMap.get(house.id)
+          }));
+
+          setPumpHouses(pumpHousesWithLocation);
+          setOriginalPumpHouses(pumpHousesWithLocation);
+          toast.success(`Loaded ${grouped.length} pump house records with location data`);
         } else {
           console.warn("API response missing Status or Data is not array");
           setPumpHouses([]);
@@ -139,7 +203,7 @@ const ManagePumpHouse = () => {
       }
     };
 
-    // Get userID from localStorage (matching original implementation)
+    // Get userID from localStorage
     const userIdFromStorage = localStorage?.getItem("userID");
     if (userIdFromStorage) {
       fetchPumpHouses(userIdFromStorage);
@@ -183,11 +247,12 @@ const ManagePumpHouse = () => {
     }
     setEditMode((prev) => !prev);
   };
+
   const handleCancel = () => {
-  setPumpHouses(originalPumpHouses);  // reset UI to original
-  setEditedPumps(new Set());
-  setEditMode(false);
-};
+    setPumpHouses(originalPumpHouses);
+    setEditedPumps(new Set());
+    setEditMode(false);
+  };
 
   const handleSaveChanges = async () => {
     if (editedPumps.size === 0) {
@@ -270,6 +335,12 @@ const ManagePumpHouse = () => {
       filteredData.forEach(house => {
         house.pumps.forEach(pump => {
           exportData.push({
+            'OHT ID': house.id,
+            'District': house.location?.districtName || 'N/A',
+            'Block': house.location?.blockName || 'N/A',
+            'Gram Panchayat': house.location?.gramPanchayatName || 'N/A',
+            'Village': house.location?.villageName || 'N/A',
+            'OHT Capacity': house.location?.ohtCapacity || 'N/A',
             'Operator Name': house.operatorName,
             'Contact': house.contact,
             'Pump ID': pump.pumpId,
@@ -309,10 +380,53 @@ const ManagePumpHouse = () => {
     }
   };
 
-  // Filter data by operatorName, case insensitive
-  const filteredData = pumpHouses.filter((h) =>
-    h.operatorName?.toLowerCase().includes(search.toLowerCase())
-  );
+  const clearLocationFilters = () => {
+    setSelectedDistrict("");
+    setSelectedBlock("");
+    setSelectedGP("");
+    setSelectedVillage("");
+  };
+
+  // Filter data by search text and location filters
+  const filteredData = pumpHouses.filter((h) => {
+    // Text search filter
+    const matchesSearch = h.operatorName?.toLowerCase().includes(search.toLowerCase()) ||
+      h.location?.districtName?.toLowerCase().includes(search.toLowerCase()) ||
+      h.location?.blockName?.toLowerCase().includes(search.toLowerCase()) ||
+      h.location?.villageName?.toLowerCase().includes(search.toLowerCase());
+    
+    // Location filters
+    const matchesDistrict = !selectedDistrict || h.location?.districtName === selectedDistrict;
+    const matchesBlock = !selectedBlock || h.location?.blockName === selectedBlock;
+    const matchesGP = !selectedGP || h.location?.gramPanchayatName === selectedGP;
+    const matchesVillage = !selectedVillage || h.location?.villageName === selectedVillage;
+    
+    return matchesSearch && matchesDistrict && matchesBlock && matchesGP && matchesVillage;
+  });
+
+  // Get unique values for filter dropdowns
+  const uniqueDistricts = Array.from(new Set(pumpHouses.map(h => h.location?.districtName).filter(Boolean))).sort();
+  const uniqueBlocks = Array.from(new Set(
+    pumpHouses
+      .filter(h => !selectedDistrict || h.location?.districtName === selectedDistrict)
+      .map(h => h.location?.blockName)
+      .filter(Boolean)
+  )).sort();
+  const uniqueGPs = Array.from(new Set(
+    pumpHouses
+      .filter(h => (!selectedDistrict || h.location?.districtName === selectedDistrict) &&
+                   (!selectedBlock || h.location?.blockName === selectedBlock))
+      .map(h => h.location?.gramPanchayatName)
+      .filter(Boolean)
+  )).sort();
+  const uniqueVillages = Array.from(new Set(
+    pumpHouses
+      .filter(h => (!selectedDistrict || h.location?.districtName === selectedDistrict) &&
+                   (!selectedBlock || h.location?.blockName === selectedBlock) &&
+                   (!selectedGP || h.location?.gramPanchayatName === selectedGP))
+      .map(h => h.location?.villageName)
+      .filter(Boolean)
+  )).sort();
 
   // Calculate totals for stats
   const totalPumps = filteredData.reduce((sum, house) => sum + house.pumps.length, 0);
@@ -329,6 +443,7 @@ const ManagePumpHouse = () => {
       <div className="p-6 relative z-10 min-h-screen bg-gray-50">
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
           <p className="text-blue-700">Loading pump house data...</p>
+          {locationLoading && <p className="text-blue-600 text-sm mt-1">Loading location information...</p>}
         </div>
       </div>
     );
@@ -354,7 +469,7 @@ const ManagePumpHouse = () => {
       <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
         <h1 className="text-3xl font-bold mb-2 text-gray-800">Manage Pump House</h1>
         <p className="text-gray-600 mb-6">
-          View, edit, and manage pump house configurations. Monitor pump performance and power sources.
+          View, edit, and manage pump house configurations with location details. Monitor pump performance and power sources.
         </p>
 
         {/* Search and Actions */}
@@ -363,7 +478,7 @@ const ManagePumpHouse = () => {
             <input
               type="text"
               className="flex-1 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Search by operator name..."
+              placeholder="Search by operator, district, block, or village..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               disabled={loading}
@@ -392,12 +507,12 @@ const ManagePumpHouse = () => {
             ) : (
               <div className="flex gap-2">
                 <button 
-  className="bg-gray-400 text-white px-4 py-2 rounded-md hover:bg-gray-500 transition-colors" 
-  onClick={handleCancel}
-  disabled={saving}
->
-  Cancel
-</button>
+                  className="bg-gray-400 text-white px-4 py-2 rounded-md hover:bg-gray-500 transition-colors" 
+                  onClick={handleCancel}
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
 
                 <button
                   className={`px-4 py-2 rounded-md text-white transition-colors ${
@@ -412,6 +527,79 @@ const ManagePumpHouse = () => {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Location Filters */}
+      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <h3 className="text-lg font-semibold mb-4 text-gray-800">Location Filters</h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">District</label>
+            <select
+              className="w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              value={selectedDistrict}
+              onChange={(e) => setSelectedDistrict(e.target.value)}
+            >
+              <option value="">All Districts</option>
+              {uniqueDistricts.map(district => (
+                <option key={district} value={district}>{district}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Block</label>
+            <select
+              className="w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              value={selectedBlock}
+              onChange={(e) => setSelectedBlock(e.target.value)}
+            >
+              <option value="">All Blocks</option>
+              {uniqueBlocks.map(block => (
+                <option key={block} value={block}>{block}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Gram Panchayat</label>
+            <select
+              className="w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              value={selectedGP}
+              onChange={(e) => setSelectedGP(e.target.value)}
+            >
+              <option value="">All Gram Panchayats</option>
+              {uniqueGPs.map(gp => (
+                <option key={gp} value={gp}>{gp}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Village</label>
+            <select
+              className="w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              value={selectedVillage}
+              onChange={(e) => setSelectedVillage(e.target.value)}
+            >
+              <option value="">All Villages</option>
+              {uniqueVillages.map(village => (
+                <option key={village} value={village}>{village}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        
+        {(selectedDistrict || selectedBlock || selectedGP || selectedVillage) && (
+          <div className="mt-4">
+            <button
+              className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition-colors"
+              onClick={clearLocationFilters}
+            >
+              Clear Filters
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Results Summary */}
@@ -498,6 +686,8 @@ const ManagePumpHouse = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-blue-600 text-white">
+                  <th className="border border-gray-300 p-3 text-left font-medium">OHT ID</th>
+                  <th className="border border-gray-300 p-3 text-left font-medium">Location Details</th>
                   <th className="border border-gray-300 p-3 text-left font-medium">Operator Name</th>
                   <th className="border border-gray-300 p-3 text-left font-medium">Contact</th>
                   <th className="border border-gray-300 p-3 text-left font-medium">Pump #</th>
@@ -522,6 +712,22 @@ const ManagePumpHouse = () => {
                           isEdited ? 'ring-2 ring-orange-200 bg-orange-50' : ''
                         }`}
                       >
+                        <td className="border border-gray-300 p-3 font-medium text-blue-600">
+                          OHT #{house.id}
+                        </td>
+                        <td className="border border-gray-300 p-3">
+                          {house.location ? (
+                            <div className="text-xs space-y-1">
+                              <div><strong>District:</strong> {house.location.districtName}</div>
+                              <div><strong>Block:</strong> {house.location.blockName}</div>
+                              <div><strong>GP:</strong> {house.location.gramPanchayatName}</div>
+                              <div><strong>Village:</strong> {house.location.villageName}</div>
+                              <div><strong>Capacity:</strong> {house.location.ohtCapacity}L</div>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-xs">Location data not available</span>
+                          )}
+                        </td>
                         <td className="border border-gray-300 p-3 font-medium">{house.operatorName}</td>
                         <td className="border border-gray-300 p-3">{house.contact}</td>
                         <td className="border border-gray-300 p-3 font-medium text-blue-600">

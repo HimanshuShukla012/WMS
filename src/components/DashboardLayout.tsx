@@ -40,6 +40,7 @@ const getMenuLinks = (role: Role): MenuItem[] => {
   if (role === "admin") {
     return [
       { name: "Dashboard", to: "/admin/dashboard", icon: <LayoutDashboard size={18} /> },
+      { name: "Real-Time Monitoring", to: "/admin/location-reporting", icon: <BarChart3 size={18} /> },
       { name: "User Management", to: "/admin/user-management", icon: <Users size={18} /> },
       { name: "Fee Management", to: "/admin/fee-management", icon: <BiMoney size={18} /> },
       { name: "Manage Beneficiaries", to: "/admin/manage-beneficiary", icon: <Users2 size={16} /> },
@@ -47,7 +48,7 @@ const getMenuLinks = (role: Role): MenuItem[] => {
       { name: "Manage Pump House", to: "/admin/manage-pumphouse", icon: <ClipboardList size={16} /> },
       { name: "View Roaster", to: "/admin/view-roaster", icon: <ClipboardList size={16} /> },
       { name: "View Water Quality", to: "/admin/view-water-quality", icon: <BiDroplet size={16} /> },
-      { name: "MIS Reports", to: "/admin/reporting", icon: <BarChart3 size={18} /> },
+      
     ];
   } else if (role === "gp") {
     return [
