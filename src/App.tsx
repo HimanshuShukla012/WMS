@@ -153,6 +153,80 @@ function App() {
             </Route>
           </Route>
 
+{/* Protected routes - normal margin for dashboard layout */}
+          <Route element={<PrivateRoute allowedRoles={["director"]} />}>
+            <Route path="/director/*" element={
+              <div style={{ marginTop: '40px' }}>
+                <DashboardLayout role="director" />
+              </div>
+            }>
+              <Route path="dashboard" element={<DirectorMonitoring />} />
+              <Route path="manage-beneficiary" element={<ManageBeneficiary />} />
+              <Route path="manage-complaint" element={<ManageComplaint />} />
+              <Route path="manage-oht" element={<ManageOHT />} />
+              <Route path="manage-pumphouse" element={<ManagePumpHouse />} />
+              <Route path="view-roaster" element={<ViewRoaster />} />
+              <Route path="view-water-quality" element={<ViewWaterQuality />} />
+              <Route path="reporting" element={<MISReportingPage />} />
+              <Route path="fee-management" element={<FeeManagementPage />} />
+            </Route>
+          </Route>
+
+          <Route element={<PrivateRoute allowedRoles={["dd"]} />}>
+            <Route path="/dd/*" element={
+              <div style={{ marginTop: '40px' }}>
+                <DashboardLayout role="dd" />
+              </div>
+            }>
+              <Route path="dashboard" element={<DirectorMonitoring />} />
+              <Route path="manage-beneficiary" element={<ManageBeneficiary />} />
+              <Route path="manage-complaint" element={<ManageComplaint />} />
+              <Route path="manage-oht" element={<ManageOHT />} />
+              <Route path="manage-pumphouse" element={<ManagePumpHouse />} />
+              <Route path="view-roaster" element={<ViewRoaster />} />
+              <Route path="view-water-quality" element={<ViewWaterQuality />} />
+              <Route path="reporting" element={<MISReportingPage />} />
+              <Route path="fee-management" element={<FeeManagementPage />} />
+            </Route>
+          </Route>
+
+          <Route element={<PrivateRoute allowedRoles={["dpro"]} />}>
+            <Route path="/dpro/*" element={
+              <div style={{ marginTop: '40px' }}>
+                <DashboardLayout role="dpro" />
+              </div>
+            }>
+              <Route path="dashboard" element={<DirectorMonitoring />} />
+              <Route path="manage-beneficiary" element={<ManageBeneficiary />} />
+              <Route path="manage-complaint" element={<ManageComplaint />} />
+              <Route path="manage-oht" element={<ManageOHT />} />
+              <Route path="manage-pumphouse" element={<ManagePumpHouse />} />
+              <Route path="view-roaster" element={<ViewRoaster />} />
+              <Route path="view-water-quality" element={<ViewWaterQuality />} />
+              <Route path="reporting" element={<MISReportingPage />} />
+              <Route path="fee-management" element={<FeeManagementPage />} />
+            </Route>
+          </Route>
+
+          <Route element={<PrivateRoute allowedRoles={["ado"]} />}>
+            <Route path="/ado/*" element={
+              <div style={{ marginTop: '40px' }}>
+                <DashboardLayout role="ado" />
+              </div>
+            }>
+              <Route path="dashboard" element={<DirectorMonitoring />} />
+              <Route path="manage-beneficiary" element={<ManageBeneficiary />} />
+              <Route path="manage-complaint" element={<ManageComplaint />} />
+              <Route path="manage-oht" element={<ManageOHT />} />
+              <Route path="manage-pumphouse" element={<ManagePumpHouse />} />
+              <Route path="view-roaster" element={<ViewRoaster />} />
+              <Route path="view-water-quality" element={<ViewWaterQuality />} />
+              <Route path="reporting" element={<MISReportingPage />} />
+              <Route path="fee-management" element={<FeeManagementPage />} />
+            </Route>
+          </Route>
+
+
           {/* Gram Panchayat protected routes */}
           <Route element={<PrivateRoute allowedRoles={["gram panchayat"]} />}>
             <Route path="/gp/*" element={

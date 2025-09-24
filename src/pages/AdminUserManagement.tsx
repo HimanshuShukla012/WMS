@@ -19,6 +19,7 @@ interface LocationUser {
   username: string;
   password: string;
   active: boolean;
+  divisionname: string; // Added division field
 }
 
 interface HQUser {
@@ -32,6 +33,7 @@ interface HQUser {
 type District = { DistrictId: number; DistrictName: string };
 type Block = { BlockId: number; BlockName: string };
 type GramPanchayat = { Id: number; GramPanchayatName: string };
+type Division = { DivisionId: number; DivisionName: string }; // Added Division type
 
 // -------------------- Utils --------------------
 const normalizeKey = (label: string) =>
@@ -87,20 +89,24 @@ const UserManagement = () => {
   const [searchHq, setSearchHq] = useState("");
 
   // -------------------- State for dropdowns --------------------
+  const [divisions, setDivisions] = useState<Division[]>([]);
   const [districts, setDistricts] = useState<District[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [gramPanchayats, setGramPanchayats] = useState<GramPanchayat[]>([]);
 
+  const [selectedDivisionId, setSelectedDivisionId] = useState<number | null>(null);
   const [selectedDistrictId, setSelectedDistrictId] = useState<number | null>(null);
   const [selectedBlockId, setSelectedBlockId] = useState<number | null>(null);
   const [selectedGramPanchayatId, setSelectedGramPanchayatId] = useState<number | null>(null);
 
   // Search states for dropdowns
+  const [divisionSearch, setDivisionSearch] = useState("");
   const [districtSearch, setDistrictSearch] = useState("");
   const [blockSearch, setBlockSearch] = useState("");
   const [gramPanchayatSearch, setGramPanchayatSearch] = useState("");
 
   // Dropdown open/close states
+  const [isDivisionOpen, setIsDivisionOpen] = useState(false);
   const [isDistrictOpen, setIsDistrictOpen] = useState(false);
   const [isBlockOpen, setIsBlockOpen] = useState(false);
   const [isGramPanchayatOpen, setIsGramPanchayatOpen] = useState(false);
@@ -109,6 +115,7 @@ const UserManagement = () => {
   const [showModal, setShowModal] = useState(false);
   const [newUser, setNewUser] = useState({
     role: "",
+    division: "",
     district: "",
     block: "",
     grampanchayat: "",
@@ -118,19 +125,65 @@ const UserManagement = () => {
     confirmPassword: "",
   });
 
-  // -------------------- Fetch Districts --------------------
-  useEffect(() => {
-    if (!showModal || newUser.role !== "Gram Panchayat") return;
+  // Helper function to determine which location fields are required based on role
+  const getRequiredLocationFields = (role: string) => {
+    switch (role) {
+      case "DD":
+        return { division: true, district: false, block: false, gramPanchayat: false };
+      case "DPRO":
+        return { division: false, district: true, block: false, gramPanchayat: false };
+      case "ADO":
+        return { division: false, district: false, block: true, gramPanchayat: false };
+      case "Gram Panchayat":
+        return { division: true, district: true, block: true, gramPanchayat: true };
+      default:
+        return { division: false, district: false, block: false, gramPanchayat: false };
+    }
+  };
 
-    fetch("https://wmsapi.kdsgroup.co.in/api/Master/AllDistrict", {
-      method: "POST",
-      headers: { accept: "*/*", "Content-Type": "application/json" },
-      body: JSON.stringify({}), // Empty body as no parameters are required
+  // -------------------- Fetch Divisions --------------------
+  useEffect(() => {
+    const requiredFields = getRequiredLocationFields(newUser.role);
+    if (!showModal || !requiredFields.division) return;
+
+    // Use the correct division API endpoint
+    fetch("https://wmsapi.kdsgroup.co.in/api/Master/GetDivisionList", {
+      method: "GET",
+      headers: { accept: "*/*" },
     })
       .then((res) => res.json())
       .then((data) => {
         if (data.Status && data.Data?.length) {
-          // Sort districts alphabetically by DistrictName
+          const sortedDivisions = data.Data.sort((a: Division, b: Division) =>
+            a.DivisionName.localeCompare(b.DivisionName)
+          );
+          setDivisions(sortedDivisions);
+          setSelectedDivisionId(sortedDivisions[0]?.DivisionId || null);
+        } else {
+          setDivisions([]);
+          setSelectedDivisionId(null);
+        }
+      })
+      .catch((err) => {
+        console.error("Error fetching divisions:", err);
+        setDivisions([]);
+        setSelectedDivisionId(null);
+      });
+  }, [showModal, newUser.role]);
+
+  // -------------------- Fetch Districts --------------------
+  useEffect(() => {
+    const requiredFields = getRequiredLocationFields(newUser.role);
+    if (!showModal || !requiredFields.district) return;
+
+    fetch("https://wmsapi.kdsgroup.co.in/api/Master/AllDistrict", {
+      method: "POST",
+      headers: { accept: "*/*", "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.Status && data.Data?.length) {
           const sortedDistricts = data.Data.sort((a: District, b: District) =>
             a.DistrictName.localeCompare(b.DistrictName)
           );
@@ -150,17 +203,26 @@ const UserManagement = () => {
 
   // -------------------- Fetch Blocks --------------------
   useEffect(() => {
-    if (!selectedDistrictId) return;
+    const requiredFields = getRequiredLocationFields(newUser.role);
+    if (!requiredFields.block) return;
+    if (requiredFields.district && !selectedDistrictId) return;
+    if (newUser.role === "ADO" && !showModal) return;
 
-    fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetAllBlocks?DistrictId=${selectedDistrictId}`, {
+    // For ADO role, we need to fetch all blocks or handle differently
+    // For now, using the same logic but may need adjustment based on API
+    let apiUrl = "https://wmsapi.kdsgroup.co.in/api/Master/GetAllBlocks";
+    if (selectedDistrictId) {
+      apiUrl += `?DistrictId=${selectedDistrictId}`;
+    }
+
+    fetch(apiUrl, {
       method: "POST",
       headers: { accept: "*/*", "Content-Type": "application/json" },
-      body: JSON.stringify({}), // Empty body as DistrictId is in query
+      body: JSON.stringify({}),
     })
       .then((res) => res.json())
       .then((data) => {
         if (data.Status && data.Data?.length) {
-          // Sort blocks alphabetically by BlockName
           const sortedBlocks = data.Data.sort((a: Block, b: Block) =>
             a.BlockName.localeCompare(b.BlockName)
           );
@@ -176,21 +238,20 @@ const UserManagement = () => {
         setBlocks([]);
         setSelectedBlockId(null);
       });
-  }, [selectedDistrictId]);
+  }, [selectedDistrictId, showModal, newUser.role]);
 
   // -------------------- Fetch Gram Panchayats --------------------
   useEffect(() => {
-    if (!selectedBlockId) return;
+    if (!selectedBlockId || newUser.role !== "Gram Panchayat") return;
 
     fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetAllGramPanchayat?BlockId=${selectedBlockId}`, {
       method: "POST",
       headers: { accept: "*/*", "Content-Type": "application/json" },
-      body: JSON.stringify({}), // Empty body as BlockId is in query
+      body: JSON.stringify({}),
     })
       .then((res) => res.json())
       .then((data) => {
         if (data.Status && data.Data?.length) {
-          // Sort gram panchayats alphabetically by GramPanchayatName
           const sortedGramPanchayats = data.Data.sort((a: GramPanchayat, b: GramPanchayat) =>
             a.GramPanchayatName.localeCompare(b.GramPanchayatName)
           );
@@ -206,7 +267,7 @@ const UserManagement = () => {
         setGramPanchayats([]);
         setSelectedGramPanchayatId(null);
       });
-  }, [selectedBlockId]);
+  }, [selectedBlockId, newUser.role]);
 
   // -------------------- Create User --------------------
   const createUser = () => {
@@ -237,115 +298,117 @@ const UserManagement = () => {
 
     // Determine RoleId based on role selection
     let roleId: number;
-    if (newUser.role === "Admin") {
-      roleId = 1;
-    } else if (newUser.role === "Gram Panchayat") {
-      roleId = 3;
-    } else {
-      alert("Invalid role selected");
+    switch (newUser.role) {
+      case "Admin":
+        roleId = 1;
+        break;
+      case "Call Center":
+        roleId = 2;
+        break;
+      case "Gram Panchayat":
+        roleId = 3;
+        break;
+      case "Director":
+        roleId = 4;
+        break;
+      case "DD":
+        roleId = 5;
+        break;
+      case "ADO":
+        roleId = 6;
+        break;
+      case "DPRO":
+        roleId = 7;
+        break;
+      default:
+        alert("Invalid role selected");
+        return;
+    }
+
+    // Validate required location fields based on role
+    const requiredFields = getRequiredLocationFields(newUser.role);
+    
+    if (requiredFields.division && !selectedDivisionId) {
+      alert("Please select a Division");
+      return;
+    }
+    
+    if (requiredFields.district && !selectedDistrictId) {
+      alert("Please select a District");
+      return;
+    }
+    
+    if (requiredFields.block && !selectedBlockId) {
+      alert("Please select a Block");
+      return;
+    }
+    
+    if (requiredFields.gramPanchayat && !selectedGramPanchayatId) {
+      alert("Please select a Gram Panchayat");
       return;
     }
 
-    if (newUser.role === "Gram Panchayat") {
-      if (!selectedDistrictId || !selectedBlockId || !selectedGramPanchayatId) {
-        alert("Please select District, Block, and Gram Panchayat");
-        return;
-      }
+    // Prepare payload based on role requirements
+    const payload = {
+      UserName: newUser.userId,
+      Password: newUser.password,
+      Email: newUser.email,
+      DistrictId: requiredFields.district ? (selectedDistrictId || 0) : 0,
+      BlockId: requiredFields.block ? (selectedBlockId || 0) : 0,
+      RoleId: roleId,
+      GPId: requiredFields.gramPanchayat ? (selectedGramPanchayatId || 0) : 0,
+      CreatedBy: parseInt(String(userId) || "0"),
+      UpdatedBy: 0,
+      DeviceToken: "",
+      IPAddress: "",
+      Status: 1,
+      division_id: requiredFields.division ? (selectedDivisionId || 0) : 0,
+    };
 
-      const payload = {
-        UserName: newUser.userId,
-        Password: newUser.password,
-        Email: newUser.email,
-        DistrictId: selectedDistrictId,
-        BlockId: selectedBlockId,
-        RoleId: roleId,
-        GPId: selectedGramPanchayatId,
-        CreatedBy: parseInt(String(userId) || "0"),
-        UpdatedBy: 0,
-        DeviceToken: "",
-        IPAddress: "",
-        Status: 1,
-      };
-
-      fetch("https://wmsapi.kdsgroup.co.in/api/User/InsertNewUserDetailsByAdmin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+    fetch("https://wmsapi.kdsgroup.co.in/api/User/InsertNewUserDetailsByAdmin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        alert(data.Message || "User created");
+        if (data.Status) {
+          resetForm();
+          window.location.reload();
+        }
       })
-        .then((res) => res.json())
-        .then((data) => {
-          alert(data.Message || "User created");
-          if (data.Status) {
-            setShowModal(false);
-            setNewUser({
-              role: "",
-              district: "",
-              block: "",
-              grampanchayat: "",
-              userId: "",
-              email: "",
-              password: "",
-              confirmPassword: "",
-            });
-            setDistrictSearch("");
-            setBlockSearch("");
-            setGramPanchayatSearch("");
-            setIsDistrictOpen(false);
-            setIsBlockOpen(false);
-            setIsGramPanchayatOpen(false);
-            setSelectedDistrictId(null);
-            setSelectedBlockId(null);
-            setSelectedGramPanchayatId(null);
-            window.location.reload();
-          }
-        })
-        .catch((err) => {
-          console.error(err);
-          alert("Failed to create user");
-        });
-    } else if (newUser.role === "Admin") {
-      const payload = {
-        UserName: newUser.userId,
-        Password: newUser.password,
-        Email: newUser.email,
-        DistrictId: 0,
-        BlockId: 0,
-        RoleId: roleId,
-        GPId: 0,
-        CreatedBy: parseInt(String(userId) || "0"),
-        UpdatedBy: 0,
-        DeviceToken: "",
-        IPAddress: "",
-        Status: 1,
-      };
+      .catch((err) => {
+        console.error(err);
+        alert("Failed to create user");
+      });
 
-      fetch("https://wmsapi.kdsgroup.co.in/api/User/InsertNewUserDetailsByAdmin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          alert(data.Message || "User created");
-          if (data.Status) {
-            setShowModal(false);
-            setNewUser({
-              role: "",
-              district: "",
-              block: "",
-              grampanchayat: "",
-              userId: "",
-              email: "",
-              password: "",
-              confirmPassword: "",
-            });
-            window.location.reload();
-          }
-        })
-        .catch((err) => {
-          console.error(err);
-          alert("Failed to create user");
-        });
+    // Helper function to reset form
+    function resetForm() {
+      setShowModal(false);
+      setNewUser({
+        role: "",
+        division: "",
+        district: "",
+        block: "",
+        grampanchayat: "",
+        userId: "",
+        email: "",
+        password: "",
+        confirmPassword: "",
+      });
+      setDivisionSearch("");
+      setDistrictSearch("");
+      setBlockSearch("");
+      setGramPanchayatSearch("");
+      setIsDivisionOpen(false);
+      setIsDistrictOpen(false);
+      setIsBlockOpen(false);
+      setIsGramPanchayatOpen(false);
+      setSelectedDivisionId(null);
+      setSelectedDistrictId(null);
+      setSelectedBlockId(null);
+      setSelectedGramPanchayatId(null);
     }
   };
 
@@ -366,6 +429,7 @@ const UserManagement = () => {
             username: u.UserName,
             password: u.Password,
             active: u.Status === 1,
+            divisionname: u.divisionname,
           }));
           setLocationUsers(users);
         }
@@ -399,7 +463,7 @@ const UserManagement = () => {
     const q = searchLocation.trim().toLowerCase();
     if (!q) return locationUsers;
     return locationUsers.filter((u) =>
-      [u.district, u.block, u.grampanchayat, u.username, u.password]
+      [u.district, u.block, u.grampanchayat, u.username, u.password, u.divisionname]
         .join(" ")
         .toLowerCase()
         .includes(q)
@@ -413,6 +477,13 @@ const UserManagement = () => {
       [u.role, u.username, u.password].join(" ").toLowerCase().includes(q)
     );
   }, [hqUsers, searchHq]);
+
+  const filteredDivisions = useMemo(() => {
+    if (!divisionSearch.trim()) return divisions;
+    return divisions.filter((d) =>
+      d.DivisionName.toLowerCase().includes(divisionSearch.toLowerCase())
+    );
+  }, [divisions, divisionSearch]);
 
   const filteredDistricts = useMemo(() => {
     if (!districtSearch.trim()) return districts;
@@ -672,8 +743,8 @@ const UserManagement = () => {
     );
   };
 
-  // column sets
-  const locationColumns = ["District", "Block", "Grampanchayat", "Username", "Password"];
+  // column sets - Updated to include Division
+  const locationColumns = ["Division", "District", "Block", "Grampanchayat", "Username", "Password"];
   const hqColumns = ["Role", "Username", "Password"];
 
   // toolbar nodes
@@ -741,6 +812,9 @@ const UserManagement = () => {
     </div>
   );
 
+  // Get the required fields for the current role to conditionally render dropdowns
+  const requiredFields = getRequiredLocationFields(newUser.role);
+
   return (
     <div className="p-6 relative z-10">
       {/* Header */}
@@ -756,165 +830,205 @@ const UserManagement = () => {
           <PlusCircle size={18} />
           Create New User
         </button>
-      </div>
+        </div>
 
-      {/* Location-Based Users */}
-      <Table<LocationUser>
+      {/* Tables */}
+      <Table
         title="Location-Based Users"
-        columns={locationColumns}
         data={filteredLocationUsers}
+        columns={locationColumns}
         toolbar={LocationToolbar}
       />
 
-      {/* HQ / Call Center Users */}
-      <Table<HQUser>
-        title="HQ / Admin Users"
-        columns={hqColumns}
+      <Table
+        title="Headquarters Users"
         data={filteredHqUsers}
+        columns={hqColumns}
         toolbar={HqToolbar}
       />
 
       {/* Create User Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-[9999]">
-          <div className="bg-white p-6 rounded-lg w-[420px] shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Create New User</h2>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Create New User</h3>
               <button
                 onClick={() => setShowModal(false)}
-                className="inline-flex items-center gap-1 px-3 py-1 rounded border hover:bg-gray-50"
-                title="Close"
+                className="text-gray-500 hover:text-gray-700"
               >
-                <X size={16} />
-                Close
+                <X size={20} />
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
+              {/* Role Selection */}
               <div>
-                <label className="block text-sm mb-1">Role</label>
+                <label className="block text-sm mb-1">Role *</label>
                 <select
                   value={newUser.role}
-                  onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                  className="border p-2 rounded w-full text-sm"
+                  onChange={(e) => {
+                    setNewUser({ ...newUser, role: e.target.value });
+                    // Reset location selections when role changes
+                    setSelectedDivisionId(null);
+                    setSelectedDistrictId(null);
+                    setSelectedBlockId(null);
+                    setSelectedGramPanchayatId(null);
+                  }}
+                  className="w-full border p-2 rounded text-sm"
                 >
                   <option value="">Select Role</option>
                   <option value="Admin">Admin</option>
+                  <option value="Call Center">Call Center</option>
+                  <option value="Director">Director</option>
+                  <option value="DD">DD (Division)</option>
+                  <option value="DPRO">DPRO (District)</option>
+                  <option value="ADO">ADO (Block)</option>
                   <option value="Gram Panchayat">Gram Panchayat</option>
                 </select>
               </div>
 
-              {newUser.role === "Gram Panchayat" && (
-                <>
-                  <SearchableDropdown
-                    label="District"
-                    options={filteredDistricts}
-                    selectedValue={selectedDistrictId}
-                    onSelect={(value) => {
-                      setSelectedDistrictId(value);
-                      setSelectedBlockId(null);
-                      setSelectedGramPanchayatId(null);
-                      setDistrictSearch("");
-                    }}
-                    searchValue={districtSearch}
-                    onSearchChange={setDistrictSearch}
-                    isOpen={isDistrictOpen}
-                    setIsOpen={setIsDistrictOpen}
-                    displayKey="DistrictName"
-                    valueKey="DistrictId"
-                    placeholder="Select District"
-                  />
-
-                  <SearchableDropdown
-                    label="Block"
-                    options={filteredBlocks}
-                    selectedValue={selectedBlockId}
-                    onSelect={(value) => {
-                      setSelectedBlockId(value);
-                      setSelectedGramPanchayatId(null);
-                      setBlockSearch("");
-                    }}
-                    searchValue={blockSearch}
-                    onSearchChange={setBlockSearch}
-                    isOpen={isBlockOpen}
-                    setIsOpen={setIsBlockOpen}
-                    displayKey="BlockName"
-                    valueKey="BlockId"
-                    placeholder="Select Block"
-                  />
-
-                  <SearchableDropdown
-                    label="Gram Panchayat"
-                    options={filteredGramPanchayats}
-                    selectedValue={selectedGramPanchayatId}
-                    onSelect={(value) => {
-                      setSelectedGramPanchayatId(value);
-                      setGramPanchayatSearch("");
-                    }}
-                    searchValue={gramPanchayatSearch}
-                    onSearchChange={setGramPanchayatSearch}
-                    isOpen={isGramPanchayatOpen}
-                    setIsOpen={setIsGramPanchayatOpen}
-                    displayKey="GramPanchayatName"
-                    valueKey="Id"
-                    placeholder="Select Gram Panchayat"
-                  />
-                </>
+              {/* Division Dropdown - Only for DD and Gram Panchayat */}
+              {requiredFields.division && (
+                <SearchableDropdown
+                  label="Division *"
+                  options={filteredDivisions}
+                  selectedValue={selectedDivisionId}
+                  onSelect={(value) => {
+                    setSelectedDivisionId(value);
+                    setDivisionSearch("");
+                  }}
+                  searchValue={divisionSearch}
+                  onSearchChange={setDivisionSearch}
+                  isOpen={isDivisionOpen}
+                  setIsOpen={setIsDivisionOpen}
+                  displayKey="DivisionName"
+                  valueKey="DivisionId"
+                  placeholder="Select Division"
+                />
               )}
 
+              {/* District Dropdown - Only for DPRO and Gram Panchayat */}
+              {requiredFields.district && (
+                <SearchableDropdown
+                  label="District *"
+                  options={filteredDistricts}
+                  selectedValue={selectedDistrictId}
+                  onSelect={(value) => {
+                    setSelectedDistrictId(value);
+                    setDistrictSearch("");
+                  }}
+                  searchValue={districtSearch}
+                  onSearchChange={setDistrictSearch}
+                  isOpen={isDistrictOpen}
+                  setIsOpen={setIsDistrictOpen}
+                  displayKey="DistrictName"
+                  valueKey="DistrictId"
+                  placeholder="Select District"
+                />
+              )}
+
+              {/* Block Dropdown - Only for ADO and Gram Panchayat */}
+              {requiredFields.block && (
+                <SearchableDropdown
+                  label="Block *"
+                  options={filteredBlocks}
+                  selectedValue={selectedBlockId}
+                  onSelect={(value) => {
+                    setSelectedBlockId(value);
+                    setBlockSearch("");
+                  }}
+                  searchValue={blockSearch}
+                  onSearchChange={setBlockSearch}
+                  isOpen={isBlockOpen}
+                  setIsOpen={setIsBlockOpen}
+                  displayKey="BlockName"
+                  valueKey="BlockId"
+                  placeholder="Select Block"
+                />
+              )}
+
+              {/* Gram Panchayat Dropdown - Only for Gram Panchayat role */}
+              {requiredFields.gramPanchayat && (
+                <SearchableDropdown
+                  label="Gram Panchayat *"
+                  options={filteredGramPanchayats}
+                  selectedValue={selectedGramPanchayatId}
+                  onSelect={(value) => {
+                    setSelectedGramPanchayatId(value);
+                    setGramPanchayatSearch("");
+                  }}
+                  searchValue={gramPanchayatSearch}
+                  onSearchChange={setGramPanchayatSearch}
+                  isOpen={isGramPanchayatOpen}
+                  setIsOpen={setIsGramPanchayatOpen}
+                  displayKey="GramPanchayatName"
+                  valueKey="Id"
+                  placeholder="Select Gram Panchayat"
+                />
+              )}
+
+              {/* Username */}
               <div>
-                <label className="block text-sm mb-1">Username</label>
+                <label className="block text-sm mb-1">Username *</label>
                 <input
                   type="text"
                   value={newUser.userId}
                   onChange={(e) => setNewUser({ ...newUser, userId: e.target.value })}
-                  className="border p-2 rounded w-full text-sm"
+                  className="w-full border p-2 rounded text-sm"
                   placeholder="Enter username"
                 />
               </div>
 
+              {/* Email */}
               <div>
-                <label className="block text-sm mb-1">Email</label>
+                <label className="block text-sm mb-1">Email *</label>
                 <input
                   type="email"
                   value={newUser.email}
                   onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                  className="border p-2 rounded w-full text-sm"
-                  placeholder="Enter email address"
+                  className="w-full border p-2 rounded text-sm"
+                  placeholder="Enter email"
                 />
               </div>
 
+              {/* Password */}
               <div>
-                <label className="block text-sm mb-1">Password</label>
+                <label className="block text-sm mb-1">Password *</label>
                 <input
                   type="password"
                   value={newUser.password}
                   onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                  className="border p-2 rounded w-full text-sm"
+                  className="w-full border p-2 rounded text-sm"
                   placeholder="Enter password"
                 />
               </div>
 
+              {/* Confirm Password */}
               <div>
-                <label className="block text-sm mb-1">Confirm Password</label>
+                <label className="block text-sm mb-1">Confirm Password *</label>
                 <input
                   type="password"
                   value={newUser.confirmPassword}
-                  onChange={(e) =>
-                    setNewUser({ ...newUser, confirmPassword: e.target.value })
-                  }
-                  className="border p-2 rounded w-full text-sm"
-                  placeholder="Re-enter password"
+                  onChange={(e) => setNewUser({ ...newUser, confirmPassword: e.target.value })}
+                  className="w-full border p-2 rounded text-sm"
+                  placeholder="Confirm password"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-4">
                 <button
                   onClick={createUser}
-                  className="inline-flex items-center gap-1 px-4 py-2 rounded bg-indigo-600 text-white hover:bg-indigo-700"
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm"
                 >
-                  <CheckCircle2 size={18} />
-                  Create
+                  Create User
+                </button>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded text-sm"
+                >
+                  Cancel
                 </button>
               </div>
             </div>
@@ -922,94 +1036,101 @@ const UserManagement = () => {
         </div>
       )}
 
+      {/* Change Password Modal */}
       {showPasswordModal && passwordUser && (
-        <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-[9999]">
-          <div className="bg-white p-6 rounded-lg w-[400px] shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Change Password</h2>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Change Password</h3>
               <button
                 onClick={() => setShowPasswordModal(false)}
-                className="inline-flex items-center gap-1 px-3 py-1 rounded border hover:bg-gray-50"
-                title="Close"
+                className="text-gray-500 hover:text-gray-700"
               >
-                <X size={16} />
+                <X size={20} />
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div>
-                <label className="block text-sm mb-1">Old Password</label>
+                <label className="block text-sm mb-1">Username</label>
+                <input
+                  type="text"
+                  value={passwordUser.username}
+                  disabled
+                  className="w-full border p-2 rounded text-sm bg-gray-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm mb-1">Old Password *</label>
                 <input
                   type="password"
                   value={oldPassword}
                   onChange={(e) => setOldPassword(e.target.value)}
-                  className="border p-2 rounded w-full text-sm"
-                  placeholder="Enter old password"
+                  className="w-full border p-2 rounded text-sm"
+                  placeholder="Enter current password"
                 />
               </div>
 
               <div>
-                <label className="block text-sm mb-1">New Password</label>
+                <label className="block text-sm mb-1">New Password *</label>
                 <input
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="border p-2 rounded w-full text-sm"
+                  className="w-full border p-2 rounded text-sm"
                   placeholder="Enter new password"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  onClick={() => setShowPasswordModal(false)}
-                  className="inline-flex items-center gap-1 px-4 py-2 rounded border hover:bg-gray-50"
-                >
-                  <X size={16} /> Cancel
-                </button>
-
+              <div className="flex gap-2 pt-4">
                 <button
                   onClick={() => {
-                    if (!oldPassword || !newPassword) return alert("Please fill both fields");
+                    if (!oldPassword || !newPassword) {
+                      alert("Please fill in both password fields");
+                      return;
+                    }
+                    
+                    const payload = {
+                      UserId: passwordUser.id,
+                      OldPassword: oldPassword,
+                      NewPassword: newPassword,
+                    };
 
-                    fetch("https://wmsapi.kdsgroup.co.in/api/User/UserChangePassword", {
+                    fetch("https://wmsapi.kdsgroup.co.in/api/User/ChangePasswordByAdmin", {
                       method: "POST",
-                      headers: { "Content-Type": "application/json", accept: "*/*" },
-                      body: JSON.stringify({
-                        UserId: passwordUser.id,
-                        OldPassword: oldPassword,
-                        NewPassword: newPassword,
-                      }),
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(payload),
                     })
                       .then((res) => res.json())
                       .then((data) => {
+                        alert(data.Message || "Password updated");
                         if (data.Status) {
-                          alert(data.Message || "Password updated successfully");
-                          if (locationUsers.some((u) => u.id === passwordUser.id)) {
-                            setLocationUsers((prev) =>
-                              prev.map((u) =>
-                                u.id === passwordUser.id ? { ...u, password: newPassword } : u
-                              )
-                            );
-                          } else {
-                            setHqUsers((prev) =>
-                              prev.map((u) =>
-                                u.id === passwordUser.id ? { ...u, password: newPassword } : u
-                              )
-                            );
-                          }
                           setShowPasswordModal(false);
-                        } else {
-                          alert("Failed to update password");
+                          setOldPassword("");
+                          setNewPassword("");
+                          setPasswordUser(null);
                         }
                       })
                       .catch((err) => {
-                        console.error(err);
-                        alert("Failed to update password");
+                        console.error("Error changing password:", err);
+                        alert("Failed to change password");
                       });
                   }}
-                  className="inline-flex items-center gap-1 px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm"
                 >
-                  <CheckCircle2 size={16} /> Update
+                  Change Password
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPasswordModal(false);
+                    setOldPassword("");
+                    setNewPassword("");
+                    setPasswordUser(null);
+                  }}
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded text-sm"
+                >
+                  Cancel
                 </button>
               </div>
             </div>

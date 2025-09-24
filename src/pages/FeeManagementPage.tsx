@@ -2,9 +2,29 @@ import React, { useState, useEffect } from "react";
 import { useUserInfo } from '../utils/userInfo';
 
 // ---------- Types ----------
+type District = {
+  DistrictId: number;
+  DistrictName: string;
+};
+
+type Block = {
+  BlockId: number;
+  BlockName: string;
+  Id: number;
+  DistrictId: number;
+};
+
+type GramPanchayat = {
+  Id: number;
+  GramPanchayatName: string;
+  BlockId: number;
+};
+
 type Village = {
-  VillageId: number;
+  Id: number;
+  GramPanchayatId: number;
   VillageName: string;
+  VillageNameHindi: string;
 };
 
 type FeeCollectionData = {
@@ -31,9 +51,12 @@ type AnalyticsSummary = {
 
 // ---------- Component ----------
 const FeeManagementPage: React.FC = () => {
-  const { userId } = useUserInfo();
+  const { userId, userRole } = useUserInfo(); // Assuming userRole is available
 
   // ---------- State ----------
+  const [districts, setDistricts] = useState<District[]>([]);
+  const [blocks, setBlocks] = useState<Block[]>([]);
+  const [gramPanchayats, setGramPanchayats] = useState<GramPanchayat[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
   const [feeData, setFeeData] = useState<FeeCollectionData[]>([]);
   const [filteredData, setFilteredData] = useState<FeeCollectionData[]>([]);
@@ -49,6 +72,9 @@ const FeeManagementPage: React.FC = () => {
   const [error, setError] = useState<string>("");
 
   // Filter states
+  const [selectedDistrict, setSelectedDistrict] = useState<string>("");
+  const [selectedBlock, setSelectedBlock] = useState<string>("");
+  const [selectedGramPanchayat, setSelectedGramPanchayat] = useState<string>("");
   const [selectedVillage, setSelectedVillage] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [selectedYear, setSelectedYear] = useState<string>("");
@@ -94,10 +120,114 @@ const FeeManagementPage: React.FC = () => {
     }));
   };
 
-  // ---------- API Functions ----------
-  const fetchVillages = async () => {
-    
+  const isAdminOrDirector = (): boolean => {
+    return userRole === 'Admin' || userRole === 'Director';
+  };
 
+  // ---------- API Functions ----------
+  const fetchDistricts = async () => {
+    try {
+      const response = await fetch(
+        `https://wmsapi.kdsgroup.co.in/api/Master/GetDistrict?UserId=${userId}`,
+        {
+          method: 'POST',
+          headers: { 'accept': '*/*' }
+        }
+      );
+      const result = await response.json();
+      
+      if (result.Status && result.Data) {
+        setDistricts(result.Data);
+      } else {
+        setError("Failed to fetch districts");
+      }
+    } catch (error) {
+      console.error('Error fetching districts:', error);
+      setError("Error loading districts");
+    }
+  };
+
+  const fetchBlocks = async (districtId: number) => {
+    try {
+      const response = await fetch(
+        `https://wmsapi.kdsgroup.co.in/api/Master/GetAllBlocks?DistrictId=${districtId}`,
+        {
+          method: 'POST',
+          headers: { 'accept': '*/*' }
+        }
+      );
+      const result = await response.json();
+      
+      if (result.Status && result.Data) {
+        setBlocks(result.Data);
+      } else {
+        setBlocks([]);
+        setError("Failed to fetch blocks");
+      }
+    } catch (error) {
+      console.error('Error fetching blocks:', error);
+      setBlocks([]);
+      setError("Error loading blocks");
+    }
+  };
+
+  const fetchGramPanchayats = async (blockId: number) => {
+    try {
+      const response = await fetch(
+        `https://wmsapi.kdsgroup.co.in/api/Master/GetAllGramPanchayat?BlockId=${blockId}`,
+        {
+          method: 'POST',
+          headers: { 'accept': '*/*' }
+        }
+      );
+      const result = await response.json();
+      
+      if (result.Status && result.Data) {
+        setGramPanchayats(result.Data);
+      } else {
+        setGramPanchayats([]);
+        setError("Failed to fetch gram panchayats");
+      }
+    } catch (error) {
+      console.error('Error fetching gram panchayats:', error);
+      setGramPanchayats([]);
+      setError("Error loading gram panchayats");
+    }
+  };
+
+  const fetchVillages = async (blockId: number, gramPanchayatId: number) => {
+    try {
+      const response = await fetch(
+        'https://wmsapi.kdsgroup.co.in/api/Master/GetVillegeByGramPanchayat',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'accept': '*/*'
+          },
+          body: JSON.stringify({
+            BlockId: blockId,
+            GramPanchayatId: gramPanchayatId
+          })
+        }
+      );
+      const result = await response.json();
+      
+      if (result.Status && result.Data) {
+        setVillages(result.Data);
+      } else {
+        setVillages([]);
+        setError("Failed to fetch villages");
+      }
+    } catch (error) {
+      console.error('Error fetching villages:', error);
+      setVillages([]);
+      setError("Error loading villages");
+    }
+  };
+
+  // Original village fetch for non-admin/director users
+  const fetchVillagesByUserId = async () => {
     try {
       const response = await fetch(
         `https://wmsapi.kdsgroup.co.in/api/Master/GetVillageListByUserId?UserId=${userId}`,
@@ -109,7 +239,14 @@ const FeeManagementPage: React.FC = () => {
       const result = await response.json();
       
       if (result.Status && result.Data) {
-        setVillages(result.Data);
+        // Convert to match the new Village type structure
+        const convertedVillages = result.Data.map((village: any) => ({
+          Id: village.VillageId,
+          GramPanchayatId: 0, // Not available in this API
+          VillageName: village.VillageName,
+          VillageNameHindi: ""
+        }));
+        setVillages(convertedVillages);
       } else {
         setError("Failed to fetch villages");
       }
@@ -135,7 +272,8 @@ const FeeManagementPage: React.FC = () => {
           body: JSON.stringify({
             VillageId: villageId,
             Month: month,
-            Year: year
+            Year: year,
+            p_user_id: userId
           })
         }
       );
@@ -155,7 +293,7 @@ const FeeManagementPage: React.FC = () => {
   };
 
   const fetchAllFeeData = async () => {
-    if (!selectedYear || villages.length === 0) return;
+    if (!selectedYear) return;
 
     setLoading(true);
     setError("");
@@ -172,8 +310,6 @@ const FeeManagementPage: React.FC = () => {
         const data = await fetchFeeCollectionData(villageId, month, year);
         allData = data;
       }
-      
-          
 
       // Remove duplicates based on FeeCollectionId
       const uniqueData = allData.filter((item, index, self) => 
@@ -215,9 +351,46 @@ const FeeManagementPage: React.FC = () => {
   // ---------- Effects ----------
   useEffect(() => {
     if (userId) {
-      fetchVillages();
+      if (isAdminOrDirector()) {
+        fetchDistricts();
+      } else {
+        fetchVillagesByUserId();
+      }
     } 
-  }, [userId]);
+  }, [userId, userRole]);
+
+  // Handle district selection
+  useEffect(() => {
+    if (selectedDistrict && isAdminOrDirector()) {
+      fetchBlocks(parseInt(selectedDistrict));
+      setSelectedBlock("");
+      setSelectedGramPanchayat("");
+      setSelectedVillage("");
+      setBlocks([]);
+      setGramPanchayats([]);
+      setVillages([]);
+    }
+  }, [selectedDistrict]);
+
+  // Handle block selection
+  useEffect(() => {
+    if (selectedBlock && isAdminOrDirector()) {
+      fetchGramPanchayats(parseInt(selectedBlock));
+      setSelectedGramPanchayat("");
+      setSelectedVillage("");
+      setGramPanchayats([]);
+      setVillages([]);
+    }
+  }, [selectedBlock]);
+
+  // Handle gram panchayat selection
+  useEffect(() => {
+    if (selectedGramPanchayat && selectedBlock && isAdminOrDirector()) {
+      fetchVillages(parseInt(selectedBlock), parseInt(selectedGramPanchayat));
+      setSelectedVillage("");
+      setVillages([]);
+    }
+  }, [selectedGramPanchayat, selectedBlock]);
 
   useEffect(() => {
     if (selectedYear) {
@@ -295,7 +468,14 @@ const FeeManagementPage: React.FC = () => {
   };
 
   const handleClearFilters = () => {
-    setSelectedVillage("");
+    if (isAdminOrDirector()) {
+      setSelectedDistrict("");
+      setSelectedBlock("");
+      setSelectedGramPanchayat("");
+      setSelectedVillage("");
+    } else {
+      setSelectedVillage("");
+    }
     setSelectedMonth("");
     setSearchQuery("");
     setFilteredData(feeData);
@@ -303,8 +483,6 @@ const FeeManagementPage: React.FC = () => {
   };
 
   // ---------- Render ----------
-  
-
   return (
     <div className="p-6 relative z-10">
       <div className="flex flex-col gap-6">
@@ -342,17 +520,75 @@ const FeeManagementPage: React.FC = () => {
             </select>
           </div>
 
+          {/* Hierarchical filters for Admin/Director */}
+          {isAdminOrDirector() && (
+            <>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium mb-1">District</label>
+                <select
+                  className="border border-gray-300 rounded px-3 py-2 min-w-[150px]"
+                  value={selectedDistrict}
+                  onChange={(e) => setSelectedDistrict(e.target.value)}
+                  disabled={loading}
+                >
+                  <option value="">Select District</option>
+                  {districts.map(district => (
+                    <option key={district.DistrictId} value={district.DistrictId.toString()}>
+                      {district.DistrictName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col">
+                <label className="text-sm font-medium mb-1">Block</label>
+                <select
+                  className="border border-gray-300 rounded px-3 py-2 min-w-[150px]"
+                  value={selectedBlock}
+                  onChange={(e) => setSelectedBlock(e.target.value)}
+                  disabled={loading || !selectedDistrict}
+                >
+                  <option value="">Select Block</option>
+                  {blocks.map(block => (
+                    <option key={block.BlockId} value={block.BlockId.toString()}>
+                      {block.BlockName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col">
+                <label className="text-sm font-medium mb-1">Gram Panchayat</label>
+                <select
+                  className="border border-gray-300 rounded px-3 py-2 min-w-[150px]"
+                  value={selectedGramPanchayat}
+                  onChange={(e) => setSelectedGramPanchayat(e.target.value)}
+                  disabled={loading || !selectedBlock}
+                >
+                  <option value="">Select Gram Panchayat</option>
+                  {gramPanchayats.map(gp => (
+                    <option key={gp.Id} value={gp.Id.toString()}>
+                      {gp.GramPanchayatName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+
           <div className="flex flex-col">
             <label className="text-sm font-medium mb-1">Village</label>
             <select
               className="border border-gray-300 rounded px-3 py-2 min-w-[150px]"
               value={selectedVillage}
               onChange={(e) => setSelectedVillage(e.target.value)}
-              disabled={loading}
+              disabled={loading || (isAdminOrDirector() && !selectedGramPanchayat)}
             >
-              <option value="">All Villages</option>
+              <option value="">
+                {isAdminOrDirector() ? "Select Village" : "All Villages"}
+              </option>
               {villages.map(village => (
-                <option key={village.VillageId} value={village.VillageId.toString()}>
+                <option key={village.Id} value={village.Id.toString()}>
                   {village.VillageName}
                 </option>
               ))}
@@ -441,7 +677,7 @@ const FeeManagementPage: React.FC = () => {
           <p className="text-sm text-gray-600">
             Showing {filteredData.length} records
             {selectedYear && ` for FY ${selectedYear}-${(parseInt(selectedYear) + 1).toString().slice(-2)}`}
-            {selectedVillage && ` from ${villages.find(v => v.VillageId.toString() === selectedVillage)?.VillageName}`}
+            {selectedVillage && ` from ${villages.find(v => v.Id.toString() === selectedVillage)?.VillageName}`}
           </p>
         </div>
 
@@ -499,7 +735,7 @@ const FeeManagementPage: React.FC = () => {
                 <p className="text-sm text-gray-600">Collection Efficiency</p>
                 <p className="text-lg font-semibold">
                   {analytics.totalOutstanding + analytics.totalCollected > 0 
-                    ? Math.round((analytics.totalCollected / (analytics.totalOutstanding + analytics.totalCollected)) * 100)
+                    ? Math.round((analytics.totalCollected / (analytics.totalOutstanding)) * 100)
                     : 0}%
                 </p>
               </div>

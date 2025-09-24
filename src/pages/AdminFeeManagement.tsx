@@ -172,229 +172,249 @@ const FeeManagement = () => {
   };
 
   // Save individual district fee
-  const saveDistrictFee = async (district) => {
-    // Validate before saving
-    const feeError = validateDistrictFee(district.fee);
-    if (feeError) {
-      setMessage({ type: "error", text: `${district.name}: ${feeError}` });
-      return;
-    }
+  // Fixed saveDistrictFee function
+const saveDistrictFee = async (district) => {
+  // Validate before saving
+  const feeError = validateDistrictFee(district.fee);
+  if (feeError) {
+    setMessage({ type: "error", text: `${district.name}: ${feeError}` });
+    return;
+  }
 
-    if (!district.fee || district.fee === "0") {
-      setMessage({ type: "error", text: "Please enter a valid fee amount" });
-      return;
-    }
+  if (!district.fee || district.fee === "0") {
+    setMessage({ type: "error", text: "Please enter a valid fee amount" });
+    return;
+  }
 
-    setSaving(true);
-    setMessage({ type: "", text: "" });
+  setSaving(true);
+  setMessage({ type: "", text: "" });
 
-    try {
-      const requestBody = {
-        DistrictId: district.districtId,
-        WaterFeeAmount: parseFloat(district.fee),
-        ApplyFrom: new Date().toISOString(),
-        UserId: userId,
-        DeviceToken: "web_app",
-        IPAddress: "192.168.1.1"
-      };
-
-      const response = await fetch(
-        `${API_BASE}/UpdateStateAndDistrictWiseWaterFee`,
+  try {
+    // FIX: Wrap the district data in WaterFeeList array
+    const requestBody = {
+      WaterFeeList: [
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "accept": "*/*"
-          },
-          body: JSON.stringify(requestBody)
+          DistrictId: district.districtId,
+          WaterFeeAmount: parseFloat(district.fee),
+          ApplyFrom: new Date().toISOString(),
+          UserId: userId,
+          DeviceToken: "web_app",
+          IPAddress: "192.168.1.1"
         }
-      );
+      ]
+    };
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+    console.log('Fixed Request Body:', JSON.stringify(requestBody, null, 2));
+
+    const response = await fetch(
+      `${API_BASE}/UpdateStateAndDistrictWiseWaterFee`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "accept": "*/*"
+        },
+        body: JSON.stringify(requestBody)
       }
+    );
 
-      const data = await response.json();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('Response data:', data);
+    
+    if (data.Status) {
+      setMessage({ type: "success", text: `${data.Message} for ${district.name}` });
+      // Refresh data to get updated values
+      setTimeout(() => {
+        fetchWaterFeeData();
+      }, 1000);
+    } else {
+      throw new Error(data.Message || data.Errror || "Failed to update fee");
+    }
+  } catch (error) {
+    console.error("Error saving district fee:", error);
+    setMessage({ type: "error", text: `Error saving ${district.name}: ${error.message}` });
+  } finally {
+    setSaving(false);
+  }
+};
+
+// Fixed handleSaveStateFee function
+const handleSaveStateFee = async () => {
+  // Validate state fee first
+  const stateError = validateStateFee(stateFee);
+  if (stateError) {
+    setValidationErrors(prev => ({ ...prev, stateFee: stateError }));
+    setMessage({ type: "error", text: stateError });
+    return;
+  }
+
+  // Validate userId is available
+  if (!userId) {
+    setMessage({ type: "error", text: "User ID not available. Please refresh the page and try again." });
+    return;
+  }
+
+  setSaving(true);
+  setMessage({ type: "", text: "" });
+
+  try {
+    // FIX: Create a bulk request with all districts in WaterFeeList
+    const waterFeeList = districtFees.map(district => ({
+      DistrictId: district.districtId,
+      WaterFeeAmount: parseFloat(stateFee),
+      ApplyFrom: new Date().toISOString(),
+      UserId: userId,
+      DeviceToken: "web_app",
+      IPAddress: "192.168.1.1"
+    }));
+
+    const requestBody = {
+      WaterFeeList: waterFeeList
+    };
+
+    console.log('Bulk update request:', JSON.stringify(requestBody, null, 2));
+
+    const response = await fetch(
+      `${API_BASE}/UpdateStateAndDistrictWiseWaterFee`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "accept": "*/*"
+        },
+        body: JSON.stringify(requestBody)
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`HTTP ${response.status}:`, errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log('Bulk update response:', data);
+    
+    if (data.Status) {
+      setMessage({ 
+        type: "success", 
+        text: `State-wide fee of ₹${stateFee} applied successfully: ${data.Message}` 
+      });
       
-      if (data.Status) {
-        setMessage({ type: "success", text: `${data.Message} for ${district.name}` });
-        // Refresh data to get updated values
-        setTimeout(() => {
-          fetchWaterFeeData();
-        }, 1000);
-      } else {
-        throw new Error(data.Message || data.Errror || "Failed to update fee");
-      }
-    } catch (error) {
-      console.error("Error saving district fee:", error);
-      setMessage({ type: "error", text: `Error saving ${district.name}: ${error.message}` });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Save all districts with changed fees
-  const handleSaveAll = async () => {
-    // First validate all changed districts
-    const changedDistricts = districtFees.filter((district, index) => {
-      const original = originalDistrictFees[index];
-      return original && district.fee !== original.fee && district.fee !== "";
-    });
-
-    if (changedDistricts.length === 0) {
-      setMessage({ type: "error", text: "No changes to save" });
-      return;
-    }
-
-    // Check for validation errors in changed districts
-    const hasValidationErrors = changedDistricts.some(district => {
-      const error = validateDistrictFee(district.fee);
-      if (error) {
-        setValidationErrors(prev => ({
-          ...prev,
-          [`district_${district.id}`]: error
-        }));
-        return true;
-      }
-      return false;
-    });
-
-    if (hasValidationErrors) {
-      setMessage({ type: "error", text: "Please fix validation errors before saving" });
-      return;
-    }
-
-    setSaving(true);
-    setMessage({ type: "", text: "" });
-
-    try {
-      for (const district of changedDistricts) {
-        await saveDistrictFee(district);
-        // Small delay between requests to avoid overwhelming the server
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
+      // Refresh data and reset state fee input
+      setTimeout(() => {
+        fetchWaterFeeData();
+        setStateFee("");
+        setValidationErrors(prev => ({ ...prev, stateFee: null }));
+      }, 1000);
       
-      setMessage({ type: "success", text: `Successfully updated ${changedDistricts.length} districts` });
-    } catch (error) {
-      setMessage({ type: "error", text: "Some updates may have failed. Please check and try again." });
-    } finally {
-      setSaving(false);
+    } else {
+      throw new Error(data.Message || data.Errror || 'Failed to update state-wide fee');
     }
-  };
+    
+  } catch (error) {
+    console.error("Error in handleSaveStateFee:", error);
+    setMessage({ type: "error", text: `Error: ${error.message}` });
+  } finally {
+    setSaving(false);
+  }
+};
 
-  // Save state-wide fee (applies to all districts)
-  const handleSaveStateFee = async () => {
-    // Validate state fee first
-    const stateError = validateStateFee(stateFee);
-    if (stateError) {
-      setValidationErrors(prev => ({ ...prev, stateFee: stateError }));
-      setMessage({ type: "error", text: stateError });
-      return;
+// Fixed handleSaveAll function
+const handleSaveAll = async () => {
+  // First validate all changed districts
+  const changedDistricts = districtFees.filter((district, index) => {
+    const original = originalDistrictFees[index];
+    return original && district.fee !== original.fee && district.fee !== "";
+  });
+
+  if (changedDistricts.length === 0) {
+    setMessage({ type: "error", text: "No changes to save" });
+    return;
+  }
+
+  // Check for validation errors in changed districts
+  const hasValidationErrors = changedDistricts.some(district => {
+    const error = validateDistrictFee(district.fee);
+    if (error) {
+      setValidationErrors(prev => ({
+        ...prev,
+        [`district_${district.id}`]: error
+      }));
+      return true;
     }
+    return false;
+  });
 
-    // Validate userId is available
-    if (!userId) {
-      setMessage({ type: "error", text: "User ID not available. Please refresh the page and try again." });
-      return;
-    }
+  if (hasValidationErrors) {
+    setMessage({ type: "error", text: "Please fix validation errors before saving" });
+    return;
+  }
 
-    setSaving(true);
-    setMessage({ type: "", text: "" });
+  setSaving(true);
+  setMessage({ type: "", text: "" });
 
-    try {
-      let successCount = 0;
-      let errorCount = 0;
-      const errors = [];
+  try {
+    // FIX: Send all changed districts in a single bulk request
+    const waterFeeList = changedDistricts.map(district => ({
+      DistrictId: district.districtId,
+      WaterFeeAmount: parseFloat(district.fee),
+      ApplyFrom: new Date().toISOString(),
+      UserId: userId,
+      DeviceToken: "web_app",
+      IPAddress: "192.168.1.1"
+    }));
 
-      // Update all districts with the same fee
-      for (const district of districtFees) {
-        try {
-          const requestBody = {
-            DistrictId: district.districtId,
-            WaterFeeAmount: parseFloat(stateFee),
-            ApplyFrom: new Date().toISOString(),
-            UserId: userId,
-            DeviceToken: "web_app",
-            IPAddress: "192.168.1.1"
-          };
+    const requestBody = {
+      WaterFeeList: waterFeeList
+    };
 
-          console.log('Sending request for district:', district.name, requestBody);
+    console.log('Save all request:', JSON.stringify(requestBody, null, 2));
 
-          const response = await fetch(
-            `${API_BASE}/UpdateStateAndDistrictWiseWaterFee`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "accept": "*/*"
-              },
-              body: JSON.stringify(requestBody)
-            }
-          );
-
-          console.log('Response status:', response.status);
-          
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`HTTP ${response.status} for ${district.name}:`, errorText);
-            throw new Error(`HTTP ${response.status}: ${errorText}`);
-          }
-
-          const data = await response.json();
-          console.log('Response data for', district.name, ':', data);
-          
-          if (!data.Status) {
-            throw new Error(data.Message || data.Error || data.Errror || `Failed to update ${district.name}`);
-          }
-
-          successCount++;
-          
-          // Small delay between requests to avoid overwhelming the server
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-        } catch (error) {
-          console.error(`Error updating ${district.name}:`, error);
-          errors.push(`${district.name}: ${error.message}`);
-          errorCount++;
-          
-          // Continue with other districts even if one fails
-          continue;
-        }
+    const response = await fetch(
+      `${API_BASE}/UpdateStateAndDistrictWiseWaterFee`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "accept": "*/*"
+        },
+        body: JSON.stringify(requestBody)
       }
+    );
 
-      // Show appropriate message based on results
-      if (successCount === districtFees.length) {
-        setMessage({ 
-          type: "success", 
-          text: `State-wide fee of ₹${stateFee} applied to all ${successCount} districts successfully` 
-        });
-        
-        // Refresh data and reset state fee input
-        setTimeout(() => {
-          fetchWaterFeeData();
-          setStateFee("");
-          setValidationErrors(prev => ({ ...prev, stateFee: null }));
-        }, 1000);
-        
-      } else if (successCount > 0) {
-        setMessage({ 
-          type: "error", 
-          text: `Partial success: ${successCount} districts updated, ${errorCount} failed. First error: ${errors[0] || 'Unknown error'}` 
-        });
-      } else {
-        setMessage({ 
-          type: "error", 
-          text: `Failed to update any districts. Errors: ${errors.slice(0, 3).join('; ')}${errors.length > 3 ? '...' : ''}` 
-        });
-      }
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('Save all response:', data);
+    
+    if (data.Status) {
+      setMessage({ 
+        type: "success", 
+        text: `Bulk update completed: ${data.Message}` 
+      });
       
-    } catch (error) {
-      console.error("Error in handleSaveStateFee:", error);
-      setMessage({ type: "error", text: `Error: ${error.message}` });
-    } finally {
-      setSaving(false);
+      // Refresh data
+      setTimeout(() => {
+        fetchWaterFeeData();
+      }, 1000);
+    } else {
+      throw new Error(data.Message || data.Errror || 'Bulk update failed');
     }
-  };
+    
+  } catch (error) {
+    console.error("Error in handleSaveAll:", error);
+    setMessage({ type: "error", text: `Error: ${error.message}` });
+  } finally {
+    setSaving(false);
+  }
+};
 
   const handleDownload = () => {
     // Create CSV content

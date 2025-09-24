@@ -21,7 +21,7 @@ import {
 import { BiBuildingHouse, BiDroplet, BiMoney } from "react-icons/bi";
 
 
-type Role = "admin" | "gp" | "callcenter" | "Director";
+type Role = "admin" | "gp" | "callcenter" | "Director" | "dd" | "dpro" | "ado";
 
 type MenuItem = {
   name: string;
@@ -35,6 +35,9 @@ const roleLabels: Record<Role, string> = {
   gp: "Gram Panchayat Dashboard",
   callcenter: "Call Center Dashboard",
   director: "Director's Dashboard",
+  dpro: "DPRO's Dashboard",
+  ado: "ADO's Dashboard",
+  dd: "DD's Dashboard",
 };
 
 const getMenuLinks = (role: Role): MenuItem[] => {
@@ -56,15 +59,52 @@ const getMenuLinks = (role: Role): MenuItem[] => {
   else if (role === "director") {
     return [
       { name: "Dashboard", to: "/director/dashboard", icon: <LayoutDashboard size={18} /> },
-      { name: "Real-Time Monitoring", to: "/director/location-reporting", icon: <BarChart3 size={18} /> },
-      { name: "User Management", to: "/director/user-management", icon: <Users size={18} /> },
-      { name: "Fee Management", to: "/director/fee-management", icon: <BiMoney size={18} /> },
       { name: "Complaint Status", to: "/director/manage-complaint", icon: <ClipboardList size={16} /> },
       { name: "Manage Beneficiaries", to: "/director/manage-beneficiary", icon: <Users2 size={16} /> },
       { name: "Manage OHT", to: "/director/manage-oht", icon: <Calendar size={16} /> },
       { name: "Manage Pump House", to: "/director/manage-pumphouse", icon: <ClipboardList size={16} /> },
       { name: "View Roaster", to: "/director/view-roaster", icon: <ClipboardList size={16} /> },
       { name: "View Water Quality", to: "/director/view-water-quality", icon: <BiDroplet size={16} /> },
+      { name: "Fee Management", to: "/director/fee-management", icon: <ClipboardList size={16} /> },
+      
+    ];
+  }
+  else if (role === "dd") {
+    return [
+      { name: "Dashboard", to: "/dd/dashboard", icon: <LayoutDashboard size={18} /> },
+      { name: "Complaint Status", to: "/dd/manage-complaint", icon: <ClipboardList size={16} /> },
+      { name: "Manage Beneficiaries", to: "/dd/manage-beneficiary", icon: <Users2 size={16} /> },
+      { name: "Manage OHT", to: "/dd/manage-oht", icon: <Calendar size={16} /> },
+      { name: "Manage Pump House", to: "/dd/manage-pumphouse", icon: <ClipboardList size={16} /> },
+      { name: "View Roaster", to: "/dd/view-roaster", icon: <ClipboardList size={16} /> },
+      { name: "View Water Quality", to: "/dd/view-water-quality", icon: <BiDroplet size={16} /> },
+      { name: "Fee Management", to: "/dd/fee-management", icon: <ClipboardList size={16} /> },
+      
+    ];
+  }
+  else if (role === "dpro") {
+    return [
+      { name: "Dashboard", to: "/dpro/dashboard", icon: <LayoutDashboard size={18} /> },
+      { name: "Complaint Status", to: "/dpro/manage-complaint", icon: <ClipboardList size={16} /> },
+      { name: "Manage Beneficiaries", to: "/dpro/manage-beneficiary", icon: <Users2 size={16} /> },
+      { name: "Manage OHT", to: "/dpro/manage-oht", icon: <Calendar size={16} /> },
+      { name: "Manage Pump House", to: "/dpro/manage-pumphouse", icon: <ClipboardList size={16} /> },
+      { name: "View Roaster", to: "/dpro/view-roaster", icon: <ClipboardList size={16} /> },
+      { name: "View Water Quality", to: "/dpro/view-water-quality", icon: <BiDroplet size={16} /> },
+      { name: "Fee Management", to: "/dpro/fee-management", icon: <ClipboardList size={16} /> },
+      
+    ];
+  }
+  else if (role === "ado") {
+    return [
+      { name: "Dashboard", to: "/ado/dashboard", icon: <LayoutDashboard size={18} /> },
+      { name: "Complaint Status", to: "/ado/manage-complaint", icon: <ClipboardList size={16} /> },
+      { name: "Manage Beneficiaries", to: "/ado/manage-beneficiary", icon: <Users2 size={16} /> },
+      { name: "Manage OHT", to: "/ado/manage-oht", icon: <Calendar size={16} /> },
+      { name: "Manage Pump House", to: "/ado/manage-pumphouse", icon: <ClipboardList size={16} /> },
+      { name: "View Roaster", to: "/ado/view-roaster", icon: <ClipboardList size={16} /> },
+      { name: "View Water Quality", to: "/ado/view-water-quality", icon: <BiDroplet size={16} /> },
+      { name: "Fee Management", to: "/ado/fee-management", icon: <ClipboardList size={16} /> },
       
     ];
   }

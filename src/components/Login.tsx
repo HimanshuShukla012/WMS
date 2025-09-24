@@ -89,12 +89,23 @@ if (data.uparm) {
 
         // Redirect based on role
         if (roleFromToken === "admin") {
-  navigate("/admin/dashboard");
-} else if (roleFromToken === "gram panchayat") {
-  navigate("/gp/dashboard");
-} else if (roleFromToken === "call center") {
-  navigate("/callcenter/dashboard");
-} else {
+          navigate("/admin/dashboard");
+        } else if (roleFromToken === "gram panchayat") {
+          navigate("/gp/dashboard");
+        } else if (roleFromToken === "call center") {
+          navigate("/callcenter/dashboard");
+        } else if (roleFromToken === "director") {
+          navigate("/director/dashboard");
+        }
+        else if (roleFromToken === "dd") {
+          navigate("/dd/dashboard");
+        }
+        else if (roleFromToken === "dpro") {
+          navigate("/dpro/dashboard");
+        }
+        else if (roleFromToken === "ado") {
+          navigate("/ado/dashboard");
+        } else {
           setError("Invalid login role");
           localStorage.clear();
         }
