@@ -18,6 +18,22 @@ export const WaterQualityTab: React.FC<WaterQualityTabProps> = ({
 }) => {
   const filteredWaterQuality = filterWaterQualityByLocation(waterQualityData);
 
+  // Helper function to convert month number to month name
+  const getMonthName = (monthNumber: number): string => {
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    
+    // Handle month numbers 1-12
+    if (monthNumber >= 1 && monthNumber <= 12) {
+      return monthNames[monthNumber - 1];
+    }
+    
+    // Return the number as string if it's outside valid range
+    return monthNumber.toString();
+  };
+
   if (waterQualityData.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-lg p-6">
@@ -97,7 +113,7 @@ export const WaterQualityTab: React.FC<WaterQualityTabProps> = ({
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Block</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Gram Panchayat</th>
               <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Year</th>
-              <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Month</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Month</th>
               <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Samples Collected</th>
               <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Contaminated Samples</th>
               <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Villages Tested</th>
@@ -119,7 +135,7 @@ export const WaterQualityTab: React.FC<WaterQualityTabProps> = ({
                   <td className="px-4 py-3 text-sm text-gray-600">{test.BlockName}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{test.GramPanchayatName}</td>
                   <td className="px-4 py-3 text-sm text-gray-900 text-right">{test.Year}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 text-right">{test.Month}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900">{getMonthName(test.Month)}</td>
                   <td className="px-4 py-3 text-sm text-gray-900 text-right">{test.TotalSamplesCollected || 0}</td>
                   <td className="px-4 py-3 text-sm text-red-600 text-right font-medium">{test.TotalSamplesContaminated || 0}</td>
                   <td className="px-4 py-3 text-sm text-gray-900 text-right">{test.VillagesTestedCount || 0}</td>

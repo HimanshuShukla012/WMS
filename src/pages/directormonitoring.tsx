@@ -1,4 +1,4 @@
-// DirectorMonitoring.tsx - Fixed with correct userRole prop
+// DirectorMonitoring.tsx - Fixed with correct userRole prop and section navigation
 
 import React, { useState } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
@@ -53,6 +53,17 @@ const DirectorMonitoring: React.FC = () => {
 
   // UI state
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [infrastructureSection, setInfrastructureSection] = useState<string>('oht');
+
+  // Handle tab changes with optional section
+  const handleTabChange = (tab: TabType, section?: string) => {
+    setActiveTab(tab);
+    
+    // If switching to infrastructure tab with a specific section
+    if (tab === 'infrastructure' && section) {
+      setInfrastructureSection(section);
+    }
+  };
 
   // --- Export Functions ---
   const exportToExcel = () => {
@@ -238,7 +249,7 @@ const DirectorMonitoring: React.FC = () => {
                   bottomGPsData={directorData.bottomGPsData}
                   performanceLoading={directorData.performanceLoading}
                   userRole={role || 'User'}
-                  onTabChange={setActiveTab}
+                  onTabChange={handleTabChange} // Pass the updated handler
                   onExportCSV={exportCSV}
                 />
               )}
@@ -260,6 +271,7 @@ const DirectorMonitoring: React.FC = () => {
                   onExportCSV={exportCSV}
                   filterOHTsByLocation={directorData.filterOHTsByLocation}
                   filterPumpHousesByOHT={directorData.filterPumpHousesByOHT}
+                  initialSection={infrastructureSection} // Pass the section state
                 />
               )}
 

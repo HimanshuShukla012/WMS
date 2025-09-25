@@ -2,11 +2,11 @@
 
 import React from 'react';
 import { Users, Droplets, Zap } from 'lucide-react';
-import * as Types from '../../types';
+import * as Types from '../types';
 
 interface KPICardsProps {
   stats: Types.LocationStats;
-  onTabChange: (tab: string) => void;
+  onTabChange: (tab: string, section?: string) => void;
 }
 
 export const KPICards: React.FC<KPICardsProps> = ({ stats, onTabChange }) => {
@@ -62,7 +62,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ stats, onTabChange }) => {
 
       {/* Over Head Tanks Card */}
       <button 
-        onClick={() => onTabChange('infrastructure')}
+        onClick={() => onTabChange('infrastructure', 'oht')}
         className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-indigo-500 hover:shadow-xl transition-shadow duration-200 cursor-pointer text-left group"
       >
         <div className="flex items-center justify-between">
@@ -84,7 +84,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ stats, onTabChange }) => {
 
       {/* Pumping Stations Card */}
       <button 
-        onClick={() => onTabChange('infrastructure')}
+        onClick={() => onTabChange('infrastructure', 'pumphouse')}
         className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500 hover:shadow-xl transition-shadow duration-200 cursor-pointer text-left group"
       >
         <div className="flex items-center justify-between">
