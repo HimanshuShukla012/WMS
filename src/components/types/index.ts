@@ -1,4 +1,4 @@
-// types/index.ts - All interface definitions
+// types/index.ts - Updated with performance data types
 
 export interface District { 
   DistrictId: number; 
@@ -107,6 +107,31 @@ export interface WaterFeeSummaryData {
   PreviousBalance: number;
   OutstandingAmount: number;
   PaidAmount: number;
+}
+
+// New Performance Data Types
+export interface TopBottomDistrictData {
+  DistrictId: number;
+  DistrictName: string;
+  TotalAmount: number;
+  p_user_id?: any;
+}
+
+export interface TopBottomBlockData {
+  BlockId: number;
+  BlockName: string;
+  DistrictName: string;
+  TotalAmountPaid: number;
+}
+
+export interface TopBottomGPData {
+  GPId?: number; // For bottom GP API
+  GpId?: number; // For top GP API
+  GPName?: string; // For bottom GP API
+  GpName?: string; // For top GP API
+  BlockName: string;
+  DistrictName: string;
+  TotalAmountPaid: number;
 }
 
 export interface LocationStats { 

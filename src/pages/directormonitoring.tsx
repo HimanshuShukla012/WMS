@@ -1,4 +1,4 @@
-// DirectorMonitoring.tsx - Simplified main orchestrator component
+// DirectorMonitoring.tsx - Updated with performance cards integration
 
 import React, { useState } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
@@ -56,7 +56,7 @@ const DirectorMonitoring: React.FC = () => {
 
   // --- Export Functions ---
   const exportToExcel = () => {
-    // Create comprehensive Excel export
+    // Create comprehensive Excel export including performance data
     const exportData = {
       summary: {
         location: locationData.getSelectedLocationName(),
@@ -71,7 +71,14 @@ const DirectorMonitoring: React.FC = () => {
       ),
       waterFee: directorData.filterWaterFeeSummaryByLocation(directorData.waterFeeSummaryData),
       complaints: directorData.filterComplaintsByLocation(directorData.complaintsData),
-      waterQuality: directorData.filterWaterQualityByLocation(directorData.waterQualityData)
+      waterQuality: directorData.filterWaterQualityByLocation(directorData.waterQualityData),
+      // Add performance data to export
+      topDistricts: directorData.topDistrictsData,
+      bottomDistricts: directorData.bottomDistrictsData,
+      topBlocks: directorData.topBlocksData,
+      bottomBlocks: directorData.bottomBlocksData,
+      topGPs: directorData.topGPsData,
+      bottomGPs: directorData.bottomGPsData
     };
 
     // Create download (simplified implementation)
@@ -127,6 +134,12 @@ const DirectorMonitoring: React.FC = () => {
     setToDate(new Date().toISOString().split('T')[0]);
   };
 
+  // Handle performance data refresh
+  const handleRefreshAll = () => {
+    directorData.loadAllData();
+    directorData.loadPerformanceData();
+  };
+
   // --- Render Logic ---
   if (userLoading) {
     return (
@@ -153,9 +166,9 @@ const DirectorMonitoring: React.FC = () => {
       {/* Header */}
       <DirectorHeader
         selectedLocationName={locationData.getSelectedLocationName()}
-        onRefresh={directorData.loadAllData}
+        onRefresh={handleRefreshAll}
         onExport={exportToExcel}
-        loading={directorData.loading}
+        loading={directorData.loading || directorData.performanceLoading}
       />
 
       {/* Error Display */}
@@ -182,7 +195,7 @@ const DirectorMonitoring: React.FC = () => {
           toDate={toDate}
           setToDate={setToDate}
           loading={directorData.loading}
-          onApplyFilters={directorData.loadAllData}
+          onApplyFilters={handleRefreshAll}
           onResetFilters={handleResetFilters}
         />
 
@@ -192,10 +205,17 @@ const DirectorMonitoring: React.FC = () => {
           <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
           {/* Loading State */}
-          {directorData.loading && (
+          {(directorData.loading || directorData.performanceLoading) && (
             <div className="bg-white rounded-xl shadow-lg p-8 text-center">
               <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-4" />
-              <div className="text-gray-600">Loading comprehensive monitoring data...</div>
+              <div className="text-gray-600">
+                {directorData.loading && directorData.performanceLoading 
+                  ? 'Loading comprehensive monitoring and performance data...'
+                  : directorData.loading 
+                    ? 'Loading monitoring data...'
+                    : 'Loading performance data...'
+                }
+              </div>
             </div>
           )}
 
@@ -208,6 +228,15 @@ const DirectorMonitoring: React.FC = () => {
                   beneficiaryTrend={directorData.beneficiaryTrend}
                   feeCollectionTrend={directorData.feeCollectionTrend}
                   waterFeeSummaryData={directorData.waterFeeSummaryData}
+                  // Performance data props
+                  topDistrictsData={directorData.topDistrictsData}
+                  bottomDistrictsData={directorData.bottomDistrictsData}
+                  topBlocksData={directorData.topBlocksData}
+                  bottomBlocksData={directorData.bottomBlocksData}
+                  topGPsData={directorData.topGPsData}
+                  bottomGPsData={directorData.bottomGPsData}
+                  performanceLoading={directorData.performanceLoading}
+                  userRole={role || 'User'}
                   onTabChange={setActiveTab}
                   onExportCSV={exportCSV}
                 />
@@ -271,8 +300,17 @@ const DirectorMonitoring: React.FC = () => {
         <div className="flex items-center justify-between text-sm text-gray-600">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${directorData.loading ? 'bg-orange-500 animate-pulse' : 'bg-green-500'}`}></div>
-              <span>{directorData.loading ? 'Loading data...' : 'Data loaded successfully'}</span>
+              <div className={`w-3 h-3 rounded-full ${
+                (directorData.loading || directorData.performanceLoading) 
+                  ? 'bg-orange-500 animate-pulse' 
+                  : 'bg-green-500'
+              }`}></div>
+              <span>
+                {(directorData.loading || directorData.performanceLoading) 
+                  ? 'Loading data...' 
+                  : 'Data loaded successfully'
+                }
+              </span>
             </div>
             <div>
               Total Records: {
@@ -283,6 +321,17 @@ const DirectorMonitoring: React.FC = () => {
                 directorData.waterFeeSummaryData.length +
                 directorData.complaintsData.length
               }
+            </div>
+            {/* Performance data status */}
+            <div className="text-xs">
+              Performance Data: {
+                directorData.topDistrictsData.length + 
+                directorData.bottomDistrictsData.length + 
+                directorData.topBlocksData.length + 
+                directorData.bottomBlocksData.length +
+                directorData.topGPsData.length + 
+                directorData.bottomGPsData.length
+              } entries
             </div>
           </div>
           
@@ -305,6 +354,17 @@ const DirectorMonitoring: React.FC = () => {
               <div className="font-medium text-gray-900">Loading Location Data</div>
               <div className="text-sm text-gray-600">Fetching administrative boundaries...</div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Performance Data Loading Overlay */}
+      {directorData.performanceLoading && !directorData.loading && (
+        <div className="fixed bottom-4 right-4 bg-white rounded-lg shadow-lg p-4 flex items-center gap-3 z-40">
+          <RefreshCw className="w-5 h-5 text-blue-600 animate-spin" />
+          <div className="text-sm">
+            <div className="font-medium text-gray-900">Loading Performance Data</div>
+            <div className="text-gray-600">Fetching top/bottom performers...</div>
           </div>
         </div>
       )}

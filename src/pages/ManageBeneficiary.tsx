@@ -66,11 +66,14 @@ const ManageBeneficiary = () => {
   const { userId, role, isLoading: userLoading } = useUserInfo();
 
   const [editMode, setEditMode] = useState(false);
+  const [deleteMode, setDeleteMode] = useState(false);
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -87,6 +90,7 @@ const ManageBeneficiary = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editedBeneficiaries, setEditedBeneficiaries] = useState<Set<number>>(new Set());
+  const [selectedForDeletion, setSelectedForDeletion] = useState<Set<number>>(new Set());
 
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -234,15 +238,60 @@ const ManageBeneficiary = () => {
   };
 
   const handleEditToggle = () => {
+    if (role !== "Dpro") {
+      toast.error("Edit functionality is only available for Dpro role");
+      return;
+    }
+    
     if (editMode) {
       setEditedBeneficiaries(new Set());
     }
+    if (deleteMode) {
+      setDeleteMode(false);
+      setSelectedForDeletion(new Set());
+    }
     setEditMode((s) => !s);
+  };
+
+  const handleDeleteToggle = () => {
+    if (role !== "DPRO") {
+      toast.error("Delete functionality is only available for Dpro role");
+      return;
+    }
+    
+    if (deleteMode) {
+      setSelectedForDeletion(new Set());
+    }
+    if (editMode) {
+      setEditMode(false);
+      setEditedBeneficiaries(new Set());
+    }
+    setDeleteMode((s) => !s);
   };
 
   const handleChange = (id: number, field: keyof BeneficiaryState, value: string | number) => {
     setBeneficiaries((prev) => prev.map((b) => (b.BeneficiaryId === id ? { ...b, [field]: value } : b)));
     setEditedBeneficiaries(prev => new Set([...prev, id]));
+  };
+
+  const handleDeleteSelection = (id: number) => {
+    setSelectedForDeletion(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAllForDeletion = () => {
+    if (selectedForDeletion.size === paginatedData.length) {
+      setSelectedForDeletion(new Set());
+    } else {
+      setSelectedForDeletion(new Set(paginatedData.map(b => b.BeneficiaryId)));
+    }
   };
 
   const handleSaveChanges = async () => {
@@ -316,6 +365,71 @@ const ManageBeneficiary = () => {
       toast.error("Failed to save changes");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedForDeletion.size === 0) {
+      toast.info("No beneficiaries selected for deletion");
+      return;
+    }
+
+    if (!userId) {
+      toast.error("User information not available");
+      return;
+    }
+
+    setDeleting(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const beneficiaryId of selectedForDeletion) {
+        const payload = {
+          UserId: userId,
+          BeneficiaryId: beneficiaryId
+        };
+
+        try {
+          const res = await fetch(
+            "https://wmsapi.kdsgroup.co.in/api/User/DeleteBeneficiaryDpro",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            }
+          );
+
+          const result = await res.json();
+          if (result.Status) {
+            successCount++;
+          } else {
+            errorCount++;
+            console.error(`Failed to delete beneficiary ${beneficiaryId}:`, result.Message);
+          }
+        } catch (err) {
+          errorCount++;
+          console.error(`Error deleting beneficiary ${beneficiaryId}:`, err);
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Successfully deleted ${successCount} beneficiary records`);
+        setSelectedForDeletion(new Set());
+        setDeleteMode(false);
+        setShowDeleteConfirmModal(false);
+        fetchBeneficiaries(); // Refresh data
+      }
+      
+      if (errorCount > 0) {
+        toast.error(`Failed to delete ${errorCount} beneficiary records`);
+      }
+
+    } catch (err) {
+      console.error("Delete operation error:", err);
+      toast.error("Failed to delete beneficiaries");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -513,6 +627,11 @@ const ManageBeneficiary = () => {
         <h1 className="text-3xl font-bold mb-2 text-gray-800">Manage Beneficiaries</h1>
         <p className="text-gray-600 mb-6">
           View, edit, and bulk-import beneficiaries. Use filters to narrow down your search.
+          {role !== "Dpro" && (
+            <span className="block text-orange-600 text-sm mt-1 font-medium">
+              Note: Edit and Delete functionality is only available for Dpro role users.
+            </span>
+          )}
         </p>
 
         {loading && (
@@ -653,54 +772,89 @@ const ManageBeneficiary = () => {
             </button>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button 
-              className={`px-4 py-2 rounded-md text-white transition-colors ${
-                downloading ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'
-              }`}
-              onClick={handleDownload} 
-              disabled={loading || downloading || filteredData.length === 0}
-            >
-              {downloading ? 'Downloading...' : 'Download Excel'}
-            </button>
+<div className="flex flex-wrap gap-2">
+  <button 
+    className={`px-4 py-2 rounded-md text-white transition-colors ${
+      downloading ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'
+    }`}
+    onClick={handleDownload} 
+    disabled={loading || downloading || filteredData.length === 0}
+  >
+    {downloading ? 'Downloading...' : 'Download Excel'}
+  </button>
 
-            <button 
-              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors" 
-              onClick={() => setShowModal(true)} 
-              disabled={loading || !userId}
-            >
-              Bulk Import
-            </button>
+  <button 
+    className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors" 
+    onClick={() => setShowModal(true)} 
+    disabled={loading || !userId}
+  >
+    Bulk Import
+  </button>
 
-            {!editMode ? (
-              <button 
-                className="bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 transition-colors" 
-                onClick={handleEditToggle} 
-                disabled={loading || beneficiaries.length === 0}
-              >
-                Edit Records
-              </button>
-            ) : (
-              <div className="flex gap-2">
-                <button 
-                  className="bg-gray-400 text-white px-4 py-2 rounded-md hover:bg-gray-500 transition-colors" 
-                  onClick={handleEditToggle}
-                  disabled={saving}
-                >
-                  Cancel
-                </button>
-                <button
-                  className={`px-4 py-2 rounded-md text-white transition-colors ${
-                    saving ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
-                  onClick={handleSaveChanges}
-                  disabled={saving || editedBeneficiaries.size === 0}
-                >
-                  {saving ? 'Saving...' : `Save Changes (${editedBeneficiaries.size})`}
-                </button>
-              </div>
-            )}
-          </div>
+  {/* Show initial buttons when not in any mode */}
+  {!editMode && !deleteMode && role === "DPRO" && (
+    <>
+      <button 
+        className="bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 transition-colors" 
+        onClick={handleEditToggle} 
+        disabled={loading || beneficiaries.length === 0}
+      >
+        Edit Records
+      </button>
+      <button 
+        className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors" 
+        onClick={handleDeleteToggle} 
+        disabled={loading || beneficiaries.length === 0}
+      >
+        Delete Records
+      </button>
+    </>
+  )}
+
+  {/* Show edit mode buttons */}
+  {editMode && (
+    <div className="flex gap-2">
+      <button 
+        className="bg-gray-400 text-white px-4 py-2 rounded-md hover:bg-gray-500 transition-colors" 
+        onClick={handleEditToggle}
+        disabled={saving}
+      >
+        Cancel
+      </button>
+      <button
+        className={`px-4 py-2 rounded-md text-white transition-colors ${
+          saving ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
+        }`}
+        onClick={handleSaveChanges}
+        disabled={saving || editedBeneficiaries.size === 0}
+      >
+        {saving ? 'Saving...' : `Save Changes (${editedBeneficiaries.size})`}
+      </button>
+    </div>
+  )}
+
+  {/* Show delete mode buttons */}
+  {deleteMode && (
+    <div className="flex gap-2">
+      <button 
+        className="bg-gray-400 text-white px-4 py-2 rounded-md hover:bg-gray-500 transition-colors" 
+        onClick={handleDeleteToggle}
+        disabled={deleting}
+      >
+        Cancel
+      </button>
+      <button
+        className={`px-4 py-2 rounded-md text-white transition-colors ${
+          deleting ? 'bg-gray-400' : 'bg-red-600 hover:bg-red-700'
+        }`}
+        onClick={() => setShowDeleteConfirmModal(true)}
+        disabled={deleting || selectedForDeletion.size === 0}
+      >
+        {deleting ? 'Deleting...' : `Delete Selected (${selectedForDeletion.size})`}
+      </button>
+    </div>
+  )}
+</div>
         </div>
       </div>
 
@@ -713,6 +867,11 @@ const ManageBeneficiary = () => {
           {editedBeneficiaries.size > 0 && (
             <span className="text-orange-600">
               <strong>{editedBeneficiaries.size}</strong> records modified
+            </span>
+          )}
+          {selectedForDeletion.size > 0 && (
+            <span className="text-red-600">
+              <strong>{selectedForDeletion.size}</strong> records selected for deletion
             </span>
           )}
         </div>
@@ -798,6 +957,15 @@ const ManageBeneficiary = () => {
                 <option value={100}>100</option>
                 <option value={250}>250</option>
               </select>
+              
+              {deleteMode && (
+                <button
+                  onClick={handleSelectAllForDeletion}
+                  className="text-sm text-red-600 hover:text-red-800 font-medium"
+                >
+                  {selectedForDeletion.size === paginatedData.length ? 'Deselect All' : 'Select All'}
+                </button>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -845,6 +1013,16 @@ const ManageBeneficiary = () => {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-blue-600 text-white">
+                {deleteMode && (
+                  <th className="border border-gray-300 p-3 text-left font-medium">
+                    <input
+                      type="checkbox"
+                      checked={selectedForDeletion.size === paginatedData.length && paginatedData.length > 0}
+                      onChange={handleSelectAllForDeletion}
+                      className="rounded focus:ring-2 focus:ring-blue-500"
+                    />
+                  </th>
+                )}
                 <th className="border border-gray-300 p-3 text-left font-medium">District</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">Block Name</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">Gram Panchayat</th>
@@ -859,6 +1037,7 @@ const ManageBeneficiary = () => {
             <tbody>
               {paginatedData.map((b, index) => {
                 const isEdited = editedBeneficiaries.has(b.BeneficiaryId);
+                const isSelectedForDeletion = selectedForDeletion.has(b.BeneficiaryId);
                 
                 return (
                   <tr 
@@ -867,8 +1046,20 @@ const ManageBeneficiary = () => {
                       index % 2 === 0 ? 'bg-gray-50' : 'bg-white'
                     } hover:bg-blue-50 transition-colors ${
                       isEdited ? 'ring-2 ring-orange-200 bg-orange-50' : ''
+                    } ${
+                      isSelectedForDeletion ? 'ring-2 ring-red-200 bg-red-50' : ''
                     }`}
                   >
+                    {deleteMode && (
+                      <td className="border border-gray-300 p-3">
+                        <input
+                          type="checkbox"
+                          checked={isSelectedForDeletion}
+                          onChange={() => handleDeleteSelection(b.BeneficiaryId)}
+                          className="rounded focus:ring-2 focus:ring-blue-500"
+                        />
+                      </td>
+                    )}
                     <td className="border border-gray-300 p-3">{b.districtName}</td>
                     <td className="border border-gray-300 p-3">{b.blockName}</td>
                     <td className="border border-gray-300 p-3">{b.gramPanchayatName}</td>
@@ -1065,7 +1256,6 @@ const ManageBeneficiary = () => {
             </div>
 
             <div className="flex justify-end gap-3">
-              
               <button 
                 onClick={handleUpload} 
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
@@ -1073,6 +1263,41 @@ const ManageBeneficiary = () => {
               >
                 Upload & Import
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center px-4">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+            <div className="text-center">
+              <div className="text-red-500 text-5xl mb-4">⚠️</div>
+              <h2 className="text-xl font-bold mb-4 text-gray-800">Confirm Deletion</h2>
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to delete <strong>{selectedForDeletion.size}</strong> beneficiary record(s)? 
+                This action performs a soft delete and can be reversed by system administrators.
+              </p>
+
+              <div className="flex justify-center gap-4">
+                <button 
+                  onClick={() => setShowDeleteConfirmModal(false)}
+                  className="px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded-md transition-colors"
+                  disabled={deleting}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleDeleteSelected}
+                  className={`px-4 py-2 rounded-md text-white transition-colors ${
+                    deleting ? 'bg-gray-400' : 'bg-red-600 hover:bg-red-700'
+                  }`}
+                  disabled={deleting}
+                >
+                  {deleting ? 'Deleting...' : 'Confirm Delete'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

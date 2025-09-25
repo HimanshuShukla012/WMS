@@ -1,4 +1,4 @@
-// hooks/useDirectorData.ts - Custom hook for all director monitoring data management
+// hooks/useDirectorData.ts - Updated with performance data management
 
 import { useState, useEffect, useMemo } from 'react';
 import { useUserInfo } from '../../utils/userInfo';
@@ -25,6 +25,15 @@ export const useDirectorData = (
   const [waterQualityData, setWaterQualityData] = useState<Types.WaterQualityData[]>([]);
   const [waterFeeSummaryData, setWaterFeeSummaryData] = useState<Types.WaterFeeSummaryData[]>([]);
   const [complaintsData, setComplaintsData] = useState<Types.ComplaintData[]>([]);
+  
+  // Performance data state
+  const [topDistrictsData, setTopDistrictsData] = useState<Types.TopBottomDistrictData[]>([]);
+  const [bottomDistrictsData, setBottomDistrictsData] = useState<Types.TopBottomDistrictData[]>([]);
+  const [topBlocksData, setTopBlocksData] = useState<Types.TopBottomBlockData[]>([]);
+  const [bottomBlocksData, setBottomBlocksData] = useState<Types.TopBottomBlockData[]>([]);
+  const [topGPsData, setTopGPsData] = useState<Types.TopBottomGPData[]>([]);
+  const [bottomGPsData, setBottomGPsData] = useState<Types.TopBottomGPData[]>([]);
+  
   const [stats, setStats] = useState<Types.LocationStats>({ 
     totalBeneficiaries: 0, 
     activeBeneficiaries: 0, 
@@ -47,9 +56,66 @@ export const useDirectorData = (
 
   // Loading and error states
   const [loading, setLoading] = useState(false);
+  const [performanceLoading, setPerformanceLoading] = useState(false);
   const [error, setError] = useState<string>('');
 
-  // --- API Functions ---
+  // Get current financial year
+  // Fixed Financial Year calculation - add this to your useDirectorData.ts
+
+// Get current financial year - FIXED VERSION
+const getCurrentFinancialYear = () => {
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1; // getMonth() returns 0-11
+  
+  console.log('Financial Year Calculation:', {
+    currentDate: currentDate.toISOString(),
+    currentYear,
+    currentMonth,
+    logic: currentMonth >= 4 ? `${currentMonth} >= 4, so FY should be ${currentYear}` : `${currentMonth} < 4, so FY should be ${currentYear}`
+  });
+  
+  // Financial year starts from April (month 4)
+  // April 2025 to March 2026 = FY 2026
+  // But your API might expect the CURRENT year format
+  if (currentMonth >= 4) {
+    // For September 2025, this would return 2026
+    const calculatedFY = currentYear ;
+    console.log('Calculated FY (April+ logic):', calculatedFY);
+    return calculatedFY;
+  } else {
+    // January to March 2025 = FY 2025
+    console.log('Calculated FY (Jan-Mar logic):', currentYear);
+    return currentYear;
+  }
+};
+
+// Alternative function if your system uses different logic
+const getCurrentFinancialYearAlternative = () => {
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1;
+  
+  // Some systems use the starting year of the financial period
+  // April 2024 to March 2025 = FY 2024 (not 2025)
+
+};
+
+// Test both approaches
+const testFinancialYear = () => {
+  const method1 = getCurrentFinancialYear();
+  const method2 = getCurrentFinancialYearAlternative();
+  
+  console.log('Financial Year Test:', {
+    method1_result: method1,
+    method2_result: method2,
+    current_date: new Date().toISOString().split('T')[0],
+    recommendation: 'Try both values in API calls to see which works'
+  });
+  
+  return { method1, method2 };
+};
+  // --- Existing API Functions ---
   const fetchBeneficiaries = async (): Promise<Types.BeneficiaryData[]> => {
     try {
       const effectiveUserId = role === 'Admin' ? 0 : userId;
@@ -169,7 +235,362 @@ export const useDirectorData = (
     }
   };
 
-  // --- Filtering Functions ---
+  // --- New Performance API Functions ---
+  // --- New Performance API Functions (Fixed) ---
+  const fetchTopDistricts = async (): Promise<Types.TopBottomDistrictData[]> => {
+    try {
+      const financialYear = getCurrentFinancialYear();
+      console.log('Fetching top districts for FY:', financialYear);
+      
+      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTop10DistrictByFeeCollection?FinancialYear=${financialYear}`, {
+        method: 'POST',
+        headers: { accept: '*/*' }
+      });
+      
+      if (!response.ok) {
+        console.error('Top districts API response not ok:', response.status);
+        return [];
+      }
+      
+      const result = await response.json();
+      console.log('Top districts API response:', result);
+      
+      if (result.Status && result.Data) {
+        // Transform the data to match expected structure
+        const transformedData = result.Data.map((item: any) => ({
+          DistrictId: item.DistrictId,
+          DistrictName: item.DistrictName,
+          TotalAmountPaid: item.TotalAmount || item.TotalAmountPaid || 0,
+          TotalAmount: item.TotalAmount || item.TotalAmountPaid || 0
+        }));
+        console.log('Transformed top districts data:', transformedData);
+        return transformedData;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Failed to fetch top districts:', error);
+      return [];
+    }
+  };
+
+  const fetchBottomDistricts = async (): Promise<Types.TopBottomDistrictData[]> => {
+    try {
+      const financialYear = getCurrentFinancialYear();
+      console.log('Fetching bottom districts for FY:', financialYear, 'UserId:', userId);
+      
+      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetBottom10DistrictByFeeCollection?FinancialYear=${financialYear}&UserId=${userId}`, {
+        method: 'POST',
+        headers: { accept: '*/*' }
+      });
+      
+      if (!response.ok) {
+        console.error('Bottom districts API response not ok:', response.status);
+        return [];
+      }
+      
+      const result = await response.json();
+      console.log('Bottom districts API response:', result);
+      
+      if (result.Status && result.Data) {
+        const transformedData = result.Data.map((item: any) => ({
+          DistrictId: item.DistrictId,
+          DistrictName: item.DistrictName,
+          TotalAmountPaid: item.TotalAmount || item.TotalAmountPaid || 0,
+          TotalAmount: item.TotalAmount || item.TotalAmountPaid || 0
+        }));
+        console.log('Transformed bottom districts data:', transformedData);
+        return transformedData;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Failed to fetch bottom districts:', error);
+      return [];
+    }
+  };
+
+  const fetchTopBlocks = async (): Promise<Types.TopBottomBlockData[]> => {
+    try {
+      const financialYear = getCurrentFinancialYear();
+      console.log('Fetching top blocks for FY:', financialYear, 'UserId:', userId);
+      
+      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTop10BlockFeeCollection?userId=${userId}&FinancialYear=${financialYear}`, {
+        method: 'POST',
+        headers: { accept: '*/*' }
+      });
+      
+      if (!response.ok) {
+        console.error('Top blocks API response not ok:', response.status);
+        return [];
+      }
+      
+      const result = await response.json();
+      console.log('Top blocks API response:', result);
+      
+      // API returns { Data: { Top10: [], Bottom10: [] } }
+      if (result.Status && result.Data && result.Data.Top10) {
+        const transformedData = result.Data.Top10.map((item: any) => ({
+          BlockId: item.BlockId,
+          BlockName: item.BlockName,
+          DistrictName: item.DistrictName,
+          TotalAmountPaid: item.TotalAmountPaid || item.TotalAmount || 0,
+          TotalAmount: item.TotalAmountPaid || item.TotalAmount || 0
+        }));
+        console.log('Transformed top blocks data:', transformedData);
+        return transformedData;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Failed to fetch top blocks:', error);
+      return [];
+    }
+  };
+
+  const fetchBottomBlocks = async (): Promise<Types.TopBottomBlockData[]> => {
+    try {
+      const financialYear = getCurrentFinancialYear();
+      console.log('Fetching bottom blocks for FY:', financialYear, 'UserId:', userId);
+      
+      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetBottom10BlockFeeCollection?userId=${userId}&FinancialYear=${financialYear}`, {
+        method: 'POST',
+        headers: { accept: '*/*' }
+      });
+      
+      if (!response.ok) {
+        console.error('Bottom blocks API response not ok:', response.status);
+        return [];
+      }
+      
+      const result = await response.json();
+      console.log('Bottom blocks API response:', result);
+      
+      if (result.Status && result.Data) {
+        const transformedData = result.Data.map((item: any) => ({
+          BlockId: item.BlockId,
+          BlockName: item.BlockName,
+          DistrictName: item.DistrictName,
+          TotalAmountPaid: item.TotalAmountPaid || item.TotalAmount || 0,
+          TotalAmount: item.TotalAmountPaid || item.TotalAmount || 0
+        }));
+        console.log('Transformed bottom blocks data:', transformedData);
+        return transformedData;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Failed to fetch bottom blocks:', error);
+      return [];
+    }
+  };
+
+  const fetchTopGPs = async (): Promise<Types.TopBottomGPData[]> => {
+    try {
+      const financialYear = getCurrentFinancialYear();
+      console.log('Fetching top GPs for FY:', financialYear, 'UserId:', userId);
+      
+      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTop10GpFeeCollection?userId=${userId}&FinancialYear=${financialYear}`, {
+        method: 'POST',
+        headers: { accept: '*/*' }
+      });
+      
+      if (!response.ok) {
+        console.error('Top GPs API response not ok:', response.status);
+        return [];
+      }
+      
+      const result = await response.json();
+      console.log('Top GPs API response:', result);
+      
+      if (result.Status && result.Data) {
+        const transformedData = result.Data.map((item: any) => ({
+          GPId: item.GpId,
+          GpId: item.GpId,
+          GPName: item.GpName,
+          GpName: item.GpName,
+          BlockName: item.BlockName,
+          DistrictName: item.DistrictName,
+          TotalAmountPaid: item.TotalAmountPaid || item.TotalAmount || 0,
+          TotalAmount: item.TotalAmountPaid || item.TotalAmount || 0
+        }));
+        console.log('Transformed top GPs data:', transformedData);
+        return transformedData;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Failed to fetch top GPs:', error);
+      return [];
+    }
+  };
+
+  const fetchBottomGPs = async (): Promise<Types.TopBottomGPData[]> => {
+    try {
+      const financialYear = getCurrentFinancialYear();
+      console.log('Fetching bottom GPs for FY:', financialYear, 'UserId:', userId);
+      
+      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetBottom10GPFeeCollection?userId=${userId}&FinancialYear=${financialYear}`, {
+        method: 'POST',
+        headers: { accept: '*/*' }
+      });
+      
+      if (!response.ok) {
+        console.error('Bottom GPs API response not ok:', response.status);
+        return [];
+      }
+      
+      const result = await response.json();
+      console.log('Bottom GPs API response:', result);
+      
+      if (result.Status && result.Data) {
+        const transformedData = result.Data.map((item: any) => ({
+          GPId: item.GPId,
+          GpId: item.GPId,
+          GPName: item.GPName,
+          GpName: item.GPName,
+          BlockName: item.BlockName,
+          DistrictName: item.DistrictName,
+          TotalAmountPaid: item.TotalAmountPaid || item.TotalAmount || 0,
+          TotalAmount: item.TotalAmountPaid || item.TotalAmount || 0
+        }));
+        console.log('Transformed bottom GPs data:', transformedData);
+        return transformedData;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Failed to fetch bottom GPs:', error);
+      return [];
+    }
+  };
+
+  // --- Load Performance Data ---
+  // Fixed loadPerformanceData function - add to your useDirectorData.ts
+
+// Add this debugging version to your loadPerformanceData function
+
+const loadPerformanceData = async () => {
+  console.log('=== PERFORMANCE DATA LOADING START ===');
+  console.log('userId:', userId);
+  console.log('role:', role);
+  
+  if (!userId) {
+    console.log('❌ No userId, exiting loadPerformanceData');
+    return;
+  }
+  
+  setPerformanceLoading(true);
+  
+  try {
+    console.log('🔄 Starting performance data load for role:', role);
+    const promises = [];
+    
+    // Admin, Director, and DD can see district data
+    if (role === 'Admin' || role === 'Director' || role === 'DD') {
+      console.log('✅ Role allows district data, adding district promises');
+      
+      promises.push(
+        fetchTopDistricts().then(data => {
+          console.log('📊 TOP DISTRICTS RESPONSE:', data);
+          setTopDistrictsData(data);
+          return data;
+        }).catch(err => {
+          console.error('❌ TOP DISTRICTS ERROR:', err);
+          return [];
+        })
+      );
+      
+      promises.push(
+        fetchBottomDistricts().then(data => {
+          console.log('📊 BOTTOM DISTRICTS RESPONSE:', data);
+          setBottomDistrictsData(data);
+          return data;
+        }).catch(err => {
+          console.error('❌ BOTTOM DISTRICTS ERROR:', err);
+          return [];
+        })
+      );
+    } else {
+      console.log('❌ Role does not allow district data:', role);
+    }
+    
+    // Admin, Director, DPRO, and DD can see block data
+    if (role === 'Admin' || role === 'Director' || role === 'DPRO' || role === 'DD') {
+      console.log('✅ Role allows block data, adding block promises');
+      
+      promises.push(
+        fetchTopBlocks().then(data => {
+          console.log('📊 TOP BLOCKS RESPONSE:', data);
+          setTopBlocksData(data);
+          return data;
+        }).catch(err => {
+          console.error('❌ TOP BLOCKS ERROR:', err);
+          return [];
+        })
+      );
+      
+      promises.push(
+        fetchBottomBlocks().then(data => {
+          console.log('📊 BOTTOM BLOCKS RESPONSE:', data);
+          setBottomBlocksData(data);
+          return data;
+        }).catch(err => {
+          console.error('❌ BOTTOM BLOCKS ERROR:', err);
+          return [];
+        })
+      );
+    } else {
+      console.log('❌ Role does not allow block data:', role);
+    }
+    
+    // Admin, Director, ADO, and DD can see GP data
+    if (role === 'Admin' || role === 'Director' || role === 'ADO' || role === 'DD') {
+      console.log('✅ Role allows GP data, adding GP promises');
+      
+      promises.push(
+        fetchTopGPs().then(data => {
+          console.log('📊 TOP GPS RESPONSE:', data);
+          setTopGPsData(data);
+          return data;
+        }).catch(err => {
+          console.error('❌ TOP GPS ERROR:', err);
+          return [];
+        })
+      );
+      
+      promises.push(
+        fetchBottomGPs().then(data => {
+          console.log('📊 BOTTOM GPS RESPONSE:', data);
+          setBottomGPsData(data);
+          return data;
+        }).catch(err => {
+          console.error('❌ BOTTOM GPS ERROR:', err);
+          return [];
+        })
+      );
+    } else {
+      console.log('❌ Role does not allow GP data:', role);
+    }
+    
+    console.log('🚀 Total promises to execute:', promises.length);
+    
+    if (promises.length === 0) {
+      console.log('⚠️ No promises to execute - check role permissions');
+      return;
+    }
+    
+    const results = await Promise.all(promises);
+    console.log('✅ All promises completed:', results);
+    
+  } catch (error) {
+    console.error('💥 Failed to load performance data:', error);
+  } finally {
+    setPerformanceLoading(false);
+    console.log('=== PERFORMANCE DATA LOADING END ===');
+  }
+};
+  // --- Existing Filtering Functions ---
   const filterByLocation = (data: Types.BeneficiaryData[]) => data.filter(item => {
     if (selectedDistrictId && item.DistrictName) {
       const selectedDistrict = districts.find(d => d.DistrictId === selectedDistrictId);
@@ -407,6 +828,11 @@ export const useDirectorData = (
     loadAllData(); 
   }, [userId, selectedDistrictId, selectedBlockId, selectedGramPanchayatId, selectedVillageId, fromDate, toDate]);
 
+  // Load performance data when user role changes
+  useEffect(() => {
+    loadPerformanceData();
+  }, [userId, role]);
+
   // Recalculate stats when data changes
   useEffect(() => {
     calculateLocationStats(beneficiariesData, ohtData, pumpHouseData, waterQualityData, waterFeeSummaryData, complaintsData);
@@ -422,17 +848,27 @@ export const useDirectorData = (
     complaintsData,
     stats,
     
+    // Performance data
+    topDistrictsData,
+    bottomDistrictsData,
+    topBlocksData,
+    bottomBlocksData,
+    topGPsData,
+    bottomGPsData,
+    
     // Derived data
     beneficiaryTrend,
     feeCollectionTrend,
     
     // States
     loading,
+    performanceLoading,
     error,
     setError,
     
     // Functions
     loadAllData,
+    loadPerformanceData,
     
     // Filtering functions
     filterByLocation,
