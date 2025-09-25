@@ -124,6 +124,10 @@ const FeeManagementPage: React.FC = () => {
     return userRole === 'Admin' || userRole === 'Director';
   };
 
+  const isNotGPUser = (): boolean => {
+    return userRole !== 'GP' && userRole !== 'gp' && userRole !== 'Gp';
+  };
+
   // ---------- API Functions ----------
   const fetchDistricts = async () => {
     try {
@@ -295,6 +299,12 @@ const FeeManagementPage: React.FC = () => {
   const fetchAllFeeData = async () => {
     if (!selectedYear) return;
 
+    // For non-GP users, ensure proper hierarchy is selected
+    if (isNotGPUser() && (!selectedVillage || !selectedMonth)) {
+      setError("Please select a village and month to view fee collection data.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     
@@ -351,7 +361,7 @@ const FeeManagementPage: React.FC = () => {
   // ---------- Effects ----------
   useEffect(() => {
     if (userId) {
-      if (isAdminOrDirector()) {
+      if (isNotGPUser()) {
         fetchDistricts();
       } else {
         fetchVillagesByUserId();
@@ -359,44 +369,81 @@ const FeeManagementPage: React.FC = () => {
     } 
   }, [userId, userRole]);
 
-  // Handle district selection
+  // Handle district selection - reset all subsequent selections
   useEffect(() => {
-    if (selectedDistrict && isAdminOrDirector()) {
+    if (selectedDistrict && isNotGPUser()) {
       fetchBlocks(parseInt(selectedDistrict));
+      // Clear all subsequent selections
       setSelectedBlock("");
       setSelectedGramPanchayat("");
       setSelectedVillage("");
+      // Clear subsequent data
       setBlocks([]);
       setGramPanchayats([]);
       setVillages([]);
+      // Clear fee data when hierarchy changes
+      setFeeData([]);
+      setFilteredData([]);
+      setAnalytics({
+        totalCollected: 0,
+        totalOutstanding: 0,
+        totalBalance: 0,
+        totalBeneficiaries: 0,
+        totalVillages: 0
+      });
     }
   }, [selectedDistrict]);
 
-  // Handle block selection
+  // Handle block selection - reset subsequent selections
   useEffect(() => {
-    if (selectedBlock && isAdminOrDirector()) {
+    if (selectedBlock && isNotGPUser()) {
       fetchGramPanchayats(parseInt(selectedBlock));
+      // Clear subsequent selections
       setSelectedGramPanchayat("");
       setSelectedVillage("");
+      // Clear subsequent data
       setGramPanchayats([]);
       setVillages([]);
+      // Clear fee data when hierarchy changes
+      setFeeData([]);
+      setFilteredData([]);
+      setAnalytics({
+        totalCollected: 0,
+        totalOutstanding: 0,
+        totalBalance: 0,
+        totalBeneficiaries: 0,
+        totalVillages: 0
+      });
     }
   }, [selectedBlock]);
 
-  // Handle gram panchayat selection
+  // Handle gram panchayat selection - reset village selection
   useEffect(() => {
-    if (selectedGramPanchayat && selectedBlock && isAdminOrDirector()) {
+    if (selectedGramPanchayat && selectedBlock && isNotGPUser()) {
       fetchVillages(parseInt(selectedBlock), parseInt(selectedGramPanchayat));
+      // Clear village selection
       setSelectedVillage("");
+      // Clear villages data temporarily
       setVillages([]);
+      // Clear fee data when hierarchy changes
+      setFeeData([]);
+      setFilteredData([]);
+      setAnalytics({
+        totalCollected: 0,
+        totalOutstanding: 0,
+        totalBalance: 0,
+        totalBeneficiaries: 0,
+        totalVillages: 0
+      });
     }
   }, [selectedGramPanchayat, selectedBlock]);
 
+  // Fetch fee data when all required selections are made
   useEffect(() => {
-    if (selectedYear) {
+    if (selectedYear && selectedVillage && selectedMonth) {
       fetchAllFeeData();
     }
-  }, [selectedYear, selectedVillage, selectedMonth, villages]);
+  }, [selectedYear, selectedVillage, selectedMonth]);
 
   // Search functionality
   useEffect(() => {
@@ -416,11 +463,35 @@ const FeeManagementPage: React.FC = () => {
 
   // ---------- Handlers ----------
   const handleApplyFilters = () => {
-    if (selectedYear) {
-      fetchAllFeeData();
-    } else {
+    if (!selectedYear) {
       setError("Please select a financial year");
+      return;
     }
+    
+    if (isNotGPUser()) {
+      if (!selectedDistrict) {
+        setError("Please select a district");
+        return;
+      }
+      if (!selectedBlock) {
+        setError("Please select a block");
+        return;
+      }
+      if (!selectedGramPanchayat) {
+        setError("Please select a gram panchayat");
+        return;
+      }
+      if (!selectedVillage) {
+        setError("Please select a village");
+        return;
+      }
+      if (!selectedMonth) {
+        setError("Please select a month");
+        return;
+      }
+    }
+    
+    fetchAllFeeData();
   };
 
   const handleExportCSV = () => {
@@ -468,18 +539,30 @@ const FeeManagementPage: React.FC = () => {
   };
 
   const handleClearFilters = () => {
-    if (isAdminOrDirector()) {
+    if (isNotGPUser()) {
       setSelectedDistrict("");
       setSelectedBlock("");
       setSelectedGramPanchayat("");
       setSelectedVillage("");
+      setBlocks([]);
+      setGramPanchayats([]);
+      setVillages([]);
     } else {
       setSelectedVillage("");
     }
     setSelectedMonth("");
+    setSelectedYear("");
     setSearchQuery("");
-    setFilteredData(feeData);
-    calculateAnalytics(feeData);
+    setFeeData([]);
+    setFilteredData([]);
+    setAnalytics({
+      totalCollected: 0,
+      totalOutstanding: 0,
+      totalBalance: 0,
+      totalBeneficiaries: 0,
+      totalVillages: 0
+    });
+    setError("");
   };
 
   // ---------- Render ----------
@@ -520,11 +603,11 @@ const FeeManagementPage: React.FC = () => {
             </select>
           </div>
 
-          {/* Hierarchical filters for Admin/Director */}
-          {isAdminOrDirector() && (
+          {/* Hierarchical filters for all users except GP */}
+          {isNotGPUser() && (
             <>
               <div className="flex flex-col">
-                <label className="text-sm font-medium mb-1">District</label>
+                <label className="text-sm font-medium mb-1">District *</label>
                 <select
                   className="border border-gray-300 rounded px-3 py-2 min-w-[150px]"
                   value={selectedDistrict}
@@ -541,14 +624,16 @@ const FeeManagementPage: React.FC = () => {
               </div>
 
               <div className="flex flex-col">
-                <label className="text-sm font-medium mb-1">Block</label>
+                <label className="text-sm font-medium mb-1">Block *</label>
                 <select
                   className="border border-gray-300 rounded px-3 py-2 min-w-[150px]"
                   value={selectedBlock}
                   onChange={(e) => setSelectedBlock(e.target.value)}
                   disabled={loading || !selectedDistrict}
                 >
-                  <option value="">Select Block</option>
+                  <option value="">
+                    {!selectedDistrict ? "Select District First" : "Select Block"}
+                  </option>
                   {blocks.map(block => (
                     <option key={block.BlockId} value={block.BlockId.toString()}>
                       {block.BlockName}
@@ -558,14 +643,16 @@ const FeeManagementPage: React.FC = () => {
               </div>
 
               <div className="flex flex-col">
-                <label className="text-sm font-medium mb-1">Gram Panchayat</label>
+                <label className="text-sm font-medium mb-1">Gram Panchayat *</label>
                 <select
                   className="border border-gray-300 rounded px-3 py-2 min-w-[150px]"
                   value={selectedGramPanchayat}
                   onChange={(e) => setSelectedGramPanchayat(e.target.value)}
                   disabled={loading || !selectedBlock}
                 >
-                  <option value="">Select Gram Panchayat</option>
+                  <option value="">
+                    {!selectedBlock ? "Select Block First" : "Select Gram Panchayat"}
+                  </option>
                   {gramPanchayats.map(gp => (
                     <option key={gp.Id} value={gp.Id.toString()}>
                       {gp.GramPanchayatName}
@@ -577,15 +664,20 @@ const FeeManagementPage: React.FC = () => {
           )}
 
           <div className="flex flex-col">
-            <label className="text-sm font-medium mb-1">Village</label>
+            <label className="text-sm font-medium mb-1">
+              Village {isNotGPUser() ? "*" : ""}
+            </label>
             <select
               className="border border-gray-300 rounded px-3 py-2 min-w-[150px]"
               value={selectedVillage}
               onChange={(e) => setSelectedVillage(e.target.value)}
-              disabled={loading || (isAdminOrDirector() && !selectedGramPanchayat)}
+              disabled={loading || (isNotGPUser() && !selectedGramPanchayat)}
             >
               <option value="">
-                {isAdminOrDirector() ? "Select Village" : "All Villages"}
+                {isNotGPUser() 
+                  ? (!selectedGramPanchayat ? "Select Gram Panchayat First" : "Select Village")
+                  : "All Villages"
+                }
               </option>
               {villages.map(village => (
                 <option key={village.Id} value={village.Id.toString()}>
@@ -596,13 +688,18 @@ const FeeManagementPage: React.FC = () => {
           </div>
 
           <div className="flex flex-col">
-            <label className="text-sm font-medium mb-1">Month</label>
+            <label className="text-sm font-medium mb-1">
+              Month {isNotGPUser() ? "*" : ""}
+            </label>
             <select
               className="border border-gray-300 rounded px-3 py-2 min-w-[120px]"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
+              disabled={isNotGPUser() && !selectedVillage}
             >
-              <option value="">All Months</option>
+              <option value="">
+                {isNotGPUser() && !selectedVillage ? "Select Village First" : "All Months"}
+              </option>
               {months.map(month => (
                 <option key={month.value} value={month.value}>
                   {month.label}
@@ -625,7 +722,7 @@ const FeeManagementPage: React.FC = () => {
           <button 
             className="bg-blue-600 text-white px-4 py-2 rounded font-medium hover:bg-blue-700 disabled:bg-gray-400"
             onClick={handleApplyFilters}
-            disabled={loading || !selectedYear}
+            disabled={loading || !selectedYear || (isNotGPUser() && (!selectedDistrict || !selectedBlock || !selectedGramPanchayat || !selectedVillage || !selectedMonth))}
           >
             Apply Filters
           </button>
@@ -646,6 +743,27 @@ const FeeManagementPage: React.FC = () => {
             Export as CSV
           </button>
         </div>
+
+        {/* Hierarchy Status Indicator for non-GP users */}
+        {isNotGPUser() && (
+          <div className="bg-gray-50 rounded-lg p-4 border">
+            <h3 className="text-sm font-medium mb-2">Selection Status:</h3>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className={`px-2 py-1 rounded ${selectedDistrict ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                District: {selectedDistrict ? districts.find(d => d.DistrictId.toString() === selectedDistrict)?.DistrictName : 'Not Selected'}
+              </span>
+              <span className={`px-2 py-1 rounded ${selectedBlock ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                Block: {selectedBlock ? blocks.find(b => b.BlockId.toString() === selectedBlock)?.BlockName : 'Not Selected'}
+              </span>
+              <span className={`px-2 py-1 rounded ${selectedGramPanchayat ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                Gram Panchayat: {selectedGramPanchayat ? gramPanchayats.find(gp => gp.Id.toString() === selectedGramPanchayat)?.GramPanchayatName : 'Not Selected'}
+              </span>
+              <span className={`px-2 py-1 rounded ${selectedVillage ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                Village: {selectedVillage ? villages.find(v => v.Id.toString() === selectedVillage)?.VillageName : 'Not Selected'}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Analytics Summary */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -718,8 +836,10 @@ const FeeManagementPage: React.FC = () => {
                 <tr>
                   <td colSpan={9} className="text-center py-8 text-gray-500">
                     {loading ? "Loading..." : 
-                     selectedYear ? "No fee collection records found for the selected criteria." : 
-                     "Please select a financial year to view fee collection data."}
+                     !selectedYear ? "Please select a financial year to view fee collection data." :
+                     isNotGPUser() && (!selectedDistrict || !selectedBlock || !selectedGramPanchayat || !selectedVillage || !selectedMonth) 
+                       ? "Please complete the hierarchy selection (District → Block → Gram Panchayat → Village) and select a month to view data." :
+                     "No fee collection records found for the selected criteria."}
                   </td>
                 </tr>
               )}
