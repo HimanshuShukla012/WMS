@@ -203,28 +203,41 @@ export default function EnhancedGPDashboard() {
     }
   };
 
-  const fetchVillages = async (currentUserId: number) => {
-    setIsLoading(prev => ({ ...prev, villages: true }));
-    try {
-      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetVillageListByUserId?UserId=${currentUserId}`);
-      const data: ApiResponse<Village[]> = await response.json();
+  const fetchVillages = async (currentUserId) => {
+  setIsLoading(prev => ({ ...prev, villages: true }));
+  try {
+    const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetVillageListByUserId?UserId=${currentUserId}`);
+    const data = await response.json();
+    
+    if (data.Status && Array.isArray(data.Data)) {
+      setVillages(data.Data);
       
-      if (data.Status && Array.isArray(data.Data)) {
-        setVillages(data.Data);
-        // Fetch dependent data - only fee data now since OHT uses count API
-        await Promise.all(data.Data.slice(0, 5).map(async (village) => {
-          await fetchFeeData(village.VillageId);
-        }));
-      } else {
-        setVillages([]);
-      }
-    } catch (error) {
-      console.error('Error fetching villages:', error);
+      // Fix: Pass all required parameters to fetchFeeData
+      const feePromises = data.Data.slice(0, 5).map(async (village) => {
+        try {
+          const feeDataForVillage = await fetchFeeData(village.VillageId, selectedMonth, selectedYear);
+          return feeDataForVillage;
+        } catch (error) {
+          console.error(`Error fetching fee data for village ${village.VillageId}:`, error);
+          return [];
+        }
+      });
+      
+      const allFeeData = await Promise.all(feePromises);
+      // Flatten the array and update state
+      const flattenedFeeData = allFeeData.flat();
+      setFeeData(flattenedFeeData);
+    } else {
       setVillages([]);
-    } finally {
-      setIsLoading(prev => ({ ...prev, villages: false }));
     }
-  };
+  } catch (error) {
+    console.error('Error fetching villages:', error);
+    setVillages([]);
+  } finally {
+    setIsLoading(prev => ({ ...prev, villages: false }));
+  }
+};
+
 
   // NEW: Fetch OHT Count using the new API
   const fetchOHTCount = async (currentUserId: number) => {
@@ -260,27 +273,46 @@ export default function EnhancedGPDashboard() {
     }
   };
 
-  const fetchFeeData = async (villageId: number) => {
-    try {
-      const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetFeeCollectionDetails', {
+  const fetchFeeData = async (villageId, month, year) => {
+  // Add validation for required parameters
+  if (!villageId || !month || !year) {
+    console.warn('Missing required parameters for fetchFeeData:', { villageId, month, year });
+    return [];
+  }
+
+  try {
+    const response = await fetch(
+      'https://wmsapi.kdsgroup.co.in/api/Master/GetFeeCollectionDetails',
+      {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': '*/*'
+        },
         body: JSON.stringify({
           VillageId: villageId,
-          Month: selectedMonth,
-          Year: selectedYear
+          Month: month,
+          Year: year,
+          p_user_id: userId
         })
-      });
-      
-      const data: ApiResponse<FeeCollectionData[]> = await response.json();
-      
-      if (data.Status && Array.isArray(data.Data)) {
-        setFeeData(prev => [...prev, ...data.Data]);
       }
-    } catch (error) {
-      console.error(`Error fetching fee data for village ${villageId}:`, error);
+    );
+
+    const result = await response.json();
+    
+    if (result.Status && result.Data && Array.isArray(result.Data)) {
+      console.log(`Fee data fetched for Village ${villageId}:`, result.Data.length, 'records');
+      return result.Data;
+    } else {
+      console.warn(`No fee data found for Village: ${villageId}, Month: ${month}, Year: ${year}`);
+      return [];
     }
-  };
+  } catch (error) {
+    console.error('Error fetching fee collection data:', error);
+    return [];
+  }
+};
+
 
   const fetchComplaints = async () => {
     setIsLoading(prev => ({ ...prev, complaints: true }));
@@ -437,27 +469,27 @@ export default function EnhancedGPDashboard() {
 
   // Modified initialization effect that waits for userId
   useEffect(() => {
-    const initializeDashboard = async () => {
-      if (!userId || userLoading) return; // Wait for userId to be available
-      
-      console.log('Initializing dashboard with userId:', userId, 'role:', role);
+  const initializeDashboard = async () => {
+    if (!userId || userLoading) return;
+    
+    console.log('Initializing dashboard with userId:', userId, 'role:', role);
 
-      await Promise.all([
-        fetchTotalBeneficiaries(userId),
-        fetchActiveConnections(userId),
-        fetchPendingComplaints(userId),
-        fetchComplaintStatusDistribution(userId),
-        fetchWaterConnectionStatus(userId),
-        fetchVillageFeeCollectionData(userId),
-        fetchPumpHouses(userId),
-        fetchVillages(userId),
-        fetchComplaints(),
-        fetchOHTCount(userId) // NEW: Added OHT count API call
-      ]);
-    };
+    await Promise.all([
+      fetchTotalBeneficiaries(userId),
+      fetchActiveConnections(userId),
+      fetchPendingComplaints(userId),
+      fetchComplaintStatusDistribution(userId),
+      fetchWaterConnectionStatus(userId),
+      fetchVillageFeeCollectionData(userId),
+      fetchPumpHouses(userId),
+      fetchVillages(userId),
+      fetchComplaints(),
+      fetchOHTCount(userId),
+    ]);
+  };
 
-    initializeDashboard();
-  }, [userId, userLoading, role]);
+  initializeDashboard();
+}, [userId, userLoading, role, selectedMonth, selectedYear]);
 
   // Modified refresh function
   const handleRefresh = async () => {
@@ -625,7 +657,7 @@ export default function EnhancedGPDashboard() {
           <StatCard
             title="Total Pumphouses"
             value={totalPumps}
-            subtitle={totalPumps > 0 ? `${activePumps} active, ${solarPumps} solar` : "No pump data"}
+            subtitle={totalPumps > 0 ? `${activePumps} active, ${totalPumps-activePumps} inactive` : "No pump data"}
             icon={Icons.Pump}
             gradient="bg-gradient-to-br from-amber-800 via-amber-700 to-amber-600"
             isLoading={isLoading.pumps}
