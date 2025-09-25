@@ -133,7 +133,7 @@ const UserManagement = () => {
       case "DPRO":
         return { division: false, district: true, block: false, gramPanchayat: false };
       case "ADO":
-        return { division: false, district: false, block: true, gramPanchayat: false };
+        return { division: false, district: true, block: true, gramPanchayat: false };
       case "Gram Panchayat":
         return { division: true, district: true, block: true, gramPanchayat: true };
       default:
@@ -205,8 +205,8 @@ const UserManagement = () => {
   useEffect(() => {
     const requiredFields = getRequiredLocationFields(newUser.role);
     if (!requiredFields.block) return;
-    if (requiredFields.district && !selectedDistrictId) return;
-    if (newUser.role === "ADO" && !showModal) return;
+    if (!selectedDistrictId) return; // Always require district for blocks
+    if (!showModal) return;
 
     // For ADO role, we need to fetch all blocks or handle differently
     // For now, using the same logic but may need adjustment based on API
@@ -334,9 +334,9 @@ const UserManagement = () => {
     }
     
     if (requiredFields.district && !selectedDistrictId) {
-      alert("Please select a District");
-      return;
-    }
+  alert("Please select a District");
+  return;
+}
     
     if (requiredFields.block && !selectedBlockId) {
       alert("Please select a Block");

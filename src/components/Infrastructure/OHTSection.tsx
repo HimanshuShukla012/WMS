@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Droplets, Download } from 'lucide-react';
-import * as Types from '../../types';
+import * as Types from '../types';
 
 interface OHTSectionProps {
   ohtData: Types.OHTData[];
