@@ -44,7 +44,6 @@ const getMenuLinks = (role: Role): MenuItem[] => {
   if (role === "admin") {
     return [
       { name: "Dashboard", to: "/admin/dashboard", icon: <LayoutDashboard size={18} /> },
-      { name: "Real-Time Monitoring", to: "/admin/location-reporting", icon: <BarChart3 size={18} /> },
       { name: "User Management", to: "/admin/user-management", icon: <Users size={18} /> },
       { name: "Fee Management", to: "/admin/fee-management", icon: <BiMoney size={18} /> },
       { name: "Complaint Status", to: "/admin/manage-complaint", icon: <ClipboardList size={16} /> },

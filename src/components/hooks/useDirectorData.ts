@@ -1,4 +1,4 @@
-// hooks/useDirectorData.ts - Updated with performance data management
+// hooks/useDirectorData.ts - Fixed to use actual userId instead of hardcoded 0 for admin
 
 import { useState, useEffect, useMemo } from 'react';
 import { useUserInfo } from '../../utils/userInfo';
@@ -60,69 +60,41 @@ export const useDirectorData = (
   const [error, setError] = useState<string>('');
 
   // Get current financial year
-  // Fixed Financial Year calculation - add this to your useDirectorData.ts
+  const getCurrentFinancialYear = () => {
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1; // getMonth() returns 0-11
+    
+    console.log('Financial Year Calculation:', {
+      currentDate: currentDate.toISOString(),
+      currentYear,
+      currentMonth,
+      logic: currentMonth >= 4 ? `${currentMonth} >= 4, so FY should be ${currentYear}` : `${currentMonth} < 4, so FY should be ${currentYear}`
+    });
+    
+    // Financial year starts from April (month 4)
+    // April 2025 to March 2026 = FY 2026
+    // But your API might expect the CURRENT year format
+    if (currentMonth >= 4) {
+      // For September 2025, this would return 2026
+      const calculatedFY = currentYear ;
+      console.log('Calculated FY (April+ logic):', calculatedFY);
+      return calculatedFY;
+    } else {
+      // January to March 2025 = FY 2025
+      console.log('Calculated FY (Jan-Mar logic):', currentYear);
+      return currentYear;
+    }
+  };
 
-// Get current financial year - FIXED VERSION
-const getCurrentFinancialYear = () => {
-  const currentDate = new Date();
-  const currentYear = currentDate.getFullYear();
-  const currentMonth = currentDate.getMonth() + 1; // getMonth() returns 0-11
-  
-  console.log('Financial Year Calculation:', {
-    currentDate: currentDate.toISOString(),
-    currentYear,
-    currentMonth,
-    logic: currentMonth >= 4 ? `${currentMonth} >= 4, so FY should be ${currentYear}` : `${currentMonth} < 4, so FY should be ${currentYear}`
-  });
-  
-  // Financial year starts from April (month 4)
-  // April 2025 to March 2026 = FY 2026
-  // But your API might expect the CURRENT year format
-  if (currentMonth >= 4) {
-    // For September 2025, this would return 2026
-    const calculatedFY = currentYear ;
-    console.log('Calculated FY (April+ logic):', calculatedFY);
-    return calculatedFY;
-  } else {
-    // January to March 2025 = FY 2025
-    console.log('Calculated FY (Jan-Mar logic):', currentYear);
-    return currentYear;
-  }
-};
-
-// Alternative function if your system uses different logic
-const getCurrentFinancialYearAlternative = () => {
-  const currentDate = new Date();
-  const currentYear = currentDate.getFullYear();
-  const currentMonth = currentDate.getMonth() + 1;
-  
-  // Some systems use the starting year of the financial period
-  // April 2024 to March 2025 = FY 2024 (not 2025)
-
-};
-
-// Test both approaches
-const testFinancialYear = () => {
-  const method1 = getCurrentFinancialYear();
-  const method2 = getCurrentFinancialYearAlternative();
-  
-  console.log('Financial Year Test:', {
-    method1_result: method1,
-    method2_result: method2,
-    current_date: new Date().toISOString().split('T')[0],
-    recommendation: 'Try both values in API calls to see which works'
-  });
-  
-  return { method1, method2 };
-};
-  // --- Existing API Functions ---
+  // --- API Functions ---
   const fetchBeneficiaries = async (): Promise<Types.BeneficiaryData[]> => {
     try {
-      const effectiveUserId = role === 'Admin' ? 0 : userId;
+      // FIXED: Use actual userId instead of hardcoded 0 for admin
       const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetBeneficiaryListByUserIdVillageAndStatus', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ userId: effectiveUserId, VillageId: 0, Status: 0 }) 
+        body: JSON.stringify({ userId: userId, VillageId: 0, Status: 0 }) 
       });
       if (!response.ok) return [];
       const result = await response.json();
@@ -216,12 +188,12 @@ const testFinancialYear = () => {
 
   const fetchComplaintsData = async (): Promise<Types.ComplaintData[]> => {
     try {
-      const effectiveUserId = role === 'Admin' ? 0 : userId;
+      // FIXED: Use actual userId instead of hardcoded 0 for admin
       const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Complain/GetComplaintListByUserIdVillageAndStatus', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          UserId: effectiveUserId, 
+          UserId: userId, // Changed from: role === 'Admin' ? 0 : userId
           VillageId: selectedVillageId || 0, 
           Status: 0
         })
@@ -235,8 +207,7 @@ const testFinancialYear = () => {
     }
   };
 
-  // --- New Performance API Functions ---
-  // --- New Performance API Functions (Fixed) ---
+  // --- Performance API Functions ---
   const fetchTopDistricts = async (): Promise<Types.TopBottomDistrictData[]> => {
     try {
       const financialYear = getCurrentFinancialYear();
@@ -256,7 +227,6 @@ const testFinancialYear = () => {
       console.log('Top districts API response:', result);
       
       if (result.Status && result.Data) {
-        // Transform the data to match expected structure
         const transformedData = result.Data.map((item: any) => ({
           DistrictId: item.DistrictId,
           DistrictName: item.DistrictName,
@@ -328,7 +298,6 @@ const testFinancialYear = () => {
       const result = await response.json();
       console.log('Top blocks API response:', result);
       
-      // API returns { Data: { Top10: [], Bottom10: [] } }
       if (result.Status && result.Data && result.Data.Top10) {
         const transformedData = result.Data.Top10.map((item: any) => ({
           BlockId: item.BlockId,
@@ -466,130 +435,127 @@ const testFinancialYear = () => {
   };
 
   // --- Load Performance Data ---
-  // Fixed loadPerformanceData function - add to your useDirectorData.ts
-
-// Add this debugging version to your loadPerformanceData function
-
-const loadPerformanceData = async () => {
-  console.log('=== PERFORMANCE DATA LOADING START ===');
-  console.log('userId:', userId);
-  console.log('role:', role);
-  
-  if (!userId) {
-    console.log('❌ No userId, exiting loadPerformanceData');
-    return;
-  }
-  
-  setPerformanceLoading(true);
-  
-  try {
-    console.log('🔄 Starting performance data load for role:', role);
-    const promises = [];
+  const loadPerformanceData = async () => {
+    console.log('=== PERFORMANCE DATA LOADING START ===');
+    console.log('userId:', userId);
+    console.log('role:', role);
     
-    // Admin, Director, and DD can see district data
-    if (role === 'Admin' || role === 'Director' || role === 'DD') {
-      console.log('✅ Role allows district data, adding district promises');
-      
-      promises.push(
-        fetchTopDistricts().then(data => {
-          console.log('📊 TOP DISTRICTS RESPONSE:', data);
-          setTopDistrictsData(data);
-          return data;
-        }).catch(err => {
-          console.error('❌ TOP DISTRICTS ERROR:', err);
-          return [];
-        })
-      );
-      
-      promises.push(
-        fetchBottomDistricts().then(data => {
-          console.log('📊 BOTTOM DISTRICTS RESPONSE:', data);
-          setBottomDistrictsData(data);
-          return data;
-        }).catch(err => {
-          console.error('❌ BOTTOM DISTRICTS ERROR:', err);
-          return [];
-        })
-      );
-    } else {
-      console.log('❌ Role does not allow district data:', role);
-    }
-    
-    // Admin, Director, DPRO, and DD can see block data
-    if (role === 'Admin' || role === 'Director' || role === 'DPRO' || role === 'DD') {
-      console.log('✅ Role allows block data, adding block promises');
-      
-      promises.push(
-        fetchTopBlocks().then(data => {
-          console.log('📊 TOP BLOCKS RESPONSE:', data);
-          setTopBlocksData(data);
-          return data;
-        }).catch(err => {
-          console.error('❌ TOP BLOCKS ERROR:', err);
-          return [];
-        })
-      );
-      
-      promises.push(
-        fetchBottomBlocks().then(data => {
-          console.log('📊 BOTTOM BLOCKS RESPONSE:', data);
-          setBottomBlocksData(data);
-          return data;
-        }).catch(err => {
-          console.error('❌ BOTTOM BLOCKS ERROR:', err);
-          return [];
-        })
-      );
-    } else {
-      console.log('❌ Role does not allow block data:', role);
-    }
-    
-    // Admin, Director, ADO, and DD can see GP data
-    if (role === 'Admin' || role === 'Director' || role === 'ADO' || role === 'DD') {
-      console.log('✅ Role allows GP data, adding GP promises');
-      
-      promises.push(
-        fetchTopGPs().then(data => {
-          console.log('📊 TOP GPS RESPONSE:', data);
-          setTopGPsData(data);
-          return data;
-        }).catch(err => {
-          console.error('❌ TOP GPS ERROR:', err);
-          return [];
-        })
-      );
-      
-      promises.push(
-        fetchBottomGPs().then(data => {
-          console.log('📊 BOTTOM GPS RESPONSE:', data);
-          setBottomGPsData(data);
-          return data;
-        }).catch(err => {
-          console.error('❌ BOTTOM GPS ERROR:', err);
-          return [];
-        })
-      );
-    } else {
-      console.log('❌ Role does not allow GP data:', role);
-    }
-    
-    console.log('🚀 Total promises to execute:', promises.length);
-    
-    if (promises.length === 0) {
-      console.log('⚠️ No promises to execute - check role permissions');
+    if (!userId) {
+      console.log('❌ No userId, exiting loadPerformanceData');
       return;
     }
     
-    const results = await Promise.all(promises);
-    console.log('✅ All promises completed:', results);
+    setPerformanceLoading(true);
     
-  } catch (error) {
-    console.error('💥 Failed to load performance data:', error);
-  } finally {
-    setPerformanceLoading(false);
-    console.log('=== PERFORMANCE DATA LOADING END ===');
-  }
-};
+    try {
+      console.log('🔄 Starting performance data load for role:', role);
+      const promises = [];
+      
+      // Admin, Director, and DD can see district data
+      if (role === 'Admin' || role === 'Director' || role === 'DD') {
+        console.log('✅ Role allows district data, adding district promises');
+        
+        promises.push(
+          fetchTopDistricts().then(data => {
+            console.log('📊 TOP DISTRICTS RESPONSE:', data);
+            setTopDistrictsData(data);
+            return data;
+          }).catch(err => {
+            console.error('❌ TOP DISTRICTS ERROR:', err);
+            return [];
+          })
+        );
+        
+        promises.push(
+          fetchBottomDistricts().then(data => {
+            console.log('📊 BOTTOM DISTRICTS RESPONSE:', data);
+            setBottomDistrictsData(data);
+            return data;
+          }).catch(err => {
+            console.error('❌ BOTTOM DISTRICTS ERROR:', err);
+            return [];
+          })
+        );
+      } else {
+        console.log('❌ Role does not allow district data:', role);
+      }
+      
+      // Admin, Director, DPRO, and DD can see block data
+      if (role === 'Admin' || role === 'Director' || role === 'DPRO' || role === 'DD') {
+        console.log('✅ Role allows block data, adding block promises');
+        
+        promises.push(
+          fetchTopBlocks().then(data => {
+            console.log('📊 TOP BLOCKS RESPONSE:', data);
+            setTopBlocksData(data);
+            return data;
+          }).catch(err => {
+            console.error('❌ TOP BLOCKS ERROR:', err);
+            return [];
+          })
+        );
+        
+        promises.push(
+          fetchBottomBlocks().then(data => {
+            console.log('📊 BOTTOM BLOCKS RESPONSE:', data);
+            setBottomBlocksData(data);
+            return data;
+          }).catch(err => {
+            console.error('❌ BOTTOM BLOCKS ERROR:', err);
+            return [];
+          })
+        );
+      } else {
+        console.log('❌ Role does not allow block data:', role);
+      }
+      
+      // Admin, Director, ADO, and DD can see GP data
+      if (role === 'Admin' || role === 'Director' || role === 'ADO' || role === 'DD') {
+        console.log('✅ Role allows GP data, adding GP promises');
+        
+        promises.push(
+          fetchTopGPs().then(data => {
+            console.log('📊 TOP GPS RESPONSE:', data);
+            setTopGPsData(data);
+            return data;
+          }).catch(err => {
+            console.error('❌ TOP GPS ERROR:', err);
+            return [];
+          })
+        );
+        
+        promises.push(
+          fetchBottomGPs().then(data => {
+            console.log('📊 BOTTOM GPS RESPONSE:', data);
+            setBottomGPsData(data);
+            return data;
+          }).catch(err => {
+            console.error('❌ BOTTOM GPS ERROR:', err);
+            return [];
+          })
+        );
+      } else {
+        console.log('❌ Role does not allow GP data:', role);
+      }
+      
+      console.log('🚀 Total promises to execute:', promises.length);
+      
+      if (promises.length === 0) {
+        console.log('⚠️ No promises to execute - check role permissions');
+        return;
+      }
+      
+      const results = await Promise.all(promises);
+      console.log('✅ All promises completed:', results);
+      
+    } catch (error) {
+      console.error('💥 Failed to load performance data:', error);
+    } finally {
+      setPerformanceLoading(false);
+      console.log('=== PERFORMANCE DATA LOADING END ===');
+    }
+  };
+
   // --- Existing Filtering Functions ---
   const filterByLocation = (data: Types.BeneficiaryData[]) => data.filter(item => {
     if (selectedDistrictId && item.DistrictName) {

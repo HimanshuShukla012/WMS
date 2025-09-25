@@ -1,4 +1,4 @@
-// components/Header/DirectorHeader.tsx - Enhanced page header component
+// components/Header/DirectorHeader.tsx - Enhanced page header component with role-based titles
 
 import React from 'react';
 import { MapPin, Activity, RefreshCw, Download } from 'lucide-react';
@@ -8,19 +8,39 @@ interface DirectorHeaderProps {
   onRefresh: () => void;
   onExport: () => void;
   loading: boolean;
+  userRole?: string; // Add userRole prop
 }
 
 export const DirectorHeader: React.FC<DirectorHeaderProps> = ({
   selectedLocationName,
   onRefresh,
   onExport,
-  loading
+  loading,
+  userRole
 }) => {
+  // Function to get dashboard title based on user role
+  const getDashboardTitle = (role: string | undefined): string => {
+    switch (role?.toLowerCase()) {
+      case 'director':
+        return 'Monitoring Dashboard for Directorate';
+      case 'dd':
+        return 'Monitoring Dashboard for Division';
+      case 'dpro':
+        return 'Monitoring Dashboard for District';
+      case 'ado':
+        return 'Monitoring Dashboard for Block';
+      case 'admin':
+        return 'Monitoring Dashboard for Administration';
+      default:
+        return 'Monitoring Dashboard';
+    }
+  };
+
   return (
     <div className="bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 rounded-2xl p-6 shadow-2xl text-white mb-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Monitoring Dashboard for Directorate</h1>
+          <h1 className="text-3xl font-bold mb-2">{getDashboardTitle(userRole)}</h1>
           <div className="flex items-center gap-4 text-blue-100">
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4" />

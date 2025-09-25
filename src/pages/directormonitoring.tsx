@@ -1,4 +1,4 @@
-// DirectorMonitoring.tsx - Updated with performance cards integration
+// DirectorMonitoring.tsx - Fixed with correct userRole prop
 
 import React, { useState } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
@@ -163,12 +163,13 @@ const DirectorMonitoring: React.FC = () => {
 
   return (
     <div className="p-6 min-h-screen bg-gradient-to-br relative z-10 from-gray-50 to-gray-100">
-      {/* Header */}
+      {/* Header - FIXED: Changed 'role' to 'userRole' */}
       <DirectorHeader
         selectedLocationName={locationData.getSelectedLocationName()}
         onRefresh={handleRefreshAll}
         onExport={exportToExcel}
         loading={directorData.loading || directorData.performanceLoading}
+        userRole={role}
       />
 
       {/* Error Display */}
