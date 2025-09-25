@@ -341,7 +341,7 @@ const fetchComplaints = async () => {
 
   try {
     // MODIFIED: Use userId=0 for Admin role, otherwise use actual userId
-    const effectiveUserId = role?.toLowerCase() === "admin" ? 0 : userId;
+    const effectiveUserId = userId;
     
     console.log("Using effective userId:", effectiveUserId, "for role:", role);
 

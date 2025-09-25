@@ -129,7 +129,7 @@ const ManageBeneficiary = () => {
 
     try {
       // Force userId = 0 for Admin role to get all beneficiaries
-      const effectiveUserId = role === "Admin" ? 0 : userId;
+      const effectiveUserId = userId;
       console.log("Fetching all beneficiaries with userId:", effectiveUserId, "role:", role);
 
       const res = await fetch(

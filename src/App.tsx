@@ -139,7 +139,7 @@ function App() {
                 <DashboardLayout role="admin" />
               </div>
             }>
-              <Route path="dashboard" element={<AdminDashboard />} />
+              <Route path="dashboard" element={<DirectorMonitoring />} />
               <Route path="user-management" element={<UserManagement />} />
               <Route path="fee-management" element={<FeeManagement />} />
               <Route path="manage-beneficiary" element={<ManageBeneficiary />} />
