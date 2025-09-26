@@ -27,6 +27,7 @@ import GuidelinesPage from "./pages/guidelines";
 import About from "./pages/AboutPage";
 import PDFFlipbook from "./pages/gpusermanual";
 import DirectorMonitoring from "./pages/directormonitoring";
+import DPROWaterFee from "./pages/DPROWaterFee";
 
 // Declare global types for Google Translate
 declare global {
@@ -205,6 +206,7 @@ function App() {
               <Route path="view-water-quality" element={<ViewWaterQuality />} />
               <Route path="reporting" element={<MISReportingPage />} />
               <Route path="fee-management" element={<FeeManagementPage />} />
+              <Route path="dpro-fee-update" element={<DPROWaterFee/>} />
             </Route>
           </Route>
 

@@ -15,23 +15,24 @@ import {
 import { useUserInfo } from "../utils/userInfo";
 
 const DPROWaterFee = () => {
-  type GPFeeItem = {
-    GP_Id: number;
+  type GPFeeApiResponse = {
+    FeeId: number;
+    GPId: number;
+    BlockName: string;
     GPName: string;
-    DistrictId: number;
     DistrictName: string;
     BaseFee: number;
-    TotalAmountCollected: number;
     ApplyFrom: string;
+    TotalAmountCollected: number;
   };
 
   type GPFee = {
-    id: number;
+    feeId: number;
     gpId: number;
     name: string;
+    blockName: string;
     districtName: string;
     fee: string;
-    districtId: number;
     totalCollected: number;
     applyFrom: string;
   };
@@ -39,101 +40,16 @@ const DPROWaterFee = () => {
   const { userId, role, isLoading: userLoading } = useUserInfo();
 
   const [gpFees, setGPFees] = useState<GPFee[]>([]);
-  const [mode, setMode] = useState("gp");
-  const [bulkFee, setBulkFee] = useState("");
   const [originalGPFees, setOriginalGPFees] = useState<GPFee[]>([]);
   const [financialYear, setFinancialYear] = useState("2025-26");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
-  const [validationErrors, setValidationErrors] = useState({});
+  const [validationErrors, setValidationErrors] = useState<{[key: string]: string | null}>({});
 
   // Base API URL
   const API_BASE = "https://wmsapi.kdsgroup.co.in/api/User";
-
-  // Static GP data for demonstration (replace with actual API call later)
-  const staticGPData: GPFee[] = [
-    {
-      id: 1,
-      gpId: 3753,
-      name: "Adarsh Gram Panchayat",
-      districtName: "Lucknow",
-      fee: "50",
-      districtId: 6,
-      totalCollected: 25000,
-      applyFrom: "2025-01-01T00:00:00Z"
-    },
-    {
-      id: 2,
-      gpId: 3754,
-      name: "Bharatpur Gram Panchayat",
-      districtName: "Lucknow",
-      fee: "45",
-      districtId: 6,
-      totalCollected: 18000,
-      applyFrom: "2025-01-01T00:00:00Z"
-    },
-    {
-      id: 3,
-      gpId: 3755,
-      name: "Chandpur Gram Panchayat",
-      districtName: "Lucknow",
-      fee: "55",
-      districtId: 6,
-      totalCollected: 32000,
-      applyFrom: "2025-01-01T00:00:00Z"
-    },
-    {
-      id: 4,
-      gpId: 3756,
-      name: "Devgaon Gram Panchayat",
-      districtName: "Lucknow",
-      fee: "40",
-      districtId: 6,
-      totalCollected: 15000,
-      applyFrom: "2025-01-01T00:00:00Z"
-    },
-    {
-      id: 5,
-      gpId: 3757,
-      name: "Ekta Gram Panchayat",
-      districtName: "Lucknow",
-      fee: "60",
-      districtId: 6,
-      totalCollected: 28000,
-      applyFrom: "2025-01-01T00:00:00Z"
-    },
-    {
-      id: 6,
-      gpId: 3758,
-      name: "Fatehpur Gram Panchayat",
-      districtName: "Lucknow",
-      fee: "48",
-      districtId: 6,
-      totalCollected: 22000,
-      applyFrom: "2025-01-01T00:00:00Z"
-    },
-    {
-      id: 7,
-      gpId: 3759,
-      name: "Gangapur Gram Panchayat",
-      districtName: "Lucknow",
-      fee: "52",
-      districtId: 6,
-      totalCollected: 30000,
-      applyFrom: "2025-01-01T00:00:00Z"
-    },
-    {
-      id: 8,
-      gpId: 3760,
-      name: "Haripur Gram Panchayat",
-      districtName: "Lucknow",
-      fee: "42",
-      districtId: 6,
-      totalCollected: 19000,
-      applyFrom: "2025-01-01T00:00:00Z"
-    }
-  ];
+  const API_BASE1 = "https://wmsapi.kdsgroup.co.in/api/Master";
 
   // Validation functions
   const validateFeeAmount = (value) => {
@@ -144,13 +60,6 @@ const DPROWaterFee = () => {
     return null;
   };
 
-  const validateBulkFee = (value) => {
-    if (!value || value.trim() === "") {
-      return "Please enter a fee amount";
-    }
-    return validateFeeAmount(value);
-  };
-
   const validateGPFee = (value) => {
     if (!value || value.trim() === "") {
       return null;
@@ -158,74 +67,93 @@ const DPROWaterFee = () => {
     return validateFeeAmount(value);
   };
 
-  // Load GP data (currently using static data)
+  // Load GP data from API
   const loadGPData = async () => {
     setLoading(true);
     setMessage({ type: "", text: "" });
     
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (!userId) {
+        throw new Error("User ID not available. Please refresh the page and try again.");
+      }
+
+      const financialYearParam = financialYear.split('-')[0]; // Send just the starting year (e.g., "2025")
       
-      // Use static data for now
-      setGPFees([...staticGPData]);
-      setOriginalGPFees(JSON.parse(JSON.stringify(staticGPData)));
-      setMessage({ type: "success", text: `Loaded ${staticGPData.length} Gram Panchayats successfully` });
+      console.log('Loading GP data request:', JSON.stringify({
+        FinancialYear: financialYearParam,
+        UserId: userId
+      }, null, 2));
+
+      const response = await fetch(
+        `${API_BASE1}/GetWaterFeeDeclarationByGP?FinancialYear=${financialYearParam}&UserId=${userId}`,
+        {
+          method: "GET",
+          headers: {
+            "accept": "*/*"
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('GP data response:', result);
       
-      // Clear validation errors when new data is loaded
-      setValidationErrors({});
-      
+      if (result.Status && result.Data) {
+        const gpData: GPFee[] = result.Data.map((item: GPFeeApiResponse) => ({
+          feeId: item.FeeId,
+          gpId: item.GPId,
+          name: item.GPName,
+          blockName: item.BlockName,
+          districtName: item.DistrictName,
+          fee: item.BaseFee.toString(),
+          totalCollected: item.TotalAmountCollected,
+          applyFrom: item.ApplyFrom
+        }));
+
+        setGPFees(gpData);
+        setOriginalGPFees(JSON.parse(JSON.stringify(gpData)));
+        setMessage({ type: "success", text: `Loaded ${gpData.length} Gram Panchayats successfully` });
+        setValidationErrors({});
+      } else {
+        throw new Error(result.Message || result.Error || "Failed to load GP data");
+      }
     } catch (error) {
       console.error("Error loading GP data:", error);
       setMessage({ type: "error", text: `Error: ${error.message}` });
+      // Fall back to empty array on error
+      setGPFees([]);
+      setOriginalGPFees([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Load data on component mount and when financial year changes
   useEffect(() => {
-    loadGPData();
-  }, [financialYear]);
+    if (userId) {
+      loadGPData();
+    }
+  }, [financialYear, userId]);
 
-  const handleGPFeeChange = (id, value) => {
-    // Update the fee value
+  const handleGPFeeChange = (gpId, value) => {
     setGPFees((prev) =>
-      prev.map((gp) => (gp.id === id ? { ...gp, fee: value } : gp))
+      prev.map((gp) => (gp.gpId === gpId ? { ...gp, fee: value } : gp))
     );
 
-    // Validate the fee
     const error = validateGPFee(value);
     setValidationErrors(prev => ({
       ...prev,
-      [`gp_${id}`]: error
+      [`gp_${gpId}`]: error
     }));
 
-    // Clear general message when user starts typing
     if (message.type === "error" && message.text.includes("negative")) {
       setMessage({ type: "", text: "" });
     }
   };
 
-  const handleBulkFeeChange = (value) => {
-    setBulkFee(value);
-    
-    // Validate bulk fee
-    const error = validateBulkFee(value);
-    setValidationErrors(prev => ({
-      ...prev,
-      bulkFee: error
-    }));
-
-    // Clear general message when user starts typing
-    if (message.type === "error" && message.text.includes("negative")) {
-      setMessage({ type: "", text: "" });
-    }
-  };
-
-  // Save individual GP fee
   const saveGPFee = async (gp) => {
-    // Validate before saving
     const feeError = validateGPFee(gp.fee);
     if (feeError) {
       setMessage({ type: "error", text: `${gp.name}: ${feeError}` });
@@ -244,7 +172,6 @@ const DPROWaterFee = () => {
       const requestBody = {
         WaterFeeListMew: [
           {
-            DistrictId: gp.districtId,
             GP_Id: gp.gpId,
             WaterFeeAmount: parseFloat(gp.fee),
             ApplyFrom: new Date().toISOString(),
@@ -278,7 +205,6 @@ const DPROWaterFee = () => {
       
       if (data.Status) {
         setMessage({ type: "success", text: `${data.Message} for ${gp.name}` });
-        // Refresh data to get updated values
         setTimeout(() => {
           loadGPData();
         }, 1000);
@@ -293,92 +219,7 @@ const DPROWaterFee = () => {
     }
   };
 
-  // Handle bulk fee update for all GPs
-  const handleSaveBulkFee = async () => {
-    // Validate bulk fee first
-    const bulkError = validateBulkFee(bulkFee);
-    if (bulkError) {
-      setValidationErrors(prev => ({ ...prev, bulkFee: bulkError }));
-      setMessage({ type: "error", text: bulkError });
-      return;
-    }
-
-    // Validate userId is available
-    if (!userId) {
-      setMessage({ type: "error", text: "User ID not available. Please refresh the page and try again." });
-      return;
-    }
-
-    setSaving(true);
-    setMessage({ type: "", text: "" });
-
-    try {
-      // Create a bulk request with all GPs
-      const waterFeeList = gpFees.map(gp => ({
-        DistrictId: gp.districtId,
-        GP_Id: gp.gpId,
-        WaterFeeAmount: parseFloat(bulkFee),
-        ApplyFrom: new Date().toISOString(),
-        UserId: userId,
-        DeviceToken: "web_app",
-        IPAddress: "192.168.1.1"
-      }));
-
-      const requestBody = {
-        WaterFeeListMew: waterFeeList
-      };
-
-      console.log('Bulk GP update request:', JSON.stringify(requestBody, null, 2));
-
-      const response = await fetch(
-        `${API_BASE}/UpdateGPWideWaterFee`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "accept": "*/*"
-          },
-          body: JSON.stringify(requestBody)
-        }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`HTTP ${response.status}:`, errorText);
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-
-      const data = await response.json();
-      console.log('Bulk GP update response:', data);
-      
-      if (data.Status) {
-        setMessage({ 
-          type: "success", 
-          text: `Bulk fee of ₹${bulkFee} applied to all GPs successfully: ${data.Message}` 
-        });
-        
-        // Refresh data and reset bulk fee input
-        setTimeout(() => {
-          loadGPData();
-          setBulkFee("");
-          setValidationErrors(prev => ({ ...prev, bulkFee: null }));
-        }, 1000);
-        
-      } else {
-        throw new Error(data.Message || data.Error || 'Failed to update bulk GP fee');
-      }
-      
-    } catch (error) {
-      console.error("Error in handleSaveBulkFee:", error);
-      setMessage({ type: "error", text: `Error: ${error.message}` });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Save all changed GPs
   const handleSaveAll = async () => {
-    // First validate all changed GPs
     const changedGPs = gpFees.filter((gp, index) => {
       const original = originalGPFees[index];
       return original && gp.fee !== original.fee && gp.fee !== "";
@@ -389,13 +230,12 @@ const DPROWaterFee = () => {
       return;
     }
 
-    // Check for validation errors in changed GPs
     const hasValidationErrors = changedGPs.some(gp => {
       const error = validateGPFee(gp.fee);
       if (error) {
         setValidationErrors(prev => ({
           ...prev,
-          [`gp_${gp.id}`]: error
+          [`gp_${gp.gpId}`]: error
         }));
         return true;
       }
@@ -411,9 +251,7 @@ const DPROWaterFee = () => {
     setMessage({ type: "", text: "" });
 
     try {
-      // Send all changed GPs in a single bulk request
       const waterFeeList = changedGPs.map(gp => ({
-        DistrictId: gp.districtId,
         GP_Id: gp.gpId,
         WaterFeeAmount: parseFloat(gp.fee),
         ApplyFrom: new Date().toISOString(),
@@ -453,7 +291,6 @@ const DPROWaterFee = () => {
           text: `Bulk update completed for ${changedGPs.length} GPs: ${data.Message}` 
         });
         
-        // Refresh data
         setTimeout(() => {
           loadGPData();
         }, 1000);
@@ -470,10 +307,9 @@ const DPROWaterFee = () => {
   };
 
   const handleDownload = () => {
-    // Create CSV content
-    const csvHeaders = "GP Name,District,Water Fee (₹),Total Amount Collected (₹),Apply From\n";
+    const csvHeaders = "GP Name,Block,District,Water Fee (₹),Total Amount Collected (₹),Apply From\n";
     const csvContent = gpFees.map(gp => 
-      `"${gp.name}","${gp.districtName}",${gp.fee || 0},${gp.totalCollected || 0},"${new Date(gp.applyFrom).toLocaleDateString()}"`
+      `"${gp.name}","${gp.blockName}","${gp.districtName}",${gp.fee || 0},${gp.totalCollected || 0},"${new Date(gp.applyFrom).toLocaleDateString()}"`
     ).join("\n");
     
     const csvData = csvHeaders + csvContent;
@@ -500,7 +336,7 @@ const DPROWaterFee = () => {
         </h2>
         <button
           onClick={loadGPData}
-          disabled={loading}
+          disabled={loading || !userId}
           className="ml-auto flex items-center gap-2 bg-gray-600 text-white px-4 py-2 rounded-lg shadow hover:bg-gray-700 transition disabled:opacity-50"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -508,7 +344,7 @@ const DPROWaterFee = () => {
         </button>
       </div>
       <p className="text-gray-500">
-        Set and manage water fee rates for individual Gram Panchayats or apply bulk rates.
+        Set and manage water fee rates for individual Gram Panchayats.
       </p>
 
       {/* Message Display */}
@@ -527,87 +363,178 @@ const DPROWaterFee = () => {
         </div>
       )}
 
-      {/* Mode Selection */}
-      <div className="bg-white rounded-xl shadow-lg p-6 flex gap-6 items-center">
-        <div
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border transition-all ${
-            mode === "bulk"
-              ? "bg-blue-100 border-blue-400 text-blue-700"
-              : "bg-gray-50 border-gray-300 text-gray-600"
-          }`}
-          onClick={() => setMode("bulk")}
-        >
-          <Banknote className="w-5 h-5" />
-          <span className="font-medium">Bulk GP Water Fee</span>
-        </div>
-        <div
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer border transition-all ${
-            mode === "gp"
-              ? "bg-blue-100 border-blue-400 text-blue-700"
-              : "bg-gray-50 border-gray-300 text-gray-600"
-          }`}
-          onClick={() => setMode("gp")}
-        >
-          <Building2 className="w-5 h-5" />
-          <span className="font-medium">Individual GP Water Fee</span>
+      {/* Fee Input Section */}
+      <div className="bg-white rounded-xl shadow-lg p-6 space-y-4">
+        <div className="space-y-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
+              <span className="ml-2 text-gray-600">Loading Gram Panchayats...</span>
+            </div>
+          ) : gpFees.length === 0 ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No Gram Panchayats found for the selected financial year.</p>
+                <p className="text-sm text-gray-500 mt-1">Try selecting a different financial year or refresh the data.</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="max-h-96 overflow-y-auto border rounded-lg">
+                <table className="w-full">
+                  <thead className="bg-blue-100 text-blue-800 sticky top-0">
+                    <tr>
+                      <th className="p-3 border text-left">GP Name</th>
+                      <th className="p-3 border text-left">Block</th>
+                      <th className="p-3 border text-left">District</th>
+                      <th className="p-3 border text-left">Water Fee Amount (₹)</th>
+                      <th className="p-3 border text-left">Total Collected (₹)</th>
+                      <th className="p-3 border text-left">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gpFees.map((gp) => (
+                      <tr key={gp.gpId} className="hover:bg-blue-50 transition-colors">
+                        <td className="p-3 border font-medium">{gp.name}</td>
+                        <td className="p-3 border text-gray-600">{gp.blockName}</td>
+                        <td className="p-3 border text-gray-600">{gp.districtName}</td>
+                        <td className="p-3 border">
+                          <div className="space-y-1">
+                            <input
+                              type="number"
+                              value={gp.fee}
+                              onChange={(e) => handleGPFeeChange(gp.gpId, e.target.value)}
+                              className={`border rounded-lg px-2 py-1 w-32 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 ${
+                                validationErrors[`gp_${gp.gpId}`] ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                              }`}
+                              placeholder="Fee"
+                              min="0"
+                            />
+                            {validationErrors[`gp_${gp.gpId}`] && (
+                              <div className="text-red-600 text-xs flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3" />
+                                <span>{validationErrors[`gp_${gp.gpId}`]}</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3 border">
+                          <span className="font-semibold text-green-600">
+                            ₹ {gp.totalCollected?.toLocaleString('en-IN') || '0'}
+                          </span>
+                        </td>
+                        <td className="p-3 border">
+                          <button
+                            onClick={() => saveGPFee(gp)}
+                            disabled={saving || !gp.fee || gp.fee === "0" || validationErrors[`gp_${gp.gpId}`]}
+                            className="flex items-center gap-1 bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Save className="w-3 h-3" />
+                            Save
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex gap-4">
+                <button
+                  onClick={handleSaveAll}
+                  disabled={
+                    saving || 
+                    gpFees.length === 0 || 
+                    Object.values(validationErrors).some(error => error)
+                  }
+                  className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg shadow hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {saving ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  {saving ? "Saving..." : "Save All Changes"}
+                </button>
+                <span className="text-sm text-gray-500 flex items-center">
+                  {gpFees.filter((gp, i) => {
+                    const original = originalGPFees[i];
+                    return original && gp.fee !== original.fee && gp.fee !== "";
+                  }).length} changes pending
+                </span>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Fee Input Section */}
-      <div className="bg-white rounded-xl shadow-lg p-6 space-y-4">
-        {mode === "bulk" ? (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-4">
-              <label className="font-medium flex items-center gap-2">
-                <Banknote className="w-5 h-5 text-green-600" />
-                Bulk GP Water Fee Amount (₹)
-              </label>
-              <input
-                type="number"
-                value={bulkFee}
-                onChange={(e) => handleBulkFeeChange(e.target.value)}
-                className={`border rounded-lg px-3 py-2 w-48 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 ${
-                  validationErrors.bulkFee ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                }`}
-                placeholder="Enter fee amount"
-                min="0"
-              />
-              <button
-                onClick={handleSaveBulkFee}
-                disabled={saving || loading || validationErrors.bulkFee}
-                className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg shadow hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Save className="w-4 h-4" />
-                )}
-                {saving ? "Saving..." : "Apply to All GPs"}
-              </button>
+      {/* Filter & Download */}
+      <div className="bg-white rounded-xl shadow-lg p-6 flex flex-wrap justify-between items-center gap-4">
+        <div className="flex items-center gap-3">
+          <CalendarDays className="w-5 h-5 text-purple-600" />
+          <label className="font-medium">Financial Year</label>
+          <select
+            value={financialYear}
+            onChange={(e) => setFinancialYear(e.target.value)}
+            disabled={loading}
+            className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+          >
+            <option value="2025-26">2025-26</option>
+            <option value="2024-25">2024-25</option>
+            <option value="2023-24">2023-24</option>
+            <option value="2022-23">2022-23</option>
+            <option value="2021-22">2021-22</option>
+          </select>
+        </div>
+        <button
+          onClick={handleDownload}
+          disabled={gpFees.length === 0}
+          className="flex items-center gap-2 bg-green-600 text-white px-5 py-2 rounded-lg shadow hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Download size={18} />
+          Download CSV
+        </button>
+      </div>
+
+      {/* Data Summary */}
+      {gpFees.length > 0 && (
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <h3 className="text-xl font-semibold text-gray-800 mb-4">GP Fee Summary</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-blue-600">
+                {gpFees.length}
+              </div>
+              <div className="text-sm text-gray-600">Total Gram Panchayats</div>
             </div>
-            
-            {/* Bulk fee validation error */}
-            {validationErrors.bulkFee && (
-              <div className="flex items-center gap-2 text-red-600 text-sm">
-                <AlertCircle className="w-4 h-4" />
-                <span>{validationErrors.bulkFee}</span>
+            <div className="bg-green-50 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-green-600">
+                ₹{Math.round(gpFees.reduce((sum, gp) => sum + (parseFloat(gp.fee) || 0), 0) / gpFees.length)}
               </div>
-            )}
+              <div className="text-sm text-gray-600">Average Fee</div>
+            </div>
+            <div className="bg-purple-50 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-purple-600">
+                ₹{gpFees.reduce((sum, gp) => sum + (gp.totalCollected || 0), 0).toLocaleString('en-IN')}
+              </div>
+              <div className="text-sm text-gray-600">Total Collected</div>
+            </div>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
-                <span className="ml-2 text-gray-600">Loading Gram Panchayats...</span>
-              </div>
-            ) : (
-              <>
-                <div className="max-h-96 overflow-y-auto border rounded-lg">
-                  <table className="w-full">
-                    <thead className="bg-blue-100 text-blue-800 sticky top-0">
-                      <tr>
-                        <th className="p-3 border text-left">GP Name</th>
+        </div>
+      )}
+
+      {/* Current Data Table */}
+      {gpFees.length > 0 && (
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+          <div className="p-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+            <h3 className="text-lg font-semibold">Current GP Water Fee Structure</h3>
+          </div>
+          <div className="max-h-96 overflow-y-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  <th className="p-3 border text-left">GP Name</th>
+                  <th className="p-3 border text-left">Block</th>
                   <th className="p-3 border text-left">District</th>
                   <th className="p-3 border text-left">Current Fee (₹)</th>
                   <th className="p-3 border text-left">Total Collected (₹)</th>
@@ -616,8 +543,9 @@ const DPROWaterFee = () => {
               </thead>
               <tbody>
                 {gpFees.map((gp) => (
-                  <tr key={gp.id} className="hover:bg-blue-50 transition-colors">
+                  <tr key={gp.gpId} className="hover:bg-blue-50 transition-colors">
                     <td className="p-3 border font-medium">{gp.name}</td>
+                    <td className="p-3 border text-gray-600">{gp.blockName}</td>
                     <td className="p-3 border text-gray-600">{gp.districtName}</td>
                     <td className="p-3 border">
                       <span className="font-semibold text-green-600">

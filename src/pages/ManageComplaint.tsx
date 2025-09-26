@@ -875,6 +875,7 @@ useEffect(() => {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-blue-600 text-white">
+                <th className="border border-gray-300 p-3 text-center font-medium">S.No.</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">Complaint ID</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">District</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">Block Name</th>
@@ -895,6 +896,7 @@ useEffect(() => {
                     index % 2 === 0 ? 'bg-gray-50' : 'bg-white'
                   } hover:bg-blue-50 transition-colors`}
                 >
+                  <td className="border border-gray-300 p-3 text-center">{index + 1}</td>
                   <td className="border border-gray-300 p-3 font-medium text-blue-600">
                     #{c.id}
                   </td>

@@ -804,6 +804,7 @@ const FeeManagementPage: React.FC = () => {
           <table className="min-w-full border border-gray-200 shadow-md rounded-xl overflow-hidden">
             <thead className="bg-blue-600 text-white">
               <tr>
+                  <th className="border px-4 py-3 text-center">S.No.</th>
                 <th className="border px-4 py-3 text-left">Fee Collection ID</th>
                 <th className="border px-4 py-3 text-left">Village</th>
                 <th className="border px-4 py-3 text-left">Beneficiary Name</th>
@@ -819,6 +820,7 @@ const FeeManagementPage: React.FC = () => {
               {filteredData.length > 0 ? (
                 filteredData.map((entry, index) => (
                   <tr key={`${entry.FeeCollectionId}-${entry.BeneficiaryId}`} className={index % 2 === 0 ? "bg-gray-50" : "bg-white"}>
+                    <td className="border px-4 py-2 text-center">{index + 1}</td>
                     <td className="border px-4 py-2 text-center">{entry.FeeCollectionId}</td>
                     <td className="border px-4 py-2">{entry.VillageName}</td>
                     <td className="border px-4 py-2 font-medium">{entry.BeneficiaryName}</td>
@@ -834,7 +836,7 @@ const FeeManagementPage: React.FC = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={9} className="text-center py-8 text-gray-500">
+                  <td colSpan={10} className="text-center py-8 text-gray-500">
                     {loading ? "Loading..." : 
                      !selectedYear ? "Please select a financial year to view fee collection data." :
                      isNotGPUser() && (!selectedDistrict || !selectedBlock || !selectedGramPanchayat || !selectedVillage || !selectedMonth) 

@@ -1023,6 +1023,7 @@ const ManageBeneficiary = () => {
                     />
                   </th>
                 )}
+                <th className="border border-gray-300 p-3 text-center font-medium">S.No.</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">District</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">Block Name</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">Gram Panchayat</th>
@@ -1060,6 +1061,7 @@ const ManageBeneficiary = () => {
                         />
                       </td>
                     )}
+                    <td className="border border-gray-300 p-3 text-center">{startIndex + index + 1}</td>
                     <td className="border border-gray-300 p-3">{b.districtName}</td>
                     <td className="border border-gray-300 p-3">{b.blockName}</td>
                     <td className="border border-gray-300 p-3">{b.gramPanchayatName}</td>

@@ -19,6 +19,7 @@ import {
   BookAIcon,
 } from "lucide-react";
 import { BiBuildingHouse, BiDroplet, BiMoney } from "react-icons/bi";
+import { FaRupeeSign } from "react-icons/fa";
 
 
 type Role = "admin" | "gp" | "callcenter" | "Director" | "dd" | "dpro" | "ado";
@@ -90,7 +91,9 @@ const getMenuLinks = (role: Role): MenuItem[] => {
       { name: "Manage Pump House", to: "/dpro/manage-pumphouse", icon: <ClipboardList size={16} /> },
       { name: "View Roaster", to: "/dpro/view-roaster", icon: <ClipboardList size={16} /> },
       { name: "View Water Quality", to: "/dpro/view-water-quality", icon: <BiDroplet size={16} /> },
+      { name: "GP Fee Updation", to: "/dpro/dpro-fee-update", icon: <FaRupeeSign size={16} /> },
       { name: "Fee Management", to: "/dpro/fee-management", icon: <ClipboardList size={16} /> },
+
       
     ];
   }
