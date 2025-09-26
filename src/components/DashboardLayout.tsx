@@ -52,7 +52,7 @@ const getMenuLinks = (role: Role): MenuItem[] => {
       { name: "Manage OHT", to: "/admin/manage-oht", icon: <Calendar size={16} /> },
       { name: "Manage Pump House", to: "/admin/manage-pumphouse", icon: <ClipboardList size={16} /> },
       { name: "View Roaster", to: "/admin/view-roaster", icon: <ClipboardList size={16} /> },
-      { name: "View Water Quality", to: "/admin/view-water-quality", icon: <BiDroplet size={16} /> },
+      
       
     ];
   }
@@ -64,7 +64,7 @@ const getMenuLinks = (role: Role): MenuItem[] => {
       { name: "Manage OHT", to: "/director/manage-oht", icon: <Calendar size={16} /> },
       { name: "Manage Pump House", to: "/director/manage-pumphouse", icon: <ClipboardList size={16} /> },
       { name: "View Roaster", to: "/director/view-roaster", icon: <ClipboardList size={16} /> },
-      { name: "View Water Quality", to: "/director/view-water-quality", icon: <BiDroplet size={16} /> },
+      
       { name: "Fee Management", to: "/director/fee-management", icon: <ClipboardList size={16} /> },
       
     ];
@@ -77,7 +77,7 @@ const getMenuLinks = (role: Role): MenuItem[] => {
       { name: "Manage OHT", to: "/dd/manage-oht", icon: <Calendar size={16} /> },
       { name: "Manage Pump House", to: "/dd/manage-pumphouse", icon: <ClipboardList size={16} /> },
       { name: "View Roaster", to: "/dd/view-roaster", icon: <ClipboardList size={16} /> },
-      { name: "View Water Quality", to: "/dd/view-water-quality", icon: <BiDroplet size={16} /> },
+      
       { name: "Fee Management", to: "/dd/fee-management", icon: <ClipboardList size={16} /> },
       
     ];
@@ -90,7 +90,7 @@ const getMenuLinks = (role: Role): MenuItem[] => {
       { name: "Manage OHT", to: "/dpro/manage-oht", icon: <Calendar size={16} /> },
       { name: "Manage Pump House", to: "/dpro/manage-pumphouse", icon: <ClipboardList size={16} /> },
       { name: "View Roaster", to: "/dpro/view-roaster", icon: <ClipboardList size={16} /> },
-      { name: "View Water Quality", to: "/dpro/view-water-quality", icon: <BiDroplet size={16} /> },
+      
       { name: "GP Fee Updation", to: "/dpro/dpro-fee-update", icon: <FaRupeeSign size={16} /> },
       { name: "Fee Management", to: "/dpro/fee-management", icon: <ClipboardList size={16} /> },
 
@@ -105,7 +105,7 @@ const getMenuLinks = (role: Role): MenuItem[] => {
       { name: "Manage OHT", to: "/ado/manage-oht", icon: <Calendar size={16} /> },
       { name: "Manage Pump House", to: "/ado/manage-pumphouse", icon: <ClipboardList size={16} /> },
       { name: "View Roaster", to: "/ado/view-roaster", icon: <ClipboardList size={16} /> },
-      { name: "View Water Quality", to: "/ado/view-water-quality", icon: <BiDroplet size={16} /> },
+      
       { name: "Fee Management", to: "/ado/fee-management", icon: <ClipboardList size={16} /> },
       
     ];
