@@ -19,105 +19,109 @@ const Login = () => {
 
   const togglePasswordView = () => setShowPassword(!showPassword);
 
-  const handleLogin = async () => {
-    setError("");
-    if (!username.trim() || !password.trim()) {
+  // In your Login.tsx, update the handleLogin function's success block:
+
+// Replace the handleLogin function in your Login.tsx with this updated version:
+
+const handleLogin = async () => {
+  setError("");
+  if (!username.trim() || !password.trim()) {
     setError("Please enter a valid User ID and Password");
     return;
   }
-    try {
-      const response = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/Login/UserLogin",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            accept: "*/*",
-          },
-          body: JSON.stringify({
-            Id: 0,
-            UserName: username,
-            Password: password,
-          }),
-        }
-      );
-
-      const data = await response.json();
-      console.log("Login API response:", data);
-
-
-      if (response.ok && data.Token) {
-        // Decode JWT token payload to extract role
-        const tokenParts = data.Token.split(".");
-        if (tokenParts.length !== 3) {
-          setError("Invalid token format");
-          return;
-        }
-
-        const payload = JSON.parse(atob(tokenParts[1]));
-        const roleFromToken =
-          payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"]?.toLowerCase() ||
-          "";
-
-        if (!roleFromToken) {
-          setError("User role not found in token");
-          return;
-        }
-
-        // Save token, userID, and role in both context state and localStorage
-        // Save token, userID, and role in both context state and localStorage
-localStorage.setItem("authToken", data.Token);
-localStorage.setItem("userID", data.UserID);
-localStorage.setItem("role", roleFromToken);
-
-// ✅ clear old cached user info so new login reflects correctly
-localStorage.removeItem("cachedUserInfo");
-
-if (data.uparm) {
-  localStorage.setItem("uparm", data.uparm);
-} else {
-  // Try extracting from JWT payload if not directly in response
-  if (payload.uparm) {
-    localStorage.setItem("uparm", payload.uparm);
-  }
-}
-
-
-        setToken(data.Token);
-        setUserID(data.UserID);
-        setRole(roleFromToken);
-
-        // Redirect based on role
-        if (roleFromToken === "admin") {
-          navigate("/admin/dashboard");
-        } else if (roleFromToken === "gram panchayat") {
-          navigate("/gp/dashboard");
-        } else if (roleFromToken === "call center") {
-          navigate("/callcenter/dashboard");
-        } else if (roleFromToken === "director") {
-          navigate("/director/dashboard");
-        }
-        else if (roleFromToken === "dd") {
-          navigate("/dd/dashboard");
-        }
-        else if (roleFromToken === "dpro") {
-          navigate("/dpro/dashboard");
-        }
-        else if (roleFromToken === "ado") {
-          navigate("/ado/dashboard");
-        } else {
-          setError("Invalid login role");
-          localStorage.clear();
-        }
-      } else {
-        setError(data.ResponseMessage || "Login failed");
+  
+  try {
+    const response = await fetch(
+      "https://wmsapi.kdsgroup.co.in/api/Login/UserLogin",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          accept: "*/*",
+        },
+        body: JSON.stringify({
+          Id: 0,
+          UserName: username,
+          Password: password,
+        }),
       }
-    } catch (err) {
-      console.error("Login error", err);
-      setError("Network error. Please try again.");
-    }
-  };
+    );
 
+    const data = await response.json();
+    console.log("Login API response:", data);
+
+    if (response.ok && data.Token) {
+      // Decode JWT token payload to extract role
+      const tokenParts = data.Token.split(".");
+      if (tokenParts.length !== 3) {
+        setError("Invalid token format");
+        return;
+      }
+
+      const payload = JSON.parse(atob(tokenParts[1]));
+      const roleFromToken =
+        payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"]?.toLowerCase() ||
+        "";
+
+      if (!roleFromToken) {
+        setError("User role not found in token");
+        return;
+      }
+
+      // Save token, userID, and role in localStorage first
+      localStorage.setItem("authToken", data.Token);
+      localStorage.setItem("userID", data.UserID);
+      localStorage.setItem("role", roleFromToken);
+
+      // ✅ clear old cached user info so new login reflects correctly
+      localStorage.removeItem("cachedUserInfo");
+
+      if (data.uparm) {
+        localStorage.setItem("uparm", data.uparm);
+      } else {
+        // Try extracting from JWT payload if not directly in response
+        if (payload.uparm) {
+          localStorage.setItem("uparm", payload.uparm);
+        }
+      }
+
+      // Set context state after localStorage to ensure consistency
+      setToken(data.Token);
+      setUserID(data.UserID);
+      setRole(roleFromToken);
+
+      // ✅ Dispatch custom event to notify other tabs/components about auth change
+      window.dispatchEvent(new Event("authStateChange"));
+
+      // Redirect based on role
+      if (roleFromToken === "admin") {
+        navigate("/admin/dashboard");
+      } else if (roleFromToken === "gram panchayat") {
+        navigate("/gp/dashboard");
+      } else if (roleFromToken === "call center") {
+        navigate("/callcenter/dashboard");
+      } else if (roleFromToken === "director") {
+        navigate("/director/dashboard");
+      } else if (roleFromToken === "dd") {
+        navigate("/dd/dashboard");
+      } else if (roleFromToken === "dpro") {
+        navigate("/dpro/dashboard");
+      } else if (roleFromToken === "ado") {
+        navigate("/ado/dashboard");
+      } else {
+        setError("Invalid login role");
+        localStorage.clear();
+        // ✅ Dispatch event for cleared state too
+        window.dispatchEvent(new Event("authStateChange"));
+      }
+    } else {
+      setError(data.ResponseMessage || "Login failed");
+    }
+  } catch (err) {
+    console.error("Login error", err);
+    setError("Network error. Please try again.");
+  }
+};
   return (
     <>
       <Navbar />

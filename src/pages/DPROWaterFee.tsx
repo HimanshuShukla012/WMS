@@ -44,6 +44,7 @@ const DPROWaterFee = () => {
   const [financialYear, setFinancialYear] = useState("2025-26");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [districts, setDistricts] = useState([]);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string | null}>({});
 
@@ -66,6 +67,35 @@ const DPROWaterFee = () => {
     }
     return validateFeeAmount(value);
   };
+
+  const fetchAllDistricts = async () => {
+  try {
+    const response = await fetch(
+      `${API_BASE1}/AllDistrict`,
+      {
+        method: "POST",
+        headers: {
+          "accept": "*/*"
+        },
+        body: ""
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    
+    if (result.Status && result.Data) {
+      setDistricts(result.Data);
+    } else {
+      throw new Error("Failed to fetch districts");
+    }
+  } catch (error) {
+    console.error("Error fetching districts:", error);
+  }
+};
 
   // Load GP data from API
   const loadGPData = async () => {
@@ -132,10 +162,11 @@ const DPROWaterFee = () => {
   };
 
   useEffect(() => {
-    if (userId) {
-      loadGPData();
-    }
-  }, [financialYear, userId]);
+  if (userId) {
+    fetchAllDistricts();
+    loadGPData();
+  }
+}, [financialYear, userId]);
 
   const handleGPFeeChange = (gpId, value) => {
     setGPFees((prev) =>
@@ -154,6 +185,10 @@ const DPROWaterFee = () => {
   };
 
   const saveGPFee = async (gp) => {
+
+    const district = districts.find(d => d.DistrictName === gp.districtName);
+    const districtId = district ? district.DistrictId : 0;
+
     const feeError = validateGPFee(gp.fee);
     if (feeError) {
       setMessage({ type: "error", text: `${gp.name}: ${feeError}` });
@@ -176,6 +211,7 @@ const DPROWaterFee = () => {
             WaterFeeAmount: parseFloat(gp.fee),
             ApplyFrom: new Date().toISOString(),
             UserId: userId,
+            DistrictId: districtId,
             DeviceToken: "web_app",
             IPAddress: "192.168.1.1"
           }
@@ -220,91 +256,97 @@ const DPROWaterFee = () => {
   };
 
   const handleSaveAll = async () => {
-    const changedGPs = gpFees.filter((gp, index) => {
-      const original = originalGPFees[index];
-      return original && gp.fee !== original.fee && gp.fee !== "";
-    });
+  const changedGPs = gpFees.filter((gp, index) => {
+    const original = originalGPFees[index];
+    return original && gp.fee !== original.fee && gp.fee !== "";
+  });
 
-    if (changedGPs.length === 0) {
-      setMessage({ type: "error", text: "No changes to save" });
-      return;
+  if (changedGPs.length === 0) {
+    setMessage({ type: "error", text: "No changes to save" });
+    return;
+  }
+
+  const hasValidationErrors = changedGPs.some(gp => {
+    const error = validateGPFee(gp.fee);
+    if (error) {
+      setValidationErrors(prev => ({
+        ...prev,
+        [`gp_${gp.gpId}`]: error
+      }));
+      return true;
     }
+    return false;
+  });
 
-    const hasValidationErrors = changedGPs.some(gp => {
-      const error = validateGPFee(gp.fee);
-      if (error) {
-        setValidationErrors(prev => ({
-          ...prev,
-          [`gp_${gp.gpId}`]: error
-        }));
-        return true;
-      }
-      return false;
-    });
+  if (hasValidationErrors) {
+    setMessage({ type: "error", text: "Please fix validation errors before saving" });
+    return;
+  }
 
-    if (hasValidationErrors) {
-      setMessage({ type: "error", text: "Please fix validation errors before saving" });
-      return;
-    }
+  setSaving(true);
+  setMessage({ type: "", text: "" });
 
-    setSaving(true);
-    setMessage({ type: "", text: "" });
+  try {
+    const waterFeeList = changedGPs.map(gp => {
+      const district = districts.find(d => d.DistrictName === gp.districtName);
+      const districtId = district ? district.DistrictId : 0;
 
-    try {
-      const waterFeeList = changedGPs.map(gp => ({
+      return {
         GP_Id: gp.gpId,
+        DistrictId: districtId,
         WaterFeeAmount: parseFloat(gp.fee),
         ApplyFrom: new Date().toISOString(),
         UserId: userId,
         DeviceToken: "web_app",
         IPAddress: "192.168.1.1"
-      }));
-
-      const requestBody = {
-        WaterFeeListMew: waterFeeList
       };
+    });
 
-      console.log('Save all GPs request:', JSON.stringify(requestBody, null, 2));
+    const requestBody = {
+      WaterFeeListMew: waterFeeList
+    };
 
-      const response = await fetch(
-        `${API_BASE}/UpdateGPWideWaterFee`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "accept": "*/*"
-          },
-          body: JSON.stringify(requestBody)
-        }
-      );
+    console.log('Save all GPs request:', JSON.stringify(requestBody, null, 2));
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+    const response = await fetch(
+      `${API_BASE}/UpdateGPWideWaterFee`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "accept": "*/*"
+        },
+        body: JSON.stringify(requestBody)
       }
+    );
 
-      const data = await response.json();
-      console.log('Save all GPs response:', data);
-      
-      if (data.Status) {
-        setMessage({ 
-          type: "success", 
-          text: `Bulk update completed for ${changedGPs.length} GPs: ${data.Message}` 
-        });
-        
-        setTimeout(() => {
-          loadGPData();
-        }, 1000);
-      } else {
-        throw new Error(data.Message || data.Error || 'Bulk update failed');
-      }
-      
-    } catch (error) {
-      console.error("Error in handleSaveAll:", error);
-      setMessage({ type: "error", text: `Error: ${error.message}` });
-    } finally {
-      setSaving(false);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+
+    const data = await response.json();
+    console.log('Save all GPs response:', data);
+    
+    if (data.Status) {
+      setMessage({ 
+        type: "success", 
+        text: `Bulk update completed for ${changedGPs.length} GPs: ${data.Message}` 
+      });
+      
+      setTimeout(() => {
+        loadGPData();
+      }, 1000);
+    } else {
+      throw new Error(data.Message || data.Error || 'Bulk update failed');
+    }
+    
+  } catch (error) {
+    console.error("Error in handleSaveAll:", error);
+    setMessage({ type: "error", text: `Error: ${error.message}` });
+  } finally {
+    setSaving(false);
+  }
+};
 
   const handleDownload = () => {
     const csvHeaders = "GP Name,Block,District,Water Fee (₹),Total Amount Collected (₹),Apply From\n";

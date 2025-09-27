@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import BubblesBackground from "./BubblesBackground";
-import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
+import { Link, useLocation, Outlet } from "react-router-dom";
+import { useAuth } from "./AuthContext"; // Add this import
 import {
   LayoutDashboard,
   Users,
@@ -21,8 +22,7 @@ import {
 import { BiBuildingHouse, BiDroplet, BiMoney } from "react-icons/bi";
 import { FaRupeeSign } from "react-icons/fa";
 
-
-type Role = "admin" | "gp" | "callcenter" | "Director" | "dd" | "dpro" | "ado";
+type Role = "admin" | "gp" | "callcenter" | "director" | "dd" | "dpro" | "ado";
 
 type MenuItem = {
   name: string;
@@ -52,8 +52,6 @@ const getMenuLinks = (role: Role): MenuItem[] => {
       { name: "Manage OHT", to: "/admin/manage-oht", icon: <Calendar size={16} /> },
       { name: "Manage Pump House", to: "/admin/manage-pumphouse", icon: <ClipboardList size={16} /> },
       { name: "View Roaster", to: "/admin/view-roaster", icon: <ClipboardList size={16} /> },
-      
-      
     ];
   }
   else if (role === "director") {
@@ -64,9 +62,7 @@ const getMenuLinks = (role: Role): MenuItem[] => {
       { name: "Manage OHT", to: "/director/manage-oht", icon: <Calendar size={16} /> },
       { name: "Manage Pump House", to: "/director/manage-pumphouse", icon: <ClipboardList size={16} /> },
       { name: "View Roaster", to: "/director/view-roaster", icon: <ClipboardList size={16} /> },
-      
       { name: "Fee Management", to: "/director/fee-management", icon: <ClipboardList size={16} /> },
-      
     ];
   }
   else if (role === "dd") {
@@ -77,9 +73,7 @@ const getMenuLinks = (role: Role): MenuItem[] => {
       { name: "Manage OHT", to: "/dd/manage-oht", icon: <Calendar size={16} /> },
       { name: "Manage Pump House", to: "/dd/manage-pumphouse", icon: <ClipboardList size={16} /> },
       { name: "View Roaster", to: "/dd/view-roaster", icon: <ClipboardList size={16} /> },
-      
       { name: "Fee Management", to: "/dd/fee-management", icon: <ClipboardList size={16} /> },
-      
     ];
   }
   else if (role === "dpro") {
@@ -90,11 +84,8 @@ const getMenuLinks = (role: Role): MenuItem[] => {
       { name: "Manage OHT", to: "/dpro/manage-oht", icon: <Calendar size={16} /> },
       { name: "Manage Pump House", to: "/dpro/manage-pumphouse", icon: <ClipboardList size={16} /> },
       { name: "View Roaster", to: "/dpro/view-roaster", icon: <ClipboardList size={16} /> },
-      
       { name: "GP Fee Updation", to: "/dpro/dpro-fee-update", icon: <FaRupeeSign size={16} /> },
       { name: "Fee Management", to: "/dpro/fee-management", icon: <ClipboardList size={16} /> },
-
-      
     ];
   }
   else if (role === "ado") {
@@ -105,9 +96,7 @@ const getMenuLinks = (role: Role): MenuItem[] => {
       { name: "Manage OHT", to: "/ado/manage-oht", icon: <Calendar size={16} /> },
       { name: "Manage Pump House", to: "/ado/manage-pumphouse", icon: <ClipboardList size={16} /> },
       { name: "View Roaster", to: "/ado/view-roaster", icon: <ClipboardList size={16} /> },
-      
       { name: "Fee Management", to: "/ado/fee-management", icon: <ClipboardList size={16} /> },
-      
     ];
   }
   else if (role === "gp") {
@@ -119,7 +108,6 @@ const getMenuLinks = (role: Role): MenuItem[] => {
         children: [
           { name: "Add Beneficiary", to: "/gp/add-beneficiary", icon: <UserPlus size={16} /> },
           { name: "Manage Beneficiaries", to: "/gp/manage-beneficiary", icon: <Users2 size={16} /> },
-          
         ],
       },
       {
@@ -181,17 +169,15 @@ const getMenuLinks = (role: Role): MenuItem[] => {
   } else {
     return [
       { name: "Dashboard", to: "/callcenter/dashboard", icon: <LayoutDashboard size={18} /> },
-      
-          { name: "Lodge Complaint", to: "/callcenter/lodge-complaint", icon: <Megaphone size={16} /> },
-          { name: "Manage Complaint", to: "/callcenter/manage-complaint", icon: <ClipboardList size={16} /> },
-      
+      { name: "Lodge Complaint", to: "/callcenter/lodge-complaint", icon: <Megaphone size={16} /> },
+      { name: "Manage Complaint", to: "/callcenter/manage-complaint", icon: <ClipboardList size={16} /> },
     ];
   }
 };
 
 const DashboardLayout = ({ role }: { children?: React.ReactNode; role: Role }) => {
   const location = useLocation();
-  const navigate = useNavigate();
+  const { logout } = useAuth(); // Get logout from AuthContext (this now shows the custom popup)
   const links = getMenuLinks(role);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
 
@@ -199,11 +185,10 @@ const DashboardLayout = ({ role }: { children?: React.ReactNode; role: Role }) =
     setOpenMenus((prev) => ({ ...prev, [name]: !prev[name] }));
   };
 
+  // Simplified logout handler - just call logout directly
+  // The AuthContext will handle showing the custom confirmation modal
   const handleLogout = () => {
-    // Clear user session / tokens here
-    // e.g., localStorage.clear();
-    // Navigate to login page
-    navigate("/login");
+    logout(); // This will now show the custom modal from AuthContext
   };
 
   const renderMenuItems = (items: MenuItem[], level: number = 0) => {
@@ -250,14 +235,11 @@ const DashboardLayout = ({ role }: { children?: React.ReactNode; role: Role }) =
   return (
     <div className="relative h-screen overflow-visible">
       <BubblesBackground />
-      
 
       {/* Main Layout */}
       <div className="flex h-full bg-gradient-to-br from-blue-50 to-blue-100">
         {/* Sidebar */}
         <div className="w-72 bg-gradient-to-b from-sky-900 to-indigo-900 text-white shadow-xl flex flex-col p-6 overflow-y-auto relative">
-          
-
           <div className="flex flex-col items-center mb-10">
             <img src="/logo.png" alt="Logo" className="h-16 w-24 rounded-lg object-cover" />
             <h1 className="text-2xl font-bold tracking-wide text-center">WMS</h1>

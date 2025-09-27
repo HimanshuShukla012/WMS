@@ -94,3 +94,7 @@ body.goog-te-hl {
   background-size: 12px !important;
   padding-right: 28px !important;
 }
+
+.goog-te-gadget span:first-child {
+  display: flex !important;
+}

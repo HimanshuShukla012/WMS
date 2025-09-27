@@ -1,4 +1,10 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import { useEffect } from "react";
 import Login from "./components/Login";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -28,6 +34,7 @@ import About from "./pages/AboutPage";
 import PDFFlipbook from "./pages/gpusermanual";
 import DirectorMonitoring from "./pages/directormonitoring";
 import DPROWaterFee from "./pages/DPROWaterFee";
+import LoginRoute from "./components/LoginRoute"; // Add this import
 
 // Declare global types for Google Translate
 declare global {
@@ -40,30 +47,34 @@ declare global {
 // Component to handle translate bar positioning based on route
 const TranslateBar = () => {
   const location = useLocation();
-  
+
   // Check if we're on landing page or login page
-  const isLandingOrLogin = location.pathname === "/" || location.pathname === "/login"|| 
-                      location.pathname === "/guidelines" || location.pathname === "/about";
-  
+  const isLandingOrLogin =
+    location.pathname === "/" ||
+    location.pathname === "/login" ||
+    location.pathname === "/guidelines" ||
+    location.pathname === "/about";
+
   // Adjust positioning for landing/login pages vs dashboard pages
   const translateBarStyle = {
-    padding: '8px 16px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    fontSize: '14px',
-    height: '40px',
+    padding: "8px 16px",
+    display: "flex",
+    alignItems: "center",
+    //gap: "10px",
+    justifyContent: "end",
+    fontSize: "14px",
+    height: "40px",
     zIndex: isLandingOrLogin ? 10000 : 9999, // Higher z-index for landing/login
-    top: isLandingOrLogin ? '80px' : '0px', // Push down on landing/login to avoid navbar overlap
+    top: isLandingOrLogin ? "80px" : "0px", // Push down on landing/login to avoid navbar overlap
   };
 
   return (
-    <div 
-      id="translate-bar" 
+    <div
+      id="translate-bar"
       className="fixed left-0 w-full backdrop-blur bg-gradient-to-r from-blue-950 via-blue-900 to-cyan-800 text-white border-b border-blue-800 shadow-lg"
       style={translateBarStyle}
     >
-      <span className="font-semibold">🌐 Select Language:</span>
+      <span className="font-semibold">🌐</span>
       <div id="google_translate_element"></div>
     </div>
   );
@@ -78,7 +89,8 @@ function App() {
           {
             pageLanguage: "en",
             includedLanguages: "en,hi",
-            layout: window.google.translate.TranslateElement.InlineLayout.SIMPLE,
+            layout:
+              window.google.translate.TranslateElement.InlineLayout.SIMPLE,
           },
           "google_translate_element"
         );
@@ -87,10 +99,12 @@ function App() {
 
     // Load Google Translate script if not already loaded
     if (!document.querySelector('script[src*="translate.google.com"]')) {
-      const script = document.createElement('script');
-      script.src = 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
+      const script = document.createElement("script");
+      script.src =
+        "https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
       script.async = true;
-      script.onerror = () => console.error('Failed to load Google Translate script');
+      script.onerror = () =>
+        console.error("Failed to load Google Translate script");
       document.head.appendChild(script);
     } else {
       // If script is already loaded, just initialize
@@ -104,65 +118,104 @@ function App() {
         {/* Google Translate Bar - now positioned conditionally based on route */}
         <TranslateBar />
 
-        {/* Routes with conditional margin-top */}
         <Routes>
           {/* Public routes - with extra margin for translate bar */}
-          <Route path="/" element={
-            <div style={{ marginTop: '120px' }}>
-              <LandingPage />
-            </div>
-          } />
-          <Route path="/login" element={
-            <div style={{ marginTop: '120px' }}>
-              <Login />
-            </div>
-          } />
-          <Route path="/guidelines" element={
-            <div style={{ marginTop: '120px' }}>
-              <GuidelinesPage />
-            </div>
-          } />
-          <Route path="/about" element={
-            <div style={{ marginTop: '120px' }}>
-              <About />
-            </div>
-          } />
-          <Route path="/unauthorized" element={
-            <div className="flex justify-center items-center h-screen" style={{ marginTop: '40px' }}>
-              <h1 className="text-3xl font-bold text-red-600">Unauthorized Access</h1>
-            </div>
-          } />
+          <Route
+            path="/"
+            element={
+              <div style={{ marginTop: "120px" }}>
+                <LandingPage />
+              </div>
+            }
+          />
+
+          {/* Updated login route that handles authenticated users */}
+          <Route
+            path="/login"
+            element={
+              <div style={{ marginTop: "120px" }}>
+                <LoginRoute />
+              </div>
+            }
+          />
+
+          <Route
+            path="/guidelines"
+            element={
+              <div style={{ marginTop: "120px" }}>
+                <GuidelinesPage />
+              </div>
+            }
+          />
+
+          <Route
+            path="/about"
+            element={
+              <div style={{ marginTop: "120px" }}>
+                <About />
+              </div>
+            }
+          />
+
+          <Route
+            path="/unauthorized"
+            element={
+              <div
+                className="flex justify-center items-center h-screen"
+                style={{ marginTop: "40px" }}
+              >
+                <h1 className="text-3xl font-bold text-red-600">
+                  Unauthorized Access
+                </h1>
+              </div>
+            }
+          />
 
           {/* Protected routes - normal margin for dashboard layout */}
           <Route element={<PrivateRoute allowedRoles={["admin"]} />}>
-            <Route path="/admin/*" element={
-              <div style={{ marginTop: '40px' }}>
-                <DashboardLayout role="admin" />
-              </div>
-            }>
+            <Route
+              path="/admin/*"
+              element={
+                <div style={{ marginTop: "40px" }}>
+                  <DashboardLayout role="admin" />
+                </div>
+              }
+            >
               <Route path="dashboard" element={<DirectorMonitoring />} />
               <Route path="user-management" element={<UserManagement />} />
               <Route path="fee-management" element={<FeeManagement />} />
-              <Route path="manage-beneficiary" element={<ManageBeneficiary />} />
+              <Route
+                path="manage-beneficiary"
+                element={<ManageBeneficiary />}
+              />
               <Route path="manage-complaint" element={<ManageComplaint />} />
               <Route path="manage-oht" element={<ManageOHT />} />
               <Route path="manage-pumphouse" element={<ManagePumpHouse />} />
               <Route path="view-roaster" element={<ViewRoaster />} />
               <Route path="view-water-quality" element={<ViewWaterQuality />} />
-              <Route path="location-reporting" element={<DirectorMonitoring />} />
+              <Route
+                path="location-reporting"
+                element={<DirectorMonitoring />}
+              />
               <Route path="reporting" element={<MISReportingPage />} />
             </Route>
           </Route>
 
-{/* Protected routes - normal margin for dashboard layout */}
+          {/* Protected routes - normal margin for dashboard layout */}
           <Route element={<PrivateRoute allowedRoles={["director"]} />}>
-            <Route path="/director/*" element={
-              <div style={{ marginTop: '40px' }}>
-                <DashboardLayout role="director" />
-              </div>
-            }>
+            <Route
+              path="/director/*"
+              element={
+                <div style={{ marginTop: "40px" }}>
+                  <DashboardLayout role="director" />
+                </div>
+              }
+            >
               <Route path="dashboard" element={<DirectorMonitoring />} />
-              <Route path="manage-beneficiary" element={<ManageBeneficiary />} />
+              <Route
+                path="manage-beneficiary"
+                element={<ManageBeneficiary />}
+              />
               <Route path="manage-complaint" element={<ManageComplaint />} />
               <Route path="manage-oht" element={<ManageOHT />} />
               <Route path="manage-pumphouse" element={<ManagePumpHouse />} />
@@ -174,13 +227,19 @@ function App() {
           </Route>
 
           <Route element={<PrivateRoute allowedRoles={["dd"]} />}>
-            <Route path="/dd/*" element={
-              <div style={{ marginTop: '40px' }}>
-                <DashboardLayout role="dd" />
-              </div>
-            }>
+            <Route
+              path="/dd/*"
+              element={
+                <div style={{ marginTop: "40px" }}>
+                  <DashboardLayout role="dd" />
+                </div>
+              }
+            >
               <Route path="dashboard" element={<DirectorMonitoring />} />
-              <Route path="manage-beneficiary" element={<ManageBeneficiary />} />
+              <Route
+                path="manage-beneficiary"
+                element={<ManageBeneficiary />}
+              />
               <Route path="manage-complaint" element={<ManageComplaint />} />
               <Route path="manage-oht" element={<ManageOHT />} />
               <Route path="manage-pumphouse" element={<ManagePumpHouse />} />
@@ -192,13 +251,19 @@ function App() {
           </Route>
 
           <Route element={<PrivateRoute allowedRoles={["dpro"]} />}>
-            <Route path="/dpro/*" element={
-              <div style={{ marginTop: '40px' }}>
-                <DashboardLayout role="dpro" />
-              </div>
-            }>
+            <Route
+              path="/dpro/*"
+              element={
+                <div style={{ marginTop: "40px" }}>
+                  <DashboardLayout role="dpro" />
+                </div>
+              }
+            >
               <Route path="dashboard" element={<DirectorMonitoring />} />
-              <Route path="manage-beneficiary" element={<ManageBeneficiary />} />
+              <Route
+                path="manage-beneficiary"
+                element={<ManageBeneficiary />}
+              />
               <Route path="manage-complaint" element={<ManageComplaint />} />
               <Route path="manage-oht" element={<ManageOHT />} />
               <Route path="manage-pumphouse" element={<ManagePumpHouse />} />
@@ -206,18 +271,24 @@ function App() {
               <Route path="view-water-quality" element={<ViewWaterQuality />} />
               <Route path="reporting" element={<MISReportingPage />} />
               <Route path="fee-management" element={<FeeManagementPage />} />
-              <Route path="dpro-fee-update" element={<DPROWaterFee/>} />
+              <Route path="dpro-fee-update" element={<DPROWaterFee />} />
             </Route>
           </Route>
 
           <Route element={<PrivateRoute allowedRoles={["ado"]} />}>
-            <Route path="/ado/*" element={
-              <div style={{ marginTop: '40px' }}>
-                <DashboardLayout role="ado" />
-              </div>
-            }>
+            <Route
+              path="/ado/*"
+              element={
+                <div style={{ marginTop: "40px" }}>
+                  <DashboardLayout role="ado" />
+                </div>
+              }
+            >
               <Route path="dashboard" element={<DirectorMonitoring />} />
-              <Route path="manage-beneficiary" element={<ManageBeneficiary />} />
+              <Route
+                path="manage-beneficiary"
+                element={<ManageBeneficiary />}
+              />
               <Route path="manage-complaint" element={<ManageComplaint />} />
               <Route path="manage-oht" element={<ManageOHT />} />
               <Route path="manage-pumphouse" element={<ManagePumpHouse />} />
@@ -228,17 +299,22 @@ function App() {
             </Route>
           </Route>
 
-
           {/* Gram Panchayat protected routes */}
           <Route element={<PrivateRoute allowedRoles={["gram panchayat"]} />}>
-            <Route path="/gp/*" element={
-              <div style={{ marginTop: '40px' }}>
-                <DashboardLayout role="gp" />
-              </div>
-            }>
+            <Route
+              path="/gp/*"
+              element={
+                <div style={{ marginTop: "40px" }}>
+                  <DashboardLayout role="gp" />
+                </div>
+              }
+            >
               <Route path="dashboard" element={<GPDashboard />} />
               <Route path="add-beneficiary" element={<AddBeneficiary />} />
-              <Route path="manage-beneficiary" element={<ManageBeneficiary />} />
+              <Route
+                path="manage-beneficiary"
+                element={<ManageBeneficiary />}
+              />
               <Route path="pump-house-master" element={<PumpHouseMaster />} />
               <Route path="lodge-complaint" element={<LodgeComplaintPage />} />
               <Route path="manage-complaint" element={<ManageComplaint />} />
@@ -257,11 +333,14 @@ function App() {
 
           {/* Call Center protected routes */}
           <Route element={<PrivateRoute allowedRoles={["call center"]} />}>
-            <Route path="/callcenter/*" element={
-              <div style={{ marginTop: '40px' }}>
-                <DashboardLayout role="callcenter" />
-              </div>
-            }>
+            <Route
+              path="/callcenter/*"
+              element={
+                <div style={{ marginTop: "40px" }}>
+                  <DashboardLayout role="callcenter" />
+                </div>
+              }
+            >
               <Route path="dashboard" element={<CallCenterDashboard />} />
               <Route path="lodge-complaint" element={<LodgeComplaintPage />} />
               <Route path="manage-complaint" element={<ManageComplaint />} />
@@ -269,7 +348,7 @@ function App() {
           </Route>
 
           {/* Catch all */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
 
@@ -279,6 +358,15 @@ function App() {
         .goog-te-banner-frame {
           display: none !important;
         }
+
+        .goog-te-gadget-simple {
+    background-color: #FFF;
+    border-left: 1px solid #D5D5D5;
+    border-top: 1px solid #9B9B9B;
+    border-bottom: 1px solid #E8E8E8;
+    border-right: 1px solid #D5D5D5;
+    font-size: 10pt;
+      }
         
         /* Hide the default Google Translate top bar */
         .goog-te-banner-frame.skiptranslate {
@@ -307,13 +395,23 @@ function App() {
         }
         
         .goog-te-gadget {
-          color: transparent !important;
-          font-size: 0 !important;
+          font-size: 13px !important;
+          color: white !important;
+        }
+        .goog-te-gadget-simple .VIpgJd-ZVi9od-xl07Ob-lTBxed{
+            width: auto !important;
+            display: flex !important;
+            background: #fff !important;
+            padding: 4px 8px !important;
+            border-radius: 10px !important;
+        }
+        .goog-te-gadget span:first-child {
+          display:flex !important
         }
         
-        .goog-te-gadget > span {
-          display: none !important;
-        }
+        // .goog-te-gadget > span {
+        //   display: none !important;
+        // }
         
         .goog-te-gadget > span > a {
           display: none !important;
@@ -355,11 +453,6 @@ function App() {
         
         .goog-te-gadget {
           overflow: visible !important;
-        }
-        
-        /* Remove powered by Google text */
-        .goog-te-gadget span:first-child {
-          display: none !important;
         }
         
         /* Style the dropdown menu */
