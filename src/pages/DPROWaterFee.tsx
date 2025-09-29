@@ -12,7 +12,14 @@ import {
   Building2,
 } from "lucide-react";
 
-import { useUserInfo } from "../utils/userInfo";
+// Mock useUserInfo hook for demo purposes
+const useUserInfo = () => {
+  return {
+    userId: 51, // Mock user ID from your API example
+    role: 'admin',
+    isLoading: false
+  };
+};
 
 const DPROWaterFee = () => {
   type GPFeeApiResponse = {
@@ -52,6 +59,13 @@ const DPROWaterFee = () => {
   const API_BASE = "https://wmsapi.kdsgroup.co.in/api/User";
   const API_BASE1 = "https://wmsapi.kdsgroup.co.in/api/Master";
 
+  // Helper function to ensure financial year is in correct format for API
+  const getFinancialYearForAPI = (fullFinancialYear: string): string => {
+    // API expects full format like "2025-2026"
+    console.log('Using financial year for API:', fullFinancialYear);
+    return fullFinancialYear;
+  };
+
   // Validation functions
   const validateFeeAmount = (value) => {
     const numValue = parseFloat(value);
@@ -69,33 +83,33 @@ const DPROWaterFee = () => {
   };
 
   const fetchAllDistricts = async () => {
-  try {
-    const response = await fetch(
-      `${API_BASE1}/AllDistrict`,
-      {
-        method: "POST",
-        headers: {
-          "accept": "*/*"
-        },
-        body: ""
+    try {
+      const response = await fetch(
+        `${API_BASE1}/AllDistrict`,
+        {
+          method: "POST",
+          headers: {
+            "accept": "*/*"
+          },
+          body: ""
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    );
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const result = await response.json();
+      
+      if (result.Status && result.Data) {
+        setDistricts(result.Data);
+      } else {
+        throw new Error("Failed to fetch districts");
+      }
+    } catch (error) {
+      console.error("Error fetching districts:", error);
     }
-
-    const result = await response.json();
-    
-    if (result.Status && result.Data) {
-      setDistricts(result.Data);
-    } else {
-      throw new Error("Failed to fetch districts");
-    }
-  } catch (error) {
-    console.error("Error fetching districts:", error);
-  }
-};
+  };
 
   // Load GP data from API
   const loadGPData = async () => {
@@ -107,22 +121,23 @@ const DPROWaterFee = () => {
         throw new Error("User ID not available. Please refresh the page and try again.");
       }
 
-      const financialYearParam = financialYear.split('-')[0]; // Send just the starting year (e.g., "2025")
+      const financialYearParam = getFinancialYearForAPI(financialYear);
       
-      console.log('Loading GP data request:', JSON.stringify({
+      console.log('Loading GP data request:', {
         FinancialYear: financialYearParam,
-        UserId: userId
-      }, null, 2));
+        UserId: userId,
+        SelectedFinancialYear: financialYear
+      });
 
-      const response = await fetch(
-        `${API_BASE1}/GetWaterFeeDeclarationByGP?FinancialYear=${financialYearParam}&UserId=${userId}`,
-        {
-          method: "GET",
-          headers: {
-            "accept": "*/*"
-          }
+      const apiUrl = `${API_BASE1}/GetWaterFeeDeclarationByGP?FinancialYear=${encodeURIComponent(financialYearParam)}&UserId=${userId}`;
+      console.log('API URL:', apiUrl);
+
+      const response = await fetch(apiUrl, {
+        method: "GET",
+        headers: {
+          "accept": "*/*"
         }
-      );
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -145,14 +160,14 @@ const DPROWaterFee = () => {
 
         setGPFees(gpData);
         setOriginalGPFees(JSON.parse(JSON.stringify(gpData)));
-        setMessage({ type: "success", text: `Loaded ${gpData.length} Gram Panchayats successfully` });
+        setMessage({ type: "success", text: `Loaded ${gpData.length} Gram Panchayats successfully for FY ${financialYear}` });
         setValidationErrors({});
       } else {
         throw new Error(result.Message || result.Error || "Failed to load GP data");
       }
     } catch (error) {
       console.error("Error loading GP data:", error);
-      setMessage({ type: "error", text: `Error: ${error.message}` });
+      setMessage({ type: "error", text: `Error loading data: ${error.message}` });
       // Fall back to empty array on error
       setGPFees([]);
       setOriginalGPFees([]);
@@ -162,11 +177,11 @@ const DPROWaterFee = () => {
   };
 
   useEffect(() => {
-  if (userId) {
-    fetchAllDistricts();
-    loadGPData();
-  }
-}, [financialYear, userId]);
+    if (userId) {
+      fetchAllDistricts();
+      loadGPData();
+    }
+  }, [financialYear, userId]);
 
   const handleGPFeeChange = (gpId, value) => {
     setGPFees((prev) =>
@@ -185,7 +200,6 @@ const DPROWaterFee = () => {
   };
 
   const saveGPFee = async (gp) => {
-
     const district = districts.find(d => d.DistrictName === gp.districtName);
     const districtId = district ? district.DistrictId : 0;
 
@@ -256,97 +270,97 @@ const DPROWaterFee = () => {
   };
 
   const handleSaveAll = async () => {
-  const changedGPs = gpFees.filter((gp, index) => {
-    const original = originalGPFees[index];
-    return original && gp.fee !== original.fee && gp.fee !== "";
-  });
-
-  if (changedGPs.length === 0) {
-    setMessage({ type: "error", text: "No changes to save" });
-    return;
-  }
-
-  const hasValidationErrors = changedGPs.some(gp => {
-    const error = validateGPFee(gp.fee);
-    if (error) {
-      setValidationErrors(prev => ({
-        ...prev,
-        [`gp_${gp.gpId}`]: error
-      }));
-      return true;
-    }
-    return false;
-  });
-
-  if (hasValidationErrors) {
-    setMessage({ type: "error", text: "Please fix validation errors before saving" });
-    return;
-  }
-
-  setSaving(true);
-  setMessage({ type: "", text: "" });
-
-  try {
-    const waterFeeList = changedGPs.map(gp => {
-      const district = districts.find(d => d.DistrictName === gp.districtName);
-      const districtId = district ? district.DistrictId : 0;
-
-      return {
-        GP_Id: gp.gpId,
-        DistrictId: districtId,
-        WaterFeeAmount: parseFloat(gp.fee),
-        ApplyFrom: new Date().toISOString(),
-        UserId: userId,
-        DeviceToken: "web_app",
-        IPAddress: "192.168.1.1"
-      };
+    const changedGPs = gpFees.filter((gp, index) => {
+      const original = originalGPFees[index];
+      return original && gp.fee !== original.fee && gp.fee !== "";
     });
 
-    const requestBody = {
-      WaterFeeListMew: waterFeeList
-    };
+    if (changedGPs.length === 0) {
+      setMessage({ type: "error", text: "No changes to save" });
+      return;
+    }
 
-    console.log('Save all GPs request:', JSON.stringify(requestBody, null, 2));
-
-    const response = await fetch(
-      `${API_BASE}/UpdateGPWideWaterFee`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "accept": "*/*"
-        },
-        body: JSON.stringify(requestBody)
+    const hasValidationErrors = changedGPs.some(gp => {
+      const error = validateGPFee(gp.fee);
+      if (error) {
+        setValidationErrors(prev => ({
+          ...prev,
+          [`gp_${gp.gpId}`]: error
+        }));
+        return true;
       }
-    );
+      return false;
+    });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    if (hasValidationErrors) {
+      setMessage({ type: "error", text: "Please fix validation errors before saving" });
+      return;
     }
 
-    const data = await response.json();
-    console.log('Save all GPs response:', data);
-    
-    if (data.Status) {
-      setMessage({ 
-        type: "success", 
-        text: `Bulk update completed for ${changedGPs.length} GPs: ${data.Message}` 
+    setSaving(true);
+    setMessage({ type: "", text: "" });
+
+    try {
+      const waterFeeList = changedGPs.map(gp => {
+        const district = districts.find(d => d.DistrictName === gp.districtName);
+        const districtId = district ? district.DistrictId : 0;
+
+        return {
+          GP_Id: gp.gpId,
+          DistrictId: districtId,
+          WaterFeeAmount: parseFloat(gp.fee),
+          ApplyFrom: new Date().toISOString(),
+          UserId: userId,
+          DeviceToken: "web_app",
+          IPAddress: "192.168.1.1"
+        };
       });
+
+      const requestBody = {
+        WaterFeeListMew: waterFeeList
+      };
+
+      console.log('Save all GPs request:', JSON.stringify(requestBody, null, 2));
+
+      const response = await fetch(
+        `${API_BASE}/UpdateGPWideWaterFee`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "accept": "*/*"
+          },
+          body: JSON.stringify(requestBody)
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Save all GPs response:', data);
       
-      setTimeout(() => {
-        loadGPData();
-      }, 1000);
-    } else {
-      throw new Error(data.Message || data.Error || 'Bulk update failed');
+      if (data.Status) {
+        setMessage({ 
+          type: "success", 
+          text: `Bulk update completed for ${changedGPs.length} GPs: ${data.Message}` 
+        });
+        
+        setTimeout(() => {
+          loadGPData();
+        }, 1000);
+      } else {
+        throw new Error(data.Message || data.Error || 'Bulk update failed');
+      }
+      
+    } catch (error) {
+      console.error("Error in handleSaveAll:", error);
+      setMessage({ type: "error", text: `Error: ${error.message}` });
+    } finally {
+      setSaving(false);
     }
-    
-  } catch (error) {
-    console.error("Error in handleSaveAll:", error);
-    setMessage({ type: "error", text: `Error: ${error.message}` });
-  } finally {
-    setSaving(false);
-  }
-};
+  };
 
   const handleDownload = () => {
     const csvHeaders = "GP Name,Block,District,Water Fee (₹),Total Amount Collected (₹),Apply From\n";
@@ -389,6 +403,8 @@ const DPROWaterFee = () => {
         Set and manage water fee rates for individual Gram Panchayats.
       </p>
 
+      
+
       {/* Message Display */}
       {message.text && (
         <div className={`flex items-center gap-2 p-4 rounded-lg ${
@@ -405,6 +421,34 @@ const DPROWaterFee = () => {
         </div>
       )}
 
+      {/* Filter & Download */}
+      <div className="bg-white rounded-xl shadow-lg p-6 flex flex-wrap justify-between items-center gap-4">
+        <div className="flex items-center gap-3">
+          <CalendarDays className="w-5 h-5 text-purple-600" />
+          <label className="font-medium">Financial Year</label>
+          <select
+            value={financialYear}
+            onChange={(e) => setFinancialYear(e.target.value)}
+            disabled={loading}
+            className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+          >
+            <option value="2025-2026">2025-2026</option>
+            <option value="2024-2025">2024-2025</option>
+            <option value="2023-2024">2023-2024</option>
+            <option value="2022-2023">2022-2023</option>
+            <option value="2021-2022">2021-2022</option>
+          </select>
+        </div>
+        <button
+          onClick={handleDownload}
+          disabled={gpFees.length === 0}
+          className="flex items-center gap-2 bg-green-600 text-white px-5 py-2 rounded-lg shadow hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Download size={18} />
+          Download CSV
+        </button>
+      </div>
+
       {/* Fee Input Section */}
       <div className="bg-white rounded-xl shadow-lg p-6 space-y-4">
         <div className="space-y-4">
@@ -417,7 +461,7 @@ const DPROWaterFee = () => {
             <div className="flex items-center justify-center py-8">
               <div className="text-center">
                 <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">No Gram Panchayats found for the selected financial year.</p>
+                <p className="text-gray-600">No Gram Panchayats found for financial year {financialYear}.</p>
                 <p className="text-sm text-gray-500 mt-1">Try selecting a different financial year or refresh the data.</p>
               </div>
             </div>
@@ -508,34 +552,6 @@ const DPROWaterFee = () => {
             </>
           )}
         </div>
-      </div>
-
-      {/* Filter & Download */}
-      <div className="bg-white rounded-xl shadow-lg p-6 flex flex-wrap justify-between items-center gap-4">
-        <div className="flex items-center gap-3">
-          <CalendarDays className="w-5 h-5 text-purple-600" />
-          <label className="font-medium">Financial Year</label>
-          <select
-            value={financialYear}
-            onChange={(e) => setFinancialYear(e.target.value)}
-            disabled={loading}
-            className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
-          >
-            <option value="2025-2026">2025-2026</option>
-            <option value="2024-2025">2024-2025</option>
-            <option value="2023-2024">2023-2024</option>
-            <option value="2022-2023">2022-2023</option>
-            <option value="2021-2022">2021-2022</option>
-          </select>
-        </div>
-        <button
-          onClick={handleDownload}
-          disabled={gpFees.length === 0}
-          className="flex items-center gap-2 bg-green-600 text-white px-5 py-2 rounded-lg shadow hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Download size={18} />
-          Download CSV
-        </button>
       </div>
 
       {/* Data Summary */}
