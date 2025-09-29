@@ -744,7 +744,7 @@ const UserManagement = () => {
   };
 
   // column sets - Updated to include Division
-  const locationColumns = ["Division", "District", "Block", "Grampanchayat", "Username", "Password"];
+  const locationColumns = ["District", "Block", "Grampanchayat", "Username", "Password"];
   const hqColumns = ["Role", "Username", "Password"];
 
   // toolbar nodes
@@ -834,14 +834,14 @@ const UserManagement = () => {
 
       {/* Tables */}
       <Table
-        title="Location-Based Users"
+        title="Gram Panchatat Users"
         data={filteredLocationUsers}
         columns={locationColumns}
         toolbar={LocationToolbar}
       />
 
       <Table
-        title="Headquarters Users"
+        title="Administrative Users"
         data={filteredHqUsers}
         columns={hqColumns}
         toolbar={HqToolbar}
