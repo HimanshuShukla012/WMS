@@ -41,7 +41,7 @@ const DPROWaterFee = () => {
 
   const [gpFees, setGPFees] = useState<GPFee[]>([]);
   const [originalGPFees, setOriginalGPFees] = useState<GPFee[]>([]);
-  const [financialYear, setFinancialYear] = useState("2025-26");
+  const [financialYear, setFinancialYear] = useState("2025-2026");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [districts, setDistricts] = useState([]);
@@ -521,11 +521,11 @@ const DPROWaterFee = () => {
             disabled={loading}
             className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
           >
-            <option value="2025-26">2025-26</option>
-            <option value="2024-25">2024-25</option>
-            <option value="2023-24">2023-24</option>
-            <option value="2022-23">2022-23</option>
-            <option value="2021-22">2021-22</option>
+            <option value="2025-2026">2025-2026</option>
+            <option value="2024-2025">2024-2025</option>
+            <option value="2023-2024">2023-2024</option>
+            <option value="2022-2023">2022-2023</option>
+            <option value="2021-2022">2021-2022</option>
           </select>
         </div>
         <button
