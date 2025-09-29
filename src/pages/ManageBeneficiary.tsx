@@ -627,11 +627,7 @@ const ManageBeneficiary = () => {
         <h1 className="text-3xl font-bold mb-2 text-gray-800">Manage Beneficiaries</h1>
         <p className="text-gray-600 mb-6">
           View, edit, and bulk-import beneficiaries. Use filters to narrow down your search.
-          {role !== "Dpro" && (
-            <span className="block text-orange-600 text-sm mt-1 font-medium">
-              Note: Edit and Delete functionality is only available for Dpro role users.
-            </span>
-          )}
+          
         </p>
 
         {loading && (
