@@ -383,7 +383,7 @@ const DPROWaterFee = () => {
   };
 
   return (
-    <div className="p-8 space-y-6 bg-gradient-to-b from-blue-50 via-white to-blue-50 min-h-screen">
+    <div className="p-8 relative z-10 space-y-6 bg-gradient-to-b from-blue-50 via-white to-blue-50 min-h-screen">
       {/* Page Title */}
       <div className="flex items-center gap-3">
         <Building2 className="w-8 h-8 text-blue-600" />
