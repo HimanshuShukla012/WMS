@@ -258,12 +258,21 @@ const WaterQuality = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.type === 'application/pdf') {
-        setPdfFile(file);
-      } else {
+      if (file.type !== 'application/pdf') {
         toast.error('Please select a PDF file only.');
         e.target.value = '';
+        return;
       }
+      
+      // Check file size (10MB = 10 * 1024 * 1024 bytes)
+      const maxSize = 10 * 1024 * 1024;
+      if (file.size > maxSize) {
+        toast.error('File size exceeds 10MB. Please select a smaller file.');
+        e.target.value = '';
+        return;
+      }
+      
+      setPdfFile(file);
     }
   };
 
@@ -402,7 +411,11 @@ const WaterQuality = () => {
 
   return (
     <div className="p-6 w-full min-h-screen text-black relative z-10 bg-gray-50">
-      <ToastContainer position="top-right" autoClose={3000} />
+      <ToastContainer 
+        position="top-center" 
+        autoClose={3000}
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
+      />
       
       {/* Header */}
       <div className="bg-blue-100 bg-opacity-40 rounded-xl p-4 shadow-sm mb-6">
