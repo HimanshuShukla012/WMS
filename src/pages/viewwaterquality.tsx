@@ -69,8 +69,71 @@ const WaterQualityPage = () => {
     return true;
   };
 
+  const handleDateKeyDown = (e) => {
+    // Allow navigation and special keys
+    if (
+      e.key === 'Backspace' || 
+      e.key === 'Delete' || 
+      e.key === 'Tab' || 
+      e.key === 'ArrowLeft' || 
+      e.key === 'ArrowRight' ||
+      e.key === 'ArrowUp' ||
+      e.key === 'ArrowDown'
+    ) {
+      return;
+    }
+
+    // Get current input value and cursor position
+    const input = e.target;
+    const currentValue = input.value;
+    const cursorPosition = input.selectionStart;
+
+    // Check if we're in the year section (after the second dash)
+    const yearSectionStart = currentValue.lastIndexOf('-') + 1;
+    
+    if (cursorPosition >= yearSectionStart && yearSectionStart > 0) {
+      const yearPart = currentValue.substring(yearSectionStart);
+      const currentYear = new Date().getFullYear();
+      
+      // If year already has 4 digits, prevent further input
+      if (yearPart.length >= 4) {
+        e.preventDefault();
+        return;
+      }
+
+      // Check if adding this digit would create a year exceeding current year
+      if (/^\d$/.test(e.key)) {
+        const newYearStr = yearPart + e.key;
+        const newYear = parseInt(newYearStr);
+        
+        // Prevent if it would exceed current year when fully formed
+        if (newYearStr.length === 4 && newYear > currentYear) {
+          e.preventDefault();
+          return;
+        }
+        
+        // Also prevent impossible years (like starting with 3, 4, etc for position 0)
+        if (yearPart.length === 0 && parseInt(e.key) > 2) {
+          e.preventDefault();
+          return;
+        }
+      }
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    
+    // Restrict year to current year or earlier
+    if (value) {
+      const selectedDate = new Date(value);
+      const currentDate = new Date();
+      
+      if (selectedDate.getFullYear() > currentDate.getFullYear()) {
+        return; // Prevent setting date with future year
+      }
+    }
+    
     const updatedFormData = {
       ...formData,
       [name]: value

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import * as XLSX from "xlsx";
 import { useUserInfo } from "../utils/userInfo";
 
 // Simple Icons using Unicode symbols
@@ -50,7 +51,7 @@ const apiCall = async (url, options = {}) => {
 };
 
 // Download CSV function with data processing capability
-const downloadCSV = (data, filename, processRowData = null) => {
+const downloadExcel = (data, filename, processRowData = null) => {
   if (!data || data.length === 0) {
     alert("No data available to download");
     return;
@@ -60,36 +61,22 @@ const downloadCSV = (data, filename, processRowData = null) => {
     // Process data if a processing function is provided
     const processedData = processRowData ? data.map(processRowData) : data;
 
-    const headers = Object.keys(processedData[0]);
-    const csvContent = [
-      headers.join(","),
-      ...processedData.map((row) =>
-        headers
-          .map((header) => {
-            const value = row[header];
-            const stringValue = value === null || value === undefined ? "" : String(value);
-            return `"${stringValue.replace(/"/g, '""')}"`;
-          })
-          .join(",")
-      ),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", filename);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    // Create a new workbook
+    const wb = XLSX.utils.book_new();
+    
+    // Convert data to worksheet
+    const ws = XLSX.utils.json_to_sheet(processedData);
+    
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, "Data");
+    
+    // Generate Excel file and trigger download
+    XLSX.writeFile(wb, filename);
   } catch (error) {
-    console.error("Error generating CSV:", error);
-    alert("Error generating CSV file. Please try again.");
+    console.error("Error generating Excel file:", error);
+    alert("Error generating Excel file. Please try again.");
   }
 };
-
 // Pagination component
 const Pagination = ({ currentPage, totalPages, onPageChange, itemsPerPage, totalItems }) => {
   const startItem = (currentPage - 1) * itemsPerPage + 1;
@@ -162,17 +149,38 @@ const DataTable = ({
     if (!data || data.length === 0) return;
     const timestamp = new Date().toISOString().split("T")[0];
 
-    // Special processing for fee collection data to calculate correct balance
-    const processRowData = downloadFilename.includes("fee_collection")
-      ? (row) => ({
-          ...row,
-          BalanceAmount: (row.OutstandingAmount || 0) - (row.PaidAmount || 0),
-        })
-      : null;
+    // Process data to convert IDs to human-readable values
+    const processRowData = (row) => {
+      const processedRow = { ...row };
 
-    downloadCSV(data, `${downloadFilename}_${timestamp}.csv`, processRowData);
+      // Convert PowerSource IDs to readable text
+      if (processedRow.PowerSource !== undefined) {
+        processedRow.PowerSource = 
+          processedRow.PowerSource === "1" || processedRow.PowerSource === 1
+            ? "Electric"
+            : processedRow.PowerSource === "2" || processedRow.PowerSource === 2
+            ? "Solar"
+            : "Unknown";
+      }
+
+      // Convert Status IDs to readable text
+      if (processedRow.Status !== undefined) {
+        processedRow.Status = 
+          processedRow.Status === 1 || processedRow.Status === true
+            ? "Active"
+            : "Inactive";
+      }
+
+      // Calculate balance for fee collection data
+      if (downloadFilename.includes("fee_collection")) {
+        processedRow.BalanceAmount = (row.OutstandingAmount || 0) - (row.PaidAmount || 0);
+      }
+
+      return processedRow;
+    };
+
+    downloadExcel(data, `${downloadFilename}_${timestamp}.xlsx`, processRowData);
   };
-
   // Reset page when search changes
   useEffect(() => {
     setCurrentPage(1);
@@ -234,7 +242,7 @@ const DataTable = ({
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
             >
               <Icons.Download />
-              Download CSV
+              Download Excel
             </button>
           </div>
         </div>
@@ -603,12 +611,12 @@ const VillageDirectoryWithFilter = () => {
                 <button
                   onClick={() => {
                     const timestamp = new Date().toISOString().split("T")[0];
-                    downloadCSV(villages, `${selectedDistrictName.toLowerCase().replace(/\s+/g, '_')}_villages_${timestamp}.csv`);
+                    downloadExcel(villages, `${selectedDistrictName.toLowerCase().replace(/\s+/g, '_')}_villages_${timestamp}.xlsx`);
                   }}
                   className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
                 >
                   <Icons.Download />
-                  Download CSV
+                  Download Excel
                 </button>
               )}
             </div>
@@ -1171,7 +1179,7 @@ export default function MISTabularReportingDashboard() {
       },
     ];
 
-    downloadCSV(summaryData, `consolidated_mis_report_${timestamp}.csv`);
+    downloadExcel(summaryData, `consolidated_mis_report_${timestamp}.xlsx`);
   };
 
   if (userLoading) {
@@ -1377,7 +1385,7 @@ export default function MISTabularReportingDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {/* Individual Report Downloads */}
             <button
-              onClick={() => downloadCSV(pumpHouses, `pump_houses_${new Date().toISOString().split("T")[0]}.csv`)}
+              onClick={() => downloadExcel(pumpHouses, `pump_houses_${new Date().toISOString().split("T")[0]}.xlsx`)}
               disabled={pumpHouses.length === 0}
               className="flex items-center gap-3 p-4 bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 rounded-lg border border-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -1389,7 +1397,7 @@ export default function MISTabularReportingDashboard() {
             </button>
 
             <button
-              onClick={() => downloadCSV(complaints, `complaints_${new Date().toISOString().split("T")[0]}.csv`)}
+              onClick={() => downloadExcel(complaints, `complaints_${new Date().toISOString().split("T")[0]}.xlsx`)}
               disabled={complaints.length === 0}
               className="flex items-center gap-3 p-4 bg-gradient-to-br from-orange-50 to-orange-100 hover:from-orange-100 hover:to-orange-200 rounded-lg border border-orange-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -1406,9 +1414,9 @@ export default function MISTabularReportingDashboard() {
                   ...row,
                   BalanceAmount: (row.OutstandingAmount || 0) - (row.PaidAmount || 0),
                 }));
-                downloadCSV(
+                downloadExcel(
                   processedFeeData,
-                  `fee_collection_${selectedMonth}_${selectedYear}_${new Date().toISOString().split("T")[0]}.csv`
+                  `fee_collection_${selectedMonth}_${selectedYear}_${new Date().toISOString().split("T")[0]}.xlsx`
                 );
               }}
               disabled={feeData.length === 0}
@@ -1423,9 +1431,9 @@ export default function MISTabularReportingDashboard() {
 
             <button
               onClick={() =>
-                downloadCSV(
+                downloadExcel(
                   roasterData,
-                  `roaster_schedules_${selectedMonth}_${selectedYear}_${new Date().toISOString().split("T")[0]}.csv`
+                  `roaster_schedules_${selectedMonth}_${selectedYear}_${new Date().toISOString().split("T")[0]}.xlsx`
                 )
               }
               disabled={roasterData.length === 0}
@@ -1443,9 +1451,9 @@ export default function MISTabularReportingDashboard() {
               <>
                 <button
                   onClick={() =>
-                    downloadCSV(
+                    downloadExcel(
                       topDistrictsByFee,
-                      `top_districts_fee_${selectedYear}_${new Date().toISOString().split("T")[0]}.csv`
+                      `top_districts_fee_${selectedYear}_${new Date().toISOString().split("T")[0]}.xlsx`
                     )
                   }
                   disabled={topDistrictsByFee.length === 0}
@@ -1460,9 +1468,9 @@ export default function MISTabularReportingDashboard() {
 
                 <button
                   onClick={() =>
-                    downloadCSV(
+                    downloadExcel(
                       topDistrictsByComplaint,
-                      `top_districts_complaints_${selectedYear}_${new Date().toISOString().split("T")[0]}.csv`
+                      `top_districts_complaints_${selectedYear}_${new Date().toISOString().split("T")[0]}.xlsx`
                     )
                   }
                   disabled={topDistrictsByComplaint.length === 0}

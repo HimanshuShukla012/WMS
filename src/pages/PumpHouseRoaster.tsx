@@ -573,13 +573,7 @@ const PumpHouseRoaster = () => {
     }
   };
 
-  const deleteRoaster = (id: string) => {
-    if (confirm('Are you sure you want to delete this roaster?')) {
-      const updatedRoasters = savedRoasters.filter(r => r.id !== id);
-      setSavedRoasters(updatedRoasters);
-      localStorage.setItem('pumpHouseRoasters', JSON.stringify(updatedRoasters));
-    }
-  };
+  
 
   const viewRoaster = (roaster: RoasterData) => {
     setCurrentMode('view');
@@ -1002,13 +996,7 @@ const PumpHouseRoaster = () => {
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => deleteRoaster(roaster.id)}
-                            className="text-red-600 hover:text-red-800 p-2 rounded hover:bg-red-50"
-                            title="Delete Roaster"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          
                         </div>
                       </div>
                     ))}

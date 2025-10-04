@@ -721,7 +721,8 @@ const FeeCollectionPage: React.FC = () => {
               <th className="px-4 py-2 border">Payment Mode</th>
               <th className="px-4 py-2 border">Receipt Number</th>
               <th className="px-4 py-2 border">Balance Amount (₹)</th>
-              <th className="px-4 py-2 border">Status</th>
+              <th className="px-4 py-2 border w-32">Status</th>
+
             </tr>
           </thead>
           <tbody>
@@ -780,22 +781,26 @@ const FeeCollectionPage: React.FC = () => {
                         ? 'bg-yellow-100 text-yellow-800' 
                         : 'bg-blue-100 text-blue-800'
                     }`}>
-                      {isExistingUnpaid ? 'Existing (Unpaid)' : 'New Entry'}
+                      {isExistingUnpaid ? 'Unpaid' : 'New'}
                     </span>
                   </td>
                 </tr>
               );
             }) : (
               <tr>
-                <td colSpan={11} className="text-center py-4 text-gray-500">
-                  {filters.village 
-                    ? (fullyPaidBeneficiaryIds.length > 0 || existingBeneficiaryIds.length > 0)
-                      ? `No beneficiaries available for fee collection. ${fullyPaidBeneficiaryIds.length} already fully paid, ${existingBeneficiaryIds.length - fullyPaidBeneficiaryIds.length} unpaid records exist and are displayed above.`
-                      : "No beneficiaries found for selected village."
-                    : "Please select a village to view beneficiaries."
-                  }
-                </td>
-              </tr>
+  <td
+    colSpan={11}
+    className="text-center py-4 text-gray-500 w-full min-w-[1200px]"
+  >
+    {filters.village 
+      ? (fullyPaidBeneficiaryIds.length > 0 || existingBeneficiaryIds.length > 0)
+        ? `No beneficiaries available for fee collection. ${fullyPaidBeneficiaryIds.length} already fully paid, ${existingBeneficiaryIds.length - fullyPaidBeneficiaryIds.length} unpaid records exist and are displayed above.`
+        : "No beneficiaries found for selected village."
+      : "Please select a village to view beneficiaries."
+    }
+  </td>
+</tr>
+
             )}
           </tbody>
         </table>
