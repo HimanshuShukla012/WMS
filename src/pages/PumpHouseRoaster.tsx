@@ -436,9 +436,33 @@ const PumpHouseRoaster = () => {
     }
   };
 
+
+  // Helper function to check if at least one shift is completely filled
+  const isAtLeastOneShiftComplete = (data: any): boolean => {
+    if (!data) return false;
+    
+    const shifts = [
+      { from: data.morningFrom, to: data.morningTo },
+      { from: data.afternoonFrom, to: data.afternoonTo },
+      { from: data.eveningFrom, to: data.eveningTo }
+    ];
+    
+    return shifts.some(shift => shift.from && shift.to && shift.from.trim() !== '' && shift.to.trim() !== '');
+  };
+
   const saveRoaster = async () => {
     if (!selectedDate || !fillingData || !distributionData) {
       setError('Please fill in all roaster data before saving.');
+      return;
+    }
+
+    if (!isAtLeastOneShiftComplete(fillingData)) {
+      setError('Please complete at least one filling shift (both from and to times) before saving.');
+      return;
+    }
+
+    if (!isAtLeastOneShiftComplete(distributionData)) {
+      setError('Please complete at least one distribution shift (both from and to times) before saving.');
       return;
     }
 
@@ -624,31 +648,31 @@ const PumpHouseRoaster = () => {
 
   return (
     <div className="p-6 space-y-6 relative z-10">
-      {/* Success Message */}
-      {showSuccess && (
-        <div className="fixed top-4 right-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded z-50 flex items-center gap-2">
-          <CheckCircle className="w-5 h-5" />
-          Roaster saved successfully!
-        </div>
-      )}
+      {/* Success Message - CENTERED */}
+{showSuccess && (
+  <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
+    <div className="bg-green-100 border-2 border-green-400 text-green-700 px-6 py-4 rounded-lg shadow-xl flex items-center gap-3 max-w-md">
+      <CheckCircle className="w-6 h-6 flex-shrink-0" />
+      <span className="font-semibold text-lg">Roaster saved successfully!</span>
+    </div>
+  </div>
+)}
 
-      {/* Error Message */}
-      {error && (
-        <div className="fixed top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-50 flex items-center gap-2">
-          <AlertCircle className="w-5 h-5" />
-          <div>
-            <div className="font-semibold">Error</div>
-            <div className="text-sm">{error}</div>
-          </div>
-          <button
-            onClick={() => setError('')}
-            className="ml-2 text-red-500 hover:text-red-700"
-          >
-            ×
-          </button>
+{/* Error Message - CENTERED */}
+{error && (
+  <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
+    <div className="bg-red-100 border-2 border-red-400 text-red-700 px-6 py-4 rounded-lg shadow-xl max-w-md">
+      <div className="flex items-start gap-3">
+        <AlertCircle className="w-6 h-6 flex-shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="font-semibold text-lg mb-1">Error</div>
+          <div className="text-sm">{error}</div>
         </div>
-      )}
-
+        <button onClick={() => setError('')} className="text-red-500 hover:text-red-700 text-2xl font-bold leading-none ml-2">×</button>
+      </div>
+    </div>
+  </div>
+)}
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl p-6 shadow-lg text-white">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1077,29 +1101,6 @@ const PumpHouseRoaster = () => {
                           </>
                         )}
                       </button>
-                      
-                      {/* Save Requirements Info */}
-                      <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm">
-                        <div className="font-medium text-blue-800 mb-1">Save Requirements:</div>
-                        <div className="text-blue-700 space-y-1">
-                          <div className={`flex items-center gap-2 ${selectedVillageId ? 'text-green-700' : 'text-red-700'}`}>
-                            {selectedVillageId ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                            Village must be selected
-                          </div>
-                          <div className={`flex items-center gap-2 ${selectedPumpId ? 'text-green-700' : 'text-red-700'}`}>
-                            {selectedPumpId ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                            Pump house must be selected
-                          </div>
-                          <div className={`flex items-center gap-2 ${selectedDate ? 'text-green-700' : 'text-red-700'}`}>
-                            {selectedDate ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                            Date must be selected
-                          </div>
-                          <div className={`flex items-center gap-2 ${fillingData && distributionData ? 'text-green-700' : 'text-red-700'}`}>
-                            {fillingData && distributionData ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                            Filling and distribution data must be completed
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   )}
                 </div>
