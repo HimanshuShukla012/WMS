@@ -373,9 +373,7 @@ const LandingPage = () => {
       <p className="text-xl text-gray-600 font-medium">
         Of Rural Water Supply Schemes
       </p>
-      <p className="text-lg text-blue-600 mt-2">
-        Link: <a href="https://rwsp.upprd.in/" className="underline hover:text-blue-800">www.rwsp.upprd.in</a>
-      </p>
+      
     </div>
 
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">

@@ -824,7 +824,7 @@ export default function MISTabularReportingDashboard() {
     }
   }, [isAdmin]);
 
-  const fetchFeeCollectionData = useCallback(async (month, year) => {
+  const fetchFeeCollectionData = useCallback(async (month, year, currentUserId) => {
     setLoading((prev) => ({ ...prev, fees: true }));
     try {
       const signal = abortControllerRef.current?.signal;
@@ -833,13 +833,22 @@ export default function MISTabularReportingDashboard() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json", accept: "*/*" },
-          body: JSON.stringify({ VillageId: 0, Month: month, Year: year }),
+          body: JSON.stringify({ 
+            VillageId: 0, 
+            Month: month, 
+            Year: year,
+            p_user_id: isAdmin() ? 0 : currentUserId || 0
+          }),
           signal,
         }
       );
 
       if (data.Status && Array.isArray(data.Data)) {
+        console.log(`Fetched ${data.Data.length} fee collection records`);
         setFeeData(data.Data);
+      } else {
+        console.warn("No fee data received or invalid format:", data);
+        setFeeData([]);
       }
       setErrors((prev) => ({ ...prev, fees: null }));
     } catch (error) {
@@ -848,51 +857,9 @@ export default function MISTabularReportingDashboard() {
     } finally {
       setLoading((prev) => ({ ...prev, fees: false }));
     }
-  }, []);
+    }, [isAdmin]);
 
-  const fetchRoasterData = useCallback(async () => {
-    if (pumpHouses.length === 0) return;
-
-    setLoading((prev) => ({ ...prev, roaster: true }));
-    try {
-      const signal = abortControllerRef.current?.signal;
-      const uniqueGPIds = [...new Set(pumpHouses.map((p) => p.PumpId))];
-      const allRoasterData = [];
-
-      for (const gpId of uniqueGPIds) {
-        try {
-          const data = await apiCall(
-            "https://wmsapi.kdsgroup.co.in/api/Master/GetMonthlyRoasterWithSchedule",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                GPId: gpId,
-                VillgeId: 0,
-                Month: selectedMonth,
-                Year: selectedYear,
-              }),
-              signal,
-            }
-          );
-
-          if (data.Status && Array.isArray(data.Data)) {
-            allRoasterData.push(...data.Data);
-          }
-        } catch (error) {
-          console.error(`Error fetching roaster data for GP ${gpId}:`, error);
-        }
-      }
-
-      setRoasterData(allRoasterData);
-      setErrors((prev) => ({ ...prev, roaster: null }));
-    } catch (error) {
-      console.error("Error fetching roaster data:", error);
-      setErrors((prev) => ({ ...prev, roaster: error.message }));
-    } finally {
-      setLoading((prev) => ({ ...prev, roaster: false }));
-    }
-  }, [pumpHouses, selectedMonth, selectedYear]);
+  
 
   const fetchDistrictData = useCallback(async (year) => {
     if (!isAdmin()) return;
@@ -958,7 +925,7 @@ export default function MISTabularReportingDashboard() {
       await Promise.all([
         fetchPumpHouses(userId),
         fetchComplaints(userId),
-        fetchFeeCollectionData(selectedMonth, selectedYear),
+        fetchFeeCollectionData(selectedMonth, selectedYear, userId),
         fetchDistrictData(selectedYear),
       ]);
     };
@@ -966,12 +933,7 @@ export default function MISTabularReportingDashboard() {
     initializeData();
   }, [userId, userLoading, selectedMonth, selectedYear, fetchPumpHouses, fetchComplaints, fetchFeeCollectionData, fetchDistrictData]);
 
-  // Fetch roaster data when pump houses are loaded
-  useEffect(() => {
-    if (pumpHouses.length > 0) {
-      fetchRoasterData();
-    }
-  }, [fetchRoasterData, pumpHouses.length]);
+  
 
   // Cleanup
   useEffect(() => {
@@ -1027,7 +989,7 @@ export default function MISTabularReportingDashboard() {
       await Promise.all([
         fetchPumpHouses(userId),
         fetchComplaints(userId),
-        fetchFeeCollectionData(selectedMonth, selectedYear),
+        fetchFeeCollectionData(selectedMonth, selectedYear, userId),
         fetchDistrictData(selectedYear),
       ]);
     } catch (error) {
@@ -1308,18 +1270,7 @@ export default function MISTabularReportingDashboard() {
           {/* Enhanced Village Directory with District Filter */}
           <VillageDirectoryWithFilter />
 
-          {/* Roaster Schedule Table */}
-          <DataTable
-            title="Monthly Roaster Schedules"
-            data={roasterData}
-            columns={roasterColumns}
-            isLoading={loading.roaster}
-            error={errors.roaster}
-            onRetry={fetchRoasterData}
-            downloadFilename={`roaster_schedules_${selectedMonth}_${selectedYear}`}
-            searchable={true}
-            showDateFilter={true}
-          />
+          
 
           {/* Admin Only District Performance Tables */}
           {isAdmin() && (

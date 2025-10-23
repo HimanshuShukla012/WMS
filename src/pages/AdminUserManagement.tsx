@@ -8,6 +8,8 @@ import {
   X,
   CheckCircle2,
   Search as SearchIcon,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 // -------------------- Types --------------------
@@ -19,7 +21,7 @@ interface LocationUser {
   username: string;
   password: string;
   active: boolean;
-  divisionname: string; // Added division field
+  divisionname: string;
 }
 
 interface HQUser {
@@ -33,7 +35,7 @@ interface HQUser {
 type District = { DistrictId: number; DistrictName: string };
 type Block = { BlockId: number; BlockName: string };
 type GramPanchayat = { Id: number; GramPanchayatName: string };
-type Division = { DivisionId: number; DivisionName: string }; // Added Division type
+type Division = { DivisionId: number; DivisionName: string };
 
 // -------------------- Utils --------------------
 const normalizeKey = (label: string) =>
@@ -83,6 +85,11 @@ const UserManagement = () => {
   const [passwordUser, setPasswordUser] = useState<LocationUser | HQUser | null>(null);
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+
+  // Pagination states
+  const [locationPage, setLocationPage] = useState(1);
+  const [hqPage, setHqPage] = useState(1);
+  const itemsPerPage = 10;
 
   // search
   const [searchLocation, setSearchLocation] = useState("");
@@ -141,12 +148,23 @@ const UserManagement = () => {
     }
   };
 
+  // Validation functions
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePassword = (password: string): boolean => {
+    // At least 8 characters, 1 uppercase, 1 lowercase, 1 special character
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
+    return passwordRegex.test(password);
+  };
+
   // -------------------- Fetch Divisions --------------------
   useEffect(() => {
     const requiredFields = getRequiredLocationFields(newUser.role);
     if (!showModal || !requiredFields.division) return;
 
-    // Use the correct division API endpoint
     fetch("https://wmsapi.kdsgroup.co.in/api/Master/GetDivisionList", {
       method: "GET",
       headers: { accept: "*/*" },
@@ -205,11 +223,9 @@ const UserManagement = () => {
   useEffect(() => {
     const requiredFields = getRequiredLocationFields(newUser.role);
     if (!requiredFields.block) return;
-    if (!selectedDistrictId) return; // Always require district for blocks
+    if (!selectedDistrictId) return;
     if (!showModal) return;
 
-    // For ADO role, we need to fetch all blocks or handle differently
-    // For now, using the same logic but may need adjustment based on API
     let apiUrl = "https://wmsapi.kdsgroup.co.in/api/Master/GetAllBlocks";
     if (selectedDistrictId) {
       apiUrl += `?DistrictId=${selectedDistrictId}`;
@@ -269,6 +285,34 @@ const UserManagement = () => {
       });
   }, [selectedBlockId, newUser.role]);
 
+  // Helper function to reset form
+  const resetForm = () => {
+    setShowModal(false);
+    setNewUser({
+      role: "",
+      division: "",
+      district: "",
+      block: "",
+      grampanchayat: "",
+      userId: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+    });
+    setDivisionSearch("");
+    setDistrictSearch("");
+    setBlockSearch("");
+    setGramPanchayatSearch("");
+    setIsDivisionOpen(false);
+    setIsDistrictOpen(false);
+    setIsBlockOpen(false);
+    setIsGramPanchayatOpen(false);
+    setSelectedDivisionId(null);
+    setSelectedDistrictId(null);
+    setSelectedBlockId(null);
+    setSelectedGramPanchayatId(null);
+  };
+
   // -------------------- Create User --------------------
   const createUser = () => {
     if (!newUser.role) {
@@ -286,8 +330,18 @@ const UserManagement = () => {
       return;
     }
 
+    if (!validateEmail(newUser.email)) {
+      alert("Please enter a valid email address");
+      return;
+    }
+
     if (!newUser.password) {
       alert("Please enter a password");
+      return;
+    }
+
+    if (!validatePassword(newUser.password)) {
+      alert("Password must be at least 8 characters long and contain at least 1 uppercase letter, 1 lowercase letter, and 1 special character");
       return;
     }
 
@@ -334,9 +388,9 @@ const UserManagement = () => {
     }
     
     if (requiredFields.district && !selectedDistrictId) {
-  alert("Please select a District");
-  return;
-}
+      alert("Please select a District");
+      return;
+    }
     
     if (requiredFields.block && !selectedBlockId) {
       alert("Please select a Block");
@@ -372,44 +426,21 @@ const UserManagement = () => {
     })
       .then((res) => res.json())
       .then((data) => {
-        alert(data.Message || "User created");
-        if (data.Status) {
-          resetForm();
-          window.location.reload();
+        // Check if the error message indicates username already exists
+        if (!data.Status && (data.Message?.toLowerCase().includes("failed to insert") || data.Message?.toLowerCase().includes("duplicate") || data.Message?.toLowerCase().includes("already exists"))) {
+          alert("Username already exists. Please choose a different username.");
+        } else {
+          alert(data.Message || "User created");
+          if (data.Status) {
+            resetForm();
+            window.location.reload();
+          }
         }
       })
       .catch((err) => {
         console.error(err);
-        alert("Failed to create user");
+        alert("Failed to create user. Username may already exist.");
       });
-
-    // Helper function to reset form
-    function resetForm() {
-      setShowModal(false);
-      setNewUser({
-        role: "",
-        division: "",
-        district: "",
-        block: "",
-        grampanchayat: "",
-        userId: "",
-        email: "",
-        password: "",
-        confirmPassword: "",
-      });
-      setDivisionSearch("");
-      setDistrictSearch("");
-      setBlockSearch("");
-      setGramPanchayatSearch("");
-      setIsDivisionOpen(false);
-      setIsDistrictOpen(false);
-      setIsBlockOpen(false);
-      setIsGramPanchayatOpen(false);
-      setSelectedDivisionId(null);
-      setSelectedDistrictId(null);
-      setSelectedBlockId(null);
-      setSelectedGramPanchayatId(null);
-    }
   };
 
   // -------------------- Fetch Users --------------------
@@ -506,6 +537,35 @@ const UserManagement = () => {
     );
   }, [gramPanchayats, gramPanchayatSearch]);
 
+  // Pagination logic
+  const paginateData = <T,>(data: T[], page: number) => {
+    const startIndex = (page - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return data.slice(startIndex, endIndex);
+  };
+
+  const paginatedLocationUsers = useMemo(
+    () => paginateData(filteredLocationUsers, locationPage),
+    [filteredLocationUsers, locationPage]
+  );
+
+  const paginatedHqUsers = useMemo(
+    () => paginateData(filteredHqUsers, hqPage),
+    [filteredHqUsers, hqPage]
+  );
+
+  const locationTotalPages = Math.ceil(filteredLocationUsers.length / itemsPerPage);
+  const hqTotalPages = Math.ceil(filteredHqUsers.length / itemsPerPage);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setLocationPage(1);
+  }, [searchLocation]);
+
+  useEffect(() => {
+    setHqPage(1);
+  }, [searchHq]);
+
   // actions
   const toggleUserStatus = (userId: number, currentStatus: boolean) => {
     const newStatus = currentStatus ? 0 : 1;
@@ -549,17 +609,70 @@ const UserManagement = () => {
     setShowPasswordModal(true);
   };
 
+  // Pagination component
+  const Pagination = ({
+    currentPage,
+    totalPages,
+    onPageChange,
+  }: {
+    currentPage: number;
+    totalPages: number;
+    onPageChange: (page: number) => void;
+  }) => {
+    if (totalPages <= 1) return null;
+
+    return (
+      <div className="flex items-center justify-between mt-4 px-4">
+        <div className="text-sm text-gray-600">
+          Page {currentPage} of {totalPages}
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className={`inline-flex items-center gap-1 px-3 py-1 rounded text-sm ${
+              currentPage === 1
+                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                : "bg-indigo-600 text-white hover:bg-indigo-700"
+            }`}
+          >
+            <ChevronLeft size={16} />
+            Previous
+          </button>
+          <button
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className={`inline-flex items-center gap-1 px-3 py-1 rounded text-sm ${
+              currentPage === totalPages
+                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                : "bg-indigo-600 text-white hover:bg-indigo-700"
+            }`}
+          >
+            Next
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // table helper
   const Table = <T extends { id: number; active?: boolean }>({
     title,
     data,
     columns,
     toolbar,
+    currentPage,
+    totalPages,
+    onPageChange,
   }: {
     title: string;
     data: T[];
     columns: string[];
     toolbar?: React.ReactNode;
+    currentPage: number;
+    totalPages: number;
+    onPageChange: (page: number) => void;
   }) => (
     <div className="bg-white shadow-lg rounded-2xl p-4 mb-6">
       <div className="flex items-center justify-between mb-3">
@@ -633,6 +746,11 @@ const UserManagement = () => {
           </tbody>
         </table>
       </div>
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={onPageChange}
+      />
     </div>
   );
 
@@ -743,7 +861,7 @@ const UserManagement = () => {
     );
   };
 
-  // column sets - Updated to include Division
+  // column sets
   const locationColumns = ["District", "Block", "Grampanchayat", "Username", "Password"];
   const hqColumns = ["Role", "Username", "Password"];
 
@@ -822,7 +940,6 @@ const UserManagement = () => {
         <h1 className="text-2xl font-bold">User Management</h1>
         <button
           onClick={() => {
-            console.log("Create New User button clicked");
             setShowModal(true);
           }}
           className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded"
@@ -830,21 +947,27 @@ const UserManagement = () => {
           <PlusCircle size={18} />
           Create New User
         </button>
-        </div>
+      </div>
 
       {/* Tables */}
       <Table
-        title="Gram Panchatat Users"
-        data={filteredLocationUsers}
+        title="Gram Panchayat Users"
+        data={paginatedLocationUsers}
         columns={locationColumns}
         toolbar={LocationToolbar}
+        currentPage={locationPage}
+        totalPages={locationTotalPages}
+        onPageChange={setLocationPage}
       />
 
       <Table
         title="Administrative Users"
-        data={filteredHqUsers}
+        data={paginatedHqUsers}
         columns={hqColumns}
         toolbar={HqToolbar}
+        currentPage={hqPage}
+        totalPages={hqTotalPages}
+        onPageChange={setHqPage}
       />
 
       {/* Create User Modal */}
@@ -854,7 +977,7 @@ const UserManagement = () => {
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Create New User</h3>
               <button
-                onClick={() => setShowModal(false)}
+                onClick={resetForm}
                 className="text-gray-500 hover:text-gray-700"
               >
                 <X size={20} />
@@ -908,7 +1031,7 @@ const UserManagement = () => {
                 />
               )}
 
-              {/* District Dropdown - Only for DPRO and Gram Panchayat */}
+              {/* District Dropdown - Only for DPRO, ADO and Gram Panchayat */}
               {requiredFields.district && (
                 <SearchableDropdown
                   label="District *"
@@ -1000,8 +1123,11 @@ const UserManagement = () => {
                   value={newUser.password}
                   onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                   className="w-full border p-2 rounded text-sm"
-                  placeholder="Enter password"
+                  placeholder="Min 8 chars, 1 upper, 1 lower, 1 special"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Must contain at least 8 characters, 1 uppercase, 1 lowercase, and 1 special character
+                </p>
               </div>
 
               {/* Confirm Password */}
@@ -1025,7 +1151,7 @@ const UserManagement = () => {
                   Create User
                 </button>
                 <button
-                  onClick={() => setShowModal(false)}
+                  onClick={resetForm}
                   className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded text-sm"
                 >
                   Cancel
@@ -1043,7 +1169,12 @@ const UserManagement = () => {
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Change Password</h3>
               <button
-                onClick={() => setShowPasswordModal(false)}
+                onClick={() => {
+                  setShowPasswordModal(false);
+                  setOldPassword("");
+                  setNewPassword("");
+                  setPasswordUser(null);
+                }}
                 className="text-gray-500 hover:text-gray-700"
               >
                 <X size={20} />
@@ -1079,8 +1210,11 @@ const UserManagement = () => {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="w-full border p-2 rounded text-sm"
-                  placeholder="Enter new password"
+                  placeholder="Min 8 chars, 1 upper, 1 lower, 1 special"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Must contain at least 8 characters, 1 uppercase, 1 lowercase, and 1 special character
+                </p>
               </div>
 
               <div className="flex gap-2 pt-4">
@@ -1090,6 +1224,16 @@ const UserManagement = () => {
                       alert("Please fill in both password fields");
                       return;
                     }
+
+                    if (oldPassword === newPassword) {
+                      alert("New password must be different from old password");
+                      return;
+                    }
+
+                    if (!validatePassword(newPassword)) {
+                      alert("New password must be at least 8 characters long and contain at least 1 uppercase letter, 1 lowercase letter, and 1 special character");
+                      return;
+                    }
                     
                     const payload = {
                       UserId: passwordUser.id,
@@ -1097,7 +1241,7 @@ const UserManagement = () => {
                       NewPassword: newPassword,
                     };
 
-                    fetch("https://wmsapi.kdsgroup.co.in/api/User/ChangePasswordByAdmin", {
+                    fetch("https://wmsapi.kdsgroup.co.in/api/User/UserChangePassword", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify(payload),
