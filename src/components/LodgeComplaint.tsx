@@ -87,24 +87,45 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
 
   // Validation function to check if all mandatory fields are filled
   const areAllMandatoryFieldsFilled = (): boolean => {
-    const mandatoryFields = [
-      selectedDistrictId,
-      selectedBlockId,
-      selectedGramPanchayatId,
-      selectedVillage,
-      form.beneficiaryName,
-      form.beneficiaryContact,
-      form.landmark,
-      form.category,
-    ];
+  const mandatoryFields = [
+    selectedDistrictId,
+    selectedBlockId,
+    selectedGramPanchayatId,
+    selectedVillage,
+    form.beneficiaryName,
+    form.beneficiaryContact,
+    form.landmark,
+    form.category,
+  ];
 
-    // If category is "Other", also check otherCategory field
-    if (form.category === "Other") {
-      mandatoryFields.push(form.otherCategory.trim());
-    }
+  // If category is "Other", also check otherCategory field
+  if (form.category === "Other") {
+    mandatoryFields.push(form.otherCategory.trim());
+  }
 
-    return mandatoryFields.every(field => field !== null && field !== "" && field !== undefined);
-  };
+  // Check if all fields are filled
+  const allFieldsFilled = mandatoryFields.every(field => field !== null && field !== "" && field !== undefined);
+  
+  // Also validate mobile number format
+  const mobileValid = isValidMobileNumber(form.beneficiaryContact);
+  
+  return allFieldsFilled && mobileValid;
+};
+
+  // Validation function for mobile number
+const isValidMobileNumber = (mobile: string): boolean => {
+  // Check if exactly 10 digits
+  if (mobile.length !== 10) return false;
+  
+  // Check if all characters are digits
+  if (!/^\d+$/.test(mobile)) return false;
+  
+  // Check if first digit is 6, 7, 8, or 9
+  const firstDigit = mobile.charAt(0);
+  if (!['6', '7', '8', '9'].includes(firstDigit)) return false;
+  
+  return true;
+};
 
   // Get role from token
   useEffect(() => {
@@ -258,9 +279,16 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
 
   // Handle form changes for basic form fields
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
+  const { name, value } = e.target;
+  
+  // For contact field, only allow numeric input
+  if (name === "beneficiaryContact") {
+    const numericValue = value.replace(/\D/g, ''); // Remove non-digits
+    setForm(prev => ({ ...prev, [name]: numericValue }));
+  } else {
     setForm(prev => ({ ...prev, [name]: value }));
-  };
+  }
+};
 
   // Handle category change with special logic for "Other"
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -297,10 +325,16 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
       }
 
       if (form.category === "Other" && !form.otherCategory.trim()) {
-        toast.error("Please specify the other category details.");
-        setLoading(false);
-        return;
-      }
+  toast.error("Please specify the other category details.");
+  setLoading(false);
+  return;
+}
+
+if (!isValidMobileNumber(form.beneficiaryContact)) {
+  toast.error("Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9.");
+  setLoading(false);
+  return;
+}
 
       const payload = JSON.parse(atob(token.split(".")[1]));
       const createdBy = payload?.UserID || payload?.UserId || 0;
@@ -503,19 +537,29 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
 
         {/* Beneficiary Contact Number */}
         <div className="flex flex-col">
-          <label className="text-sm font-medium mb-1 text-gray-700">
-            Beneficiary Contact Number <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            name="beneficiaryContact"
-            value={form.beneficiaryContact}
-            onChange={handleChange}
-            placeholder="Beneficiary Contact Number"
-            className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
-            required
-          />
-        </div>
+  <label className="text-sm font-medium mb-1 text-gray-700">
+    Beneficiary Contact Number <span className="text-red-500">*</span>
+  </label>
+  <input
+    type="text"
+    name="beneficiaryContact"
+    value={form.beneficiaryContact}
+    onChange={handleChange}
+    placeholder="Enter 10-digit mobile number"
+    maxLength={10}
+    className={`border px-3 py-2 rounded-md focus:outline-none focus:ring-2 ${
+      form.beneficiaryContact && !isValidMobileNumber(form.beneficiaryContact)
+        ? 'border-red-500 focus:ring-red-400'
+        : 'border-gray-300 focus:ring-blue-400'
+    }`}
+    required
+  />
+  {form.beneficiaryContact && !isValidMobileNumber(form.beneficiaryContact) && (
+    <p className="text-xs text-red-600 mt-1">
+      Mobile number must be 10 digits and start with 6, 7, 8, or 9
+    </p>
+  )}
+</div>
 
         {/* Landmark */}
         <div className="flex flex-col">

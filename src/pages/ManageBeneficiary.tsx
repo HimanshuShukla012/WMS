@@ -74,6 +74,7 @@ const ManageBeneficiary = () => {
   const [downloading, setDownloading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -487,41 +488,66 @@ const ManageBeneficiary = () => {
   };
 
   const handleUpload = async () => {
-    if (!csvFile) {
-      toast.error("Please select a CSV file.");
-      return;
-    }
+  if (!csvFile) {
+    toast.error("Please select a CSV file.");
+    return;
+  }
 
-    if (!userId) {
-      toast.error("User information not available");
-      return;
-    }
+  if (!userId) {
+    toast.error("User information not available");
+    return;
+  }
 
-    const formData = new FormData();
-    formData.append("file", csvFile);
+  const formData = new FormData();
+  formData.append("file", csvFile);
 
-    try {
-      const res = await fetch(
-        `https://wmsapi.kdsgroup.co.in/api/Master/ImportBeneficiaryCSV?userId=${userId}`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-      const json = await res.json();
-      if (json.Status) {
-        toast.success("Import successful");
-        setShowModal(false);
-        setCsvFile(null);
-        fetchBeneficiaries(); // Refresh all data
-      } else {
-        toast.error("Import error: " + (json.Message ?? "Unknown"));
-      }
-    } catch (err) {
-      console.error("Upload error", err);
-      toast.error("Upload failed. Please check console.");
+  setUploading(true);
+
+try {
+  console.log("Uploading CSV with userId:", userId);
+  console.log("File details:", {
+    name: csvFile.name,
+    size: csvFile.size,
+    type: csvFile.type
+  });
+
+  const res = await fetch(
+    `https://wmsapi.kdsgroup.co.in/api/Master/ImportBeneficiaryCSV?userId=${userId}`,
+    {
+      method: "POST",
+      body: formData,
     }
-  };
+  );
+
+  console.log("Response status:", res.status);
+  
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error("Server error response:", errorText);
+    toast.error(`Server error: ${res.status} - ${errorText}`);
+    return;
+  }
+
+  const json = await res.json();
+  console.log("API Response:", json);
+
+  if (json.Status) {
+    toast.success("Import successful");
+    setShowModal(false);
+    setCsvFile(null);
+    fetchBeneficiaries(); // Refresh all data
+  } else {
+    const errorMsg = json.Message || json.Errror || json.Error || "Unknown error";
+    console.error("Import failed:", errorMsg);
+    toast.error("Import error: " + errorMsg);
+  }
+} catch (err) {
+  console.error("Upload error:", err);
+  toast.error("Upload failed: " + (err instanceof Error ? err.message : "Unknown error"));
+} finally {
+  setUploading(false);
+}
+};
 
   const clearFilters = () => {
     setSelectedDistrict("");
@@ -1255,12 +1281,14 @@ const ManageBeneficiary = () => {
 
             <div className="flex justify-end gap-3">
               <button 
-                onClick={handleUpload} 
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
-                disabled={!csvFile}
-              >
-                Upload & Import
-              </button>
+  onClick={handleUpload} 
+  className={`px-4 py-2 rounded-md text-white transition-colors ${
+    uploading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
+  }`}
+  disabled={!csvFile || uploading}
+>
+  {uploading ? 'Uploading...' : 'Upload & Import'}
+</button>
             </div>
           </div>
         </div>
