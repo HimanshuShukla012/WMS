@@ -30,6 +30,7 @@ const ManageOHT = () => {
   const { userId, role, isLoading: userLoading } = useUserInfo();
 
   const [ohtList, setOhtList] = useState<OHTState[]>([]);
+  const [originalOhtList, setOriginalOhtList] = useState<OHTState[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -112,7 +113,8 @@ const ManageOHT = () => {
       }));
 
       setOhtList(mapped);
-      toast.success(`Loaded ${mapped.length} OHT records`);
+setOriginalOhtList(mapped);
+toast.success(`Loaded ${mapped.length} OHT records`);
 
     } catch (e: any) {
       console.error("ManageOHT fetch error:", e);
@@ -166,11 +168,13 @@ const ManageOHT = () => {
   };
 
   const handleEditToggle = () => {
-    if (editMode) {
-      setEditedOHTs(new Set());
-    }
-    setEditMode((s) => !s);
-  };
+  if (editMode) {
+    // Restore original data when canceling
+    setOhtList([...originalOhtList]);
+    setEditedOHTs(new Set());
+  }
+  setEditMode((s) => !s);
+};
 
   const handleChange = (id: number, field: keyof OHTState, value: string | number) => {
     setOhtList((prev) => prev.map((o) => (o.OHTId === id ? { ...o, [field]: value } : o)));
@@ -229,11 +233,11 @@ const ManageOHT = () => {
       }
 
       if (successCount > 0) {
-        toast.success(`Successfully updated ${successCount} OHT records`);
-        setEditedOHTs(new Set());
-        setEditMode(false);
-        fetchOHTs(); // Refresh all data
-      }
+  toast.success(`Successfully updated ${successCount} OHT records`);
+  setEditedOHTs(new Set());
+  setEditMode(false);
+  await fetchOHTs(); // Refresh all data
+}
       
       if (errorCount > 0) {
         toast.error(`Failed to update ${errorCount} OHT records`);
