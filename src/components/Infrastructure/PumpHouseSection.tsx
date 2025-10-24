@@ -7,13 +7,13 @@ import * as Types from '../../types';
 interface PumpHouseSectionProps {
   pumpHouseData: Types.PumpHouseData[];
   selectedLocationName: string;
-  onExportCSV: (data: any[], filename: string) => void;
+  onExportExcel: (data: any[], filename: string) => void;
 }
 
 export const PumpHouseSection: React.FC<PumpHouseSectionProps> = ({
   pumpHouseData,
   selectedLocationName,
-  onExportCSV
+  onExportExcel
 }) => {
   // Calculate summary statistics
   const totalPumps = pumpHouseData.length;
@@ -29,12 +29,12 @@ export const PumpHouseSection: React.FC<PumpHouseSectionProps> = ({
           Pump House Infrastructure
         </h3>
         <button 
-          onClick={() => onExportCSV(pumpHouseData, 'pump_house_data')}
+          onClick={() => onExportExcel(pumpHouseData, 'pump_house_data')}
           className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
           disabled={pumpHouseData.length === 0}
         >
           <Download className="w-4 h-4" />
-          Export CSV
+          Export Excel
         </button>
       </div>
 
@@ -115,7 +115,7 @@ export const PumpHouseSection: React.FC<PumpHouseSectionProps> = ({
         <div className="mt-4 text-center text-sm text-gray-600">
           Showing first 30 records out of {pumpHouseData.length} total pump houses.
           <button 
-            onClick={() => onExportCSV(pumpHouseData, 'all_pump_house_data')}
+            onClick={() => onExportExcel(pumpHouseData, 'all_pump_house_data')}
             className="ml-2 text-blue-600 hover:text-blue-800 underline"
           >
             Export all records

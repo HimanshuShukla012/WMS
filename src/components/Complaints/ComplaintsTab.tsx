@@ -7,7 +7,7 @@ import * as Types from '../../types';
 interface ComplaintsTabProps {
   complaintsData: Types.ComplaintData[];
   selectedLocationName: string;
-  onExportCSV: (data: any[], filename: string) => void;
+  onExportExcel: (data: any[], filename: string) => void;
   // Filtering function should be passed from parent
   filterComplaintsByLocation: (data: Types.ComplaintData[]) => Types.ComplaintData[];
 }
@@ -15,7 +15,7 @@ interface ComplaintsTabProps {
 export const ComplaintsTab: React.FC<ComplaintsTabProps> = ({
   complaintsData,
   selectedLocationName,
-  onExportCSV,
+  onExportExcel,
   filterComplaintsByLocation
 }) => {
   const filteredComplaints = filterComplaintsByLocation(complaintsData);
@@ -49,12 +49,12 @@ export const ComplaintsTab: React.FC<ComplaintsTabProps> = ({
           Complaint Management
         </h3>
         <button 
-          onClick={() => onExportCSV(filteredComplaints, 'complaints_data')}
+          onClick={() => onExportExcel(filteredComplaints, 'complaints_data')}
           className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
           disabled={filteredComplaints.length === 0}
         >
           <Download className="w-4 h-4" />
-          Export CSV
+          Export Excel
         </button>
       </div>
 
@@ -145,7 +145,7 @@ export const ComplaintsTab: React.FC<ComplaintsTabProps> = ({
         <div className="mt-4 text-center text-sm text-gray-600">
           Showing first 50 records out of {filteredComplaints.length} total complaints.
           <button 
-            onClick={() => onExportCSV(filteredComplaints, 'all_complaints')}
+            onClick={() => onExportExcel(filteredComplaints, 'all_complaints')}
             className="ml-2 text-blue-600 hover:text-blue-800 underline"
           >
             Export all records

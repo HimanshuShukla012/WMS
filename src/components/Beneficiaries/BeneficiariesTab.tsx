@@ -7,7 +7,7 @@ import * as Types from '../../types';
 interface BeneficiariesTabProps {
   beneficiariesData: Types.BeneficiaryData[];
   selectedLocationName: string;
-  onExportCSV: (data: any[], filename: string) => void;
+onExportExcel: (data: any[], filename: string) => void;
   // Filtering function should be passed from parent
   filterByLocation: (data: Types.BeneficiaryData[]) => Types.BeneficiaryData[];
 }
@@ -15,7 +15,7 @@ interface BeneficiariesTabProps {
 export const BeneficiariesTab: React.FC<BeneficiariesTabProps> = ({
   beneficiariesData,
   selectedLocationName,
-  onExportCSV,
+  onExportExcel,
   filterByLocation
 }) => {
   const filteredBeneficiaries = filterByLocation(beneficiariesData);
@@ -96,12 +96,18 @@ export const BeneficiariesTab: React.FC<BeneficiariesTabProps> = ({
         </h3>
         <div className="flex gap-2">
           <button 
-            onClick={() => onExportCSV(filteredBeneficiaries, 'beneficiaries')}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+onClick={() => {
+  // Transform data before export to show readable status
+  const exportData = filteredBeneficiaries.map(b => ({
+    ...b,
+    Status: b.Status === 1 || b.Status === 'Active' ? 'Active' : 'Inactive'
+  }));
+  onExportExcel(exportData, 'beneficiaries');
+}}className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
             disabled={filteredBeneficiaries.length === 0}
           >
             <Download className="w-4 h-4" />
-            Export CSV
+            Export Excel
           </button>
         </div>
       </div>

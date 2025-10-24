@@ -7,13 +7,13 @@ import * as Types from '../types';
 interface OHTSectionProps {
   ohtData: Types.OHTData[];
   selectedLocationName: string;
-  onExportCSV: (data: any[], filename: string) => void;
+  onExportExcel: (data: any[], filename: string) => void;
 }
 
 export const OHTSection: React.FC<OHTSectionProps> = ({
   ohtData,
   selectedLocationName,
-  onExportCSV
+  onExportExcel
 }) => {
   // Calculate summary statistics
   const totalCapacity = ohtData.reduce((sum, oht) => sum + (oht.OHTCapacity || 0), 0);
@@ -27,12 +27,12 @@ export const OHTSection: React.FC<OHTSectionProps> = ({
           Over Head Tank (OHT) Infrastructure
         </h3>
         <button 
-          onClick={() => onExportCSV(ohtData, 'oht_data')}
+          onClick={() => onExportExcel(ohtData, 'oht_data')}
           className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
           disabled={ohtData.length === 0}
         >
           <Download className="w-4 h-4" />
-          Export CSV
+          Export Excel
         </button>
       </div>
 
@@ -93,7 +93,7 @@ export const OHTSection: React.FC<OHTSectionProps> = ({
         <div className="mt-4 text-center text-sm text-gray-600">
           Showing first 30 records out of {ohtData.length} total OHTs.
           <button 
-            onClick={() => onExportCSV(ohtData, 'all_oht_data')}
+            onClick={() => onExportExcel(ohtData, 'all_oht_data')}
             className="ml-2 text-blue-600 hover:text-blue-800 underline"
           >
             Export all records

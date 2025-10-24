@@ -154,44 +154,81 @@ const ManageComplaint = () => {
   }, []);
 
   // Initialize data fetching when userId is available
-  useEffect(() => {
-    if (userId) {
-      fetchDistricts();
-    }
-  }, [userId]);
+  // Populate location filters from available complaint data
+useEffect(() => {
+  if (complaints.length > 0) {
+    // Extract unique districts
+    const uniqueDistricts = Array.from(
+      new Map(
+        complaints.map(c => [c.districtId, { DistrictId: c.districtId, DistrictName: c.district }])
+      ).values()
+    ).sort((a, b) => a.DistrictName.localeCompare(b.DistrictName));
+    setDistricts(uniqueDistricts);
 
-  useEffect(() => {
-    if (selectedDistrictId && userId) {
-      fetchBlocks(selectedDistrictId);
+    // Extract unique blocks for selected district
+    if (selectedDistrictId) {
+      const uniqueBlocks = Array.from(
+        new Map(
+          complaints
+            .filter(c => c.districtId === selectedDistrictId)
+            .map(c => [c.blockId, { BlockId: c.blockId, BlockName: c.block, DistrictId: c.districtId }])
+        ).values()
+      ).sort((a, b) => a.BlockName.localeCompare(b.BlockName));
+      setBlocks(uniqueBlocks);
     } else {
       setBlocks([]);
-      setSelectedBlockId(null);
     }
-  }, [selectedDistrictId, userId]);
 
-  useEffect(() => {
-    if (selectedBlockId && userId) {
-      fetchGramPanchayats(selectedBlockId);
+    // Extract unique gram panchayats for selected block
+    if (selectedBlockId) {
+      const uniqueGPs = Array.from(
+        new Map(
+          complaints
+            .filter(c => c.blockId === selectedBlockId)
+            .map(c => [c.gramPanchayatId, { Id: c.gramPanchayatId, GramPanchayatName: c.gramPanchayat, BlockId: c.blockId }])
+        ).values()
+      ).sort((a, b) => a.GramPanchayatName.localeCompare(b.GramPanchayatName));
+      setGramPanchayats(uniqueGPs);
     } else {
       setGramPanchayats([]);
-      setSelectedGramPanchayatId(null);
     }
-  }, [selectedBlockId, userId]);
 
-  useEffect(() => {
-    if (selectedBlockId && selectedGramPanchayatId) {
-      fetchVillages(selectedBlockId, selectedGramPanchayatId);
+    // Extract unique villages for selected gram panchayat
+    if (selectedGramPanchayatId) {
+      const uniqueVillages = Array.from(
+        new Map(
+          complaints
+            .filter(c => c.gramPanchayatId === selectedGramPanchayatId)
+            .map(c => [c.villageId, { Id: c.villageId, VillageName: c.village }])
+        ).values()
+      ).sort((a, b) => a.VillageName.localeCompare(b.VillageName));
+      setVillages(uniqueVillages);
     } else {
       setVillages([]);
-      setSelectedVillageId(null);
     }
-  }, [selectedBlockId, selectedGramPanchayatId]);
+  } else {
+    // Clear all location data if no complaints
+    setDistricts([]);
+    setBlocks([]);
+    setGramPanchayats([]);
+    setVillages([]);
+  }
+}, [complaints, selectedDistrictId, selectedBlockId, selectedGramPanchayatId]);
 
-  useEffect(() => {
-    if (authToken) {
-      fetchComplaints();
-    }
-  }, [selectedVillageId, filterStatus, authToken]);
+  // Initial fetch on mount and when auth changes
+useEffect(() => {
+  if (authToken && userId) {
+    fetchComplaints();
+  }
+}, [authToken, userId]);
+
+// Refetch when filters change
+useEffect(() => {
+  if (authToken && userId && complaints.length > 0) {
+    // Only apply client-side filtering, don't refetch
+    // The filtering is already handled by filteredData
+  }
+}, [selectedVillageId, filterStatus]);
 
   // Handle modal clicks
   useEffect(() => {
@@ -205,110 +242,6 @@ const ManageComplaint = () => {
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [showEditModal]);
 
-  // Fetch districts (same pattern as AddBeneficiary)
-  const fetchDistricts = async () => {
-    if (!userId) return;
-    
-    try {
-      const res = await fetch(
-        `https://wmsapi.kdsgroup.co.in/api/Master/GetDistrict?UserId=${userId}`,
-        { 
-          method: "POST",
-          headers: { accept: "*/*" }
-        }
-      );
-      if (!res.ok) throw new Error("Failed to fetch districts");
-      const data = await res.json();
-      if (data.Status && data.Data) {
-        setDistricts(data.Data);
-      }
-    } catch (err) {
-      console.error("Error fetching districts:", err);
-      toast.error("Failed to fetch districts");
-    }
-  };
-
-  // Fetch blocks (same pattern as AddBeneficiary)
-  const fetchBlocks = async (districtId: number) => {
-    if (!userId) return;
-    
-    try {
-      const res = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ UserId: userId, DistrictId: districtId }),
-        }
-      );
-      if (!res.ok) throw new Error("Failed to fetch blocks");
-      const data = await res.json();
-      if (data.Status && data.Data) {
-        setBlocks(data.Data);
-      } else {
-        setBlocks([]);
-      }
-    } catch (err) {
-      console.error("Error fetching blocks:", err);
-      toast.error("Failed to fetch blocks");
-      setBlocks([]);
-    }
-  };
-
-  // Fetch gram panchayats (same pattern as AddBeneficiary)
-  const fetchGramPanchayats = async (blockId: number) => {
-    if (!userId) return;
-    
-    try {
-      const res = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ UserId: userId, BlockId: blockId }),
-        }
-      );
-      if (!res.ok) throw new Error("Failed to fetch gram panchayats");
-      const data = await res.json();
-      if (data.Status && data.Data) {
-        setGramPanchayats(data.Data);
-      } else {
-        setGramPanchayats([]);
-      }
-    } catch (err) {
-      console.error("Error fetching gram panchayats:", err);
-      toast.error("Failed to fetch gram panchayats");
-      setGramPanchayats([]);
-    }
-  };
-
-  // Fetch villages (same pattern as AddBeneficiary)
-  const fetchVillages = async (blockId: number, gramPanchayatId: number) => {
-    try {
-      const res = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/Master/GetVillegeByGramPanchayat",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            BlockId: blockId,
-            GramPanchayatId: gramPanchayatId,
-          }),
-        }
-      );
-      if (!res.ok) throw new Error("Failed to fetch villages");
-      const data = await res.json();
-      if (data.Status && data.Data) {
-        setVillages(data.Data);
-      } else {
-        setVillages([]);
-      }
-    } catch (err) {
-      console.error("Error fetching villages:", err);
-      toast.error("Failed to fetch villages");
-      setVillages([]);
-    }
-  };
 
   // COMPLETE CORRECTED fetchComplaints FUNCTION
 // This replaces the existing fetchComplaints function in your component
@@ -346,12 +279,10 @@ const fetchComplaints = async () => {
     console.log("Using effective userId:", effectiveUserId, "for role:", role);
 
     const requestBody = {
-      UserId: effectiveUserId,
-      VillageId: selectedVillageId || 0,
-      Status: filterStatus === "Pending" ? 0 : 
-             filterStatus === "Resolved" ? 1 : 
-             filterStatus === "Closed" ? 2 : 0
-    };
+  UserId: effectiveUserId,
+  VillageId: 0, // Always fetch all data
+  Status: 0 // Fetch all statuses
+};
 
     console.log("API Request:", requestBody);
 
@@ -612,26 +543,40 @@ useEffect(() => {
   };
 
   const clearFilters = () => {
-    setSelectedDistrictId(null);
-    setSelectedBlockId(null);
-    setSelectedGramPanchayatId(null);
-    setSelectedVillageId(null);
-    setFilterStatus("");
-    setSearch("");
-  };
+  setSelectedDistrictId(null);
+  setSelectedBlockId(null);
+  setSelectedGramPanchayatId(null);
+  setSelectedVillageId(null);
+  setFilterStatus("");
+  setSearch("");
+  // Refetch all complaints without filters
+  if (authToken && userId) {
+    fetchComplaints();
+  }
+};
 
   const filteredData = complaints.filter((c) => {
-    const matchesSearch = 
-      c.beneficiaryName.toLowerCase().includes(search.toLowerCase()) ||
-      c.beneficiaryContact.toLowerCase().includes(search.toLowerCase()) ||
-      c.district.toLowerCase().includes(search.toLowerCase()) ||
-      c.block.toLowerCase().includes(search.toLowerCase()) ||
-      c.gramPanchayat.toLowerCase().includes(search.toLowerCase()) ||
-      c.village.toLowerCase().includes(search.toLowerCase()) ||
-      c.category.toLowerCase().includes(search.toLowerCase());
-    
-    return matchesSearch;
-  });
+  // Apply location filters
+  if (selectedDistrictId && c.districtId !== selectedDistrictId) return false;
+  if (selectedBlockId && c.blockId !== selectedBlockId) return false;
+  if (selectedGramPanchayatId && c.gramPanchayatId !== selectedGramPanchayatId) return false;
+  if (selectedVillageId && c.villageId !== selectedVillageId) return false;
+  
+  // Apply status filter
+  if (filterStatus && c.complaintStatus !== filterStatus) return false;
+  
+  // Apply search filter
+  const matchesSearch = 
+    c.beneficiaryName.toLowerCase().includes(search.toLowerCase()) ||
+    c.beneficiaryContact.toLowerCase().includes(search.toLowerCase()) ||
+    c.district.toLowerCase().includes(search.toLowerCase()) ||
+    c.block.toLowerCase().includes(search.toLowerCase()) ||
+    c.gramPanchayat.toLowerCase().includes(search.toLowerCase()) ||
+    c.village.toLowerCase().includes(search.toLowerCase()) ||
+    c.category.toLowerCase().includes(search.toLowerCase());
+  
+  return matchesSearch;
+});
 
   const getSelectedLocationName = () => {
     if (selectedVillageId) {
@@ -812,62 +757,62 @@ useEffect(() => {
 
       {/* Quick Stats Cards */}
       {complaints.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-100 p-2 rounded-lg">
-                <span className="text-2xl">📋</span>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Total Complaints</p>
-                <p className="text-xl font-bold text-gray-800">{complaints.length}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-yellow-100 p-2 rounded-lg">
-                <span className="text-2xl">⏳</span>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Pending</p>
-                <p className="text-xl font-bold text-yellow-600">
-                  {complaints.filter(c => c.complaintStatus === "Pending").length}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-green-100 p-2 rounded-lg">
-                <span className="text-2xl">✅</span>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Resolved</p>
-                <p className="text-xl font-bold text-green-600">
-                  {complaints.filter(c => c.complaintStatus === "Resolved").length}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-gray-100 p-2 rounded-lg">
-                <span className="text-2xl">🔒</span>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Closed</p>
-                <p className="text-xl font-bold text-gray-600">
-                  {complaints.filter(c => c.complaintStatus === "Closed").length}
-                </p>
-              </div>
-            </div>
-          </div>
+  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div className="bg-white rounded-lg shadow-sm p-4">
+      <div className="flex items-center gap-3">
+        <div className="bg-blue-100 p-2 rounded-lg">
+          <span className="text-2xl">📋</span>
         </div>
-      )}
+        <div>
+          <p className="text-sm text-gray-600">Total Complaints</p>
+          <p className="text-xl font-bold text-gray-800">{filteredData.length}</p>
+        </div>
+      </div>
+    </div>
+
+    <div className="bg-white rounded-lg shadow-sm p-4">
+      <div className="flex items-center gap-3">
+        <div className="bg-yellow-100 p-2 rounded-lg">
+          <span className="text-2xl">⏳</span>
+        </div>
+        <div>
+          <p className="text-sm text-gray-600">Pending</p>
+          <p className="text-xl font-bold text-yellow-600">
+            {filteredData.filter(c => c.complaintStatus === "Pending").length}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div className="bg-white rounded-lg shadow-sm p-4">
+      <div className="flex items-center gap-3">
+        <div className="bg-green-100 p-2 rounded-lg">
+          <span className="text-2xl">✅</span>
+        </div>
+        <div>
+          <p className="text-sm text-gray-600">Resolved</p>
+          <p className="text-xl font-bold text-green-600">
+            {filteredData.filter(c => c.complaintStatus === "Resolved").length}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div className="bg-white rounded-lg shadow-sm p-4">
+      <div className="flex items-center gap-3">
+        <div className="bg-gray-100 p-2 rounded-lg">
+          <span className="text-2xl">🔒</span>
+        </div>
+        <div>
+          <p className="text-sm text-gray-600">Closed</p>
+          <p className="text-xl font-bold text-gray-600">
+            {filteredData.filter(c => c.complaintStatus === "Closed").length}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Data Table */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">

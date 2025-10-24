@@ -5,7 +5,7 @@ import { useUserInfo } from '../../utils/userInfo';
 import * as Types from '../types';
 
 export const useLocationData = () => {
-  const { isLoading: userLoading } = useUserInfo();
+  const { isLoading: userLoading, userId } = useUserInfo();
 
   // Location data arrays
   const [districts, setDistricts] = useState<Types.District[]>([]);
@@ -23,20 +23,24 @@ export const useLocationData = () => {
   const [locationLoading, setLocationLoading] = useState(false);
 
   // --- API Functions ---
-  const fetchDistricts = async (): Promise<Types.District[]> => {
-    try {
-      const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/AllDistrict', { 
+  const fetchDistricts = async (userId: number): Promise<Types.District[]> => {
+  try {
+    const response = await fetch(
+      `https://wmsapi.kdsgroup.co.in/api/Master/GetDistrict?UserId=${userId}`,
+      { 
         method: 'POST', 
-        headers: { accept: '*/*' } 
-      });
-      if (!response.ok) return [];
-      const result = await response.json();
-      return result.Status ? result.Data : [];
-    } catch (error) { 
-      console.error('Failed to fetch districts:', error); 
-      return [];
-    }
-  };
+        headers: { accept: '*/*' },
+        body: ''
+      }
+    );
+    if (!response.ok) return [];
+    const result = await response.json();
+    return result.Status ? result.Data : [];
+  } catch (error) { 
+    console.error('Failed to fetch districts:', error); 
+    return [];
+  }
+};
 
   const fetchBlocks = async (districtId: number): Promise<Types.Block[]> => {
     try {
@@ -85,13 +89,14 @@ export const useLocationData = () => {
   };
 
   // --- Load initial districts ---
+  // --- Load initial districts ---
   useEffect(() => {
-    if (userLoading) return;
-    
-    const loadDistricts = async () => {
-      setLocationLoading(true);
-      try {
-        const districtData = await fetchDistricts();
+  if (userLoading || !userId) return;
+  
+  const loadDistricts = async () => {
+    setLocationLoading(true);
+    try {
+      const districtData = await fetchDistricts(userId);
         setDistricts(districtData);
         
         // Auto-select if only one district
@@ -106,8 +111,7 @@ export const useLocationData = () => {
     };
     
     loadDistricts();
-  }, [userLoading]);
-
+}, [userLoading, userId]);
   // --- Load blocks when district changes ---
   useEffect(() => {
     if (!selectedDistrictId) { 

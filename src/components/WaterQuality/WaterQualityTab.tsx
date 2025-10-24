@@ -6,14 +6,14 @@ import * as Types from '../../types';
 
 interface WaterQualityTabProps {
   waterQualityData: Types.WaterQualityData[];
-  onExportCSV: (data: any[], filename: string) => void;
+  onExportExcel: (data: any[], filename: string) => void;
   // Filtering function should be passed from parent
   filterWaterQualityByLocation: (data: Types.WaterQualityData[]) => Types.WaterQualityData[];
 }
 
 export const WaterQualityTab: React.FC<WaterQualityTabProps> = ({
   waterQualityData,
-  onExportCSV,
+  onExportExcel,
   filterWaterQualityByLocation
 }) => {
   const filteredWaterQuality = filterWaterQualityByLocation(waterQualityData);
@@ -63,12 +63,12 @@ export const WaterQualityTab: React.FC<WaterQualityTabProps> = ({
           Water Quality Monitoring
         </h3>
         <button 
-          onClick={() => onExportCSV(filteredWaterQuality, 'water_quality')}
+          onClick={() => onExportExcel(filteredWaterQuality, 'water_quality')}
           className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
           disabled={waterQualityData.length === 0}
         >
           <Download className="w-4 h-4" />
-          Export CSV
+          Export Excel
         </button>
       </div>
 
@@ -165,7 +165,7 @@ export const WaterQualityTab: React.FC<WaterQualityTabProps> = ({
         <div className="mt-4 text-center text-sm text-gray-600">
           Showing first 30 records out of {filteredWaterQuality.length} total water quality tests.
           <button 
-            onClick={() => onExportCSV(filteredWaterQuality, 'all_water_quality_data')}
+            onClick={() => onExportExcel(filteredWaterQuality, 'all_water_quality_data')}
             className="ml-2 text-blue-600 hover:text-blue-800 underline"
           >
             Export all records

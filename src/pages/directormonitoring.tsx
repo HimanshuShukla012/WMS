@@ -1,6 +1,7 @@
 // DirectorMonitoring.tsx - Fixed with correct userRole prop and section navigation
 
 import React, { useState } from 'react';
+import * as XLSX from 'xlsx';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { useUserInfo } from '../utils/userInfo';
 import { useDirectorData } from '../components/hooks/useDirectorData.ts';
@@ -21,7 +22,7 @@ import { ComplaintsTab } from '../components/Complaints/ComplaintsTab';
 import { TabType } from '../components/types';
 
 const DirectorMonitoring: React.FC = () => {
-  const { userId, role, isLoading: userLoading } = useUserInfo();
+  const { userId, role, isLoading: userLoading, userInfo } = useUserInfo();
   
   // Location management
   const locationData = useLocationData();
@@ -108,34 +109,27 @@ const DirectorMonitoring: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  const exportCSV = (data: any[], filename: string) => {
-    if (!data.length) {
-      alert("No data to export");
-      return;
-    }
+  const exportToExcelSheet = (data: any[], filename: string) => {
+  if (!data.length) {
+    alert("No data to export");
+    return;
+  }
 
-    const headers = Object.keys(data[0]);
-    const csvContent = [
-      headers.join(","),
-      ...data.map(row => headers.map(header => {
-        const value = row[header];
-        return typeof value === 'string' ? `"${value}"` : value;
-      }).join(","))
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", 
-      `${filename}_${locationData.getSelectedLocationName().replace(/[^a-zA-Z0-9]/g, '_')}.csv`
-    );
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
+  // Create a new workbook
+  const workbook = XLSX.utils.book_new();
+  
+  // Convert data to worksheet
+  const worksheet = XLSX.utils.json_to_sheet(data);
+  
+  // Add worksheet to workbook
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Data');
+  
+  // Generate Excel file and trigger download
+  XLSX.writeFile(
+    workbook, 
+    `${filename}_${locationData.getSelectedLocationName().replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`
+  );
+};
   // Reset date filters along with location filters
   const handleResetFilters = () => {
     locationData.resetFilters();
@@ -250,7 +244,7 @@ const DirectorMonitoring: React.FC = () => {
                   performanceLoading={directorData.performanceLoading}
                   userRole={role || 'User'}
                   onTabChange={handleTabChange} // Pass the updated handler
-                  onExportCSV={exportCSV}
+                  onExportExcel={exportToExcelSheet}
                 />
               )}
 
@@ -258,7 +252,7 @@ const DirectorMonitoring: React.FC = () => {
                 <BeneficiariesTab
                   beneficiariesData={directorData.beneficiariesData}
                   selectedLocationName={locationData.getSelectedLocationName()}
-                  onExportCSV={exportCSV}
+                  onExportExcel={exportToExcelSheet}
                   filterByLocation={directorData.filterByLocation}
                 />
               )}
@@ -268,7 +262,7 @@ const DirectorMonitoring: React.FC = () => {
                   ohtData={directorData.ohtData}
                   pumpHouseData={directorData.pumpHouseData}
                   selectedLocationName={locationData.getSelectedLocationName()}
-                  onExportCSV={exportCSV}
+                  onExportExcel={exportToExcelSheet}
                   filterOHTsByLocation={directorData.filterOHTsByLocation}
                   filterPumpHousesByOHT={directorData.filterPumpHousesByOHT}
                   initialSection={infrastructureSection} // Pass the section state
@@ -282,7 +276,7 @@ const DirectorMonitoring: React.FC = () => {
                   selectedLocationName={locationData.getSelectedLocationName()}
                   fromDate={fromDate}
                   toDate={toDate}
-                  onExportCSV={exportCSV}
+                  onExportExcel={exportToExcelSheet}
                   filterWaterFeeSummaryByLocation={directorData.filterWaterFeeSummaryByLocation}
                 />
               )}
@@ -290,7 +284,7 @@ const DirectorMonitoring: React.FC = () => {
               {activeTab === 'quality' && (
                 <WaterQualityTab
                   waterQualityData={directorData.waterQualityData}
-                  onExportCSV={exportCSV}
+                  onExportExcel={exportToExcelSheet}
                   filterWaterQualityByLocation={directorData.filterWaterQualityByLocation}
                 />
               )}
@@ -299,7 +293,7 @@ const DirectorMonitoring: React.FC = () => {
                 <ComplaintsTab
                   complaintsData={directorData.complaintsData}
                   selectedLocationName={locationData.getSelectedLocationName()}
-                  onExportCSV={exportCSV}
+                  onExportExcel={exportToExcelSheet}
                   filterComplaintsByLocation={directorData.filterComplaintsByLocation}
                 />
               )}

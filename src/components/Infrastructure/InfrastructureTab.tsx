@@ -9,7 +9,7 @@ interface InfrastructureTabProps {
   ohtData: Types.OHTData[];
   pumpHouseData: Types.PumpHouseData[];
   selectedLocationName: string;
-  onExportCSV: (data: any[], filename: string) => void;
+  onExportExcel: (data: any[], filename: string) => void;
   // Filtering functions should be passed from parent
   filterOHTsByLocation: (data: Types.OHTData[]) => Types.OHTData[];
   filterPumpHousesByOHT: (pumpHouses: Types.PumpHouseData[], filteredOHTs: Types.OHTData[]) => Types.PumpHouseData[];
@@ -20,7 +20,7 @@ export const InfrastructureTab: React.FC<InfrastructureTabProps> = ({
   ohtData,
   pumpHouseData,
   selectedLocationName,
-  onExportCSV,
+  onExportExcel,
   filterOHTsByLocation,
   filterPumpHousesByOHT,
   initialSection
@@ -70,7 +70,7 @@ export const InfrastructureTab: React.FC<InfrastructureTabProps> = ({
         <OHTSection 
           ohtData={filteredOHTs}
           selectedLocationName={selectedLocationName}
-          onExportCSV={onExportCSV}
+          onExportExcel={onExportExcel}
         />
       )}
 
@@ -78,7 +78,7 @@ export const InfrastructureTab: React.FC<InfrastructureTabProps> = ({
         <PumpHouseSection 
           pumpHouseData={filteredPumpHouses}
           selectedLocationName={selectedLocationName}
-          onExportCSV={onExportCSV}
+          onExportExcel={onExportExcel}
         />
       )}
     </div>
