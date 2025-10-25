@@ -60,10 +60,10 @@ const ManageOHTCleaning = () => {
   const [tankCleaningStatus, setTankCleaningStatus] = useState<number>(0);
   const [solarCleaningStatus, setSolarCleaningStatus] = useState<number>(0);
   const [cleaningDate, setCleaningDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [electricityBillAmount, setElectricityBillAmount] = useState<number>(0);
-  const [depositAmount, setDepositAmount] = useState<number>(0);
+  const [electricityBillAmount, setElectricityBillAmount] = useState<number>("");
+  const [depositAmount, setDepositAmount] = useState<number>("");
   const [depositDate, setDepositDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [balanceAmount, setBalanceAmount] = useState<number>(0);
+  const balanceAmount = (Number(electricityBillAmount) || 0) - (Number(depositAmount) || 0);
 
   useEffect(() => {
     if (!userLoading && userId) {
@@ -206,10 +206,9 @@ const ManageOHTCleaning = () => {
     setTankCleaningStatus(0);
     setSolarCleaningStatus(0);
     setCleaningDate(new Date().toISOString().split('T')[0]);
-    setElectricityBillAmount(0);
-    setDepositAmount(0);
+    setElectricityBillAmount("");
+    setDepositAmount("");
     setDepositDate(new Date().toISOString().split('T')[0]);
-    setBalanceAmount(0);
     setShowModal(true);
   };
 
@@ -228,8 +227,8 @@ const ManageOHTCleaning = () => {
         OhtTankCleaningStatus: tankCleaningStatus,
         OhtSolarCleaningStatus: solarCleaningStatus,
         OhtCleaningDate: new Date(cleaningDate).toISOString(),
-        OhtElectricityBillAmnt: electricityBillAmount,
-        DepositeAmnt: depositAmount,
+        OhtElectricityBillAmnt: Number(electricityBillAmount) || 0,
+        DepositeAmnt: Number(depositAmount) || 0,
         DepositeAmntDate: new Date(depositDate).toISOString(),
         BalanceAmnt: balanceAmount,
         CreatedBy: userId,
@@ -606,7 +605,7 @@ const ManageOHTCleaning = () => {
                     <input
                       type="number"
                       value={electricityBillAmount}
-                      onChange={(e) => setElectricityBillAmount(Number(e.target.value))}
+                      onChange={(e) => setElectricityBillAmount(e.target.value)}
                       className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                       step="0.01"
@@ -618,7 +617,7 @@ const ManageOHTCleaning = () => {
                     <input
                       type="number"
                       value={depositAmount}
-                      onChange={(e) => setDepositAmount(Number(e.target.value))}
+                      onChange={(e) => setDepositAmount(e.target.value)}
                       className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       min="0"
                       step="0.01"
@@ -636,16 +635,14 @@ const ManageOHTCleaning = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-2">Balance Amount (₹)</label>
-                    <input
-                      type="number"
-                      value={balanceAmount}
-                      onChange={(e) => setBalanceAmount(Number(e.target.value))}
-                      className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
+  <label className="block text-sm font-medium mb-2">Balance Amount (₹)</label>
+  <div className="w-full p-2 border rounded-md bg-gray-100 font-semibold">
+    <span className={balanceAmount > 0 ? 'text-red-600' : balanceAmount < 0 ? 'text-green-600' : 'text-gray-600'}>
+      ₹{balanceAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+    </span>
+  </div>
+  
+</div>
                 </div>
               </div>
 
