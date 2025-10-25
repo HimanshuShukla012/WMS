@@ -8,12 +8,14 @@ import {
 import { useEffect } from "react";
 import Login from "./components/Login";
 import AdminDashboard from "./pages/AdminDashboard";
+import ViewOHTCleaningDetails from "./pages/viewohtcleaning";
 import GPDashboard from "./pages/GPDashboard";
 import AddBeneficiary from "./pages/AddBeneficiary";
 import ManageBeneficiary from "./pages/ManageBeneficiary";
 import PumpHouseMaster from "./pages/PumpHouseMaster";
 import LodgeComplaintPage from "./pages/LodgeComplaintPage";
 import ManageComplaint from "./pages/ManageComplaint";
+import ManageOHTCleaning from "./pages/ohtcleaning";
 import FeeCollectionPage from "./pages/FeeCollectionPage";
 import FeeManagementPage from "./pages/FeeManagementPage";
 import CallCenterDashboard from "./pages/CallCenterDashboard";
@@ -190,6 +192,8 @@ function App() {
               />
               <Route path="manage-complaint" element={<ManageComplaint />} />
               <Route path="manage-oht" element={<ManageOHT />} />
+              <Route path="manage-oht-cleaning" element={<ManageOHTCleaning />} />
+              <Route path="view-oht-cleaning" element={<ViewOHTCleaningDetails />} />
               <Route path="manage-pumphouse" element={<ManagePumpHouse />} />
               <Route path="view-roaster" element={<ViewRoaster />} />
               <Route path="view-water-quality" element={<ViewWaterQuality />} />
@@ -220,6 +224,8 @@ function App() {
               <Route path="manage-oht" element={<ManageOHT />} />
               <Route path="manage-pumphouse" element={<ManagePumpHouse />} />
               <Route path="view-roaster" element={<ViewRoaster />} />
+              <Route path="view-oht-cleaning" element={<ViewOHTCleaningDetails />} />
+              <Route path="manage-oht-cleaning" element={<ManageOHTCleaning />} />
               <Route path="view-water-quality" element={<ViewWaterQuality />} />
               <Route path="reporting" element={<MISReportingPage />} />
               <Route path="fee-management" element={<FeeManagementPage />} />
@@ -242,9 +248,11 @@ function App() {
               />
               <Route path="manage-complaint" element={<ManageComplaint />} />
               <Route path="manage-oht" element={<ManageOHT />} />
+              <Route path="manage-oht-cleaning" element={<ManageOHTCleaning />} />
               <Route path="manage-pumphouse" element={<ManagePumpHouse />} />
               <Route path="view-roaster" element={<ViewRoaster />} />
               <Route path="view-water-quality" element={<ViewWaterQuality />} />
+              <Route path="view-oht-cleaning" element={<ViewOHTCleaningDetails />} />
               <Route path="reporting" element={<MISReportingPage />} />
               <Route path="fee-management" element={<FeeManagementPage />} />
             </Route>
@@ -268,8 +276,10 @@ function App() {
               <Route path="manage-oht" element={<ManageOHT />} />
               <Route path="manage-pumphouse" element={<ManagePumpHouse />} />
               <Route path="view-roaster" element={<ViewRoaster />} />
+              <Route path="manage-oht-cleaning" element={<ManageOHTCleaning />} />
               <Route path="view-water-quality" element={<ViewWaterQuality />} />
               <Route path="reporting" element={<MISReportingPage />} />
+              <Route path="view-oht-cleaning" element={<ViewOHTCleaningDetails />} />
               <Route path="fee-management" element={<FeeManagementPage />} />
               <Route path="dpro-fee-update" element={<DPROWaterFee />} />
             </Route>
@@ -291,9 +301,11 @@ function App() {
               />
               <Route path="manage-complaint" element={<ManageComplaint />} />
               <Route path="manage-oht" element={<ManageOHT />} />
+              <Route path="manage-oht-cleaning" element={<ManageOHTCleaning />} />
               <Route path="manage-pumphouse" element={<ManagePumpHouse />} />
               <Route path="view-roaster" element={<ViewRoaster />} />
               <Route path="view-water-quality" element={<ViewWaterQuality />} />
+              <Route path="view-oht-cleaning" element={<ViewOHTCleaningDetails />} />
               <Route path="reporting" element={<MISReportingPage />} />
               <Route path="fee-management" element={<FeeManagementPage />} />
             </Route>
@@ -317,10 +329,12 @@ function App() {
               />
               <Route path="pump-house-master" element={<PumpHouseMaster />} />
               <Route path="lodge-complaint" element={<LodgeComplaintPage />} />
+              <Route path="view-oht-cleaning" element={<ViewOHTCleaningDetails />} />
               <Route path="manage-complaint" element={<ManageComplaint />} />
               <Route path="fee-collection" element={<FeeCollectionPage />} />
               <Route path="fee-management" element={<FeeManagementPage />} />
               <Route path="manage-oht" element={<ManageOHT />} />
+              <Route path="manage-oht-cleaning" element={<ManageOHTCleaning />} />
               <Route path="manage-pumphouse" element={<ManagePumpHouse />} />
               <Route path="view-roaster" element={<ViewRoaster />} />
               <Route path="water-quality" element={<WaterQuality />} />
