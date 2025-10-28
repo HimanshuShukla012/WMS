@@ -36,6 +36,11 @@ interface CleaningRecord {
   DepositeAmnt: number;
   DepositeAmntDate: string;
   BalanceAmnt: number;
+  OhtTankCleaningDueDate: string;
+  OhtSolarCleaningDate: string;
+  OhtSolarCleaningDueDate: string;
+  UploadedFilePath: string;
+  UploadedFilebase64String: string;
 }
 
 const ManageOHTCleaning = () => {
@@ -64,6 +69,19 @@ const ManageOHTCleaning = () => {
   const [depositAmount, setDepositAmount] = useState<number>("");
   const [depositDate, setDepositDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const balanceAmount = (Number(electricityBillAmount) || 0) - (Number(depositAmount) || 0);
+  const [solarCleaningDate, setSolarCleaningDate] = useState<string>(new Date().toISOString().split('T')[0]);
+const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+const [fileBase64, setFileBase64] = useState<string>("");
+
+// Calculate due dates (6 months from cleaning dates)
+const calculateDueDate = (cleaningDate: string): string => {
+  const date = new Date(cleaningDate);
+  date.setMonth(date.getMonth() + 6);
+  return date.toISOString().split('T')[0];
+};
+
+const tankCleaningDueDate = calculateDueDate(cleaningDate);
+const solarCleaningDueDate = calculateDueDate(solarCleaningDate);
 
   useEffect(() => {
     if (!userLoading && userId) {
@@ -201,16 +219,59 @@ const ManageOHTCleaning = () => {
   });
 
   const handleOpenModal = (oht: OHTState) => {
-    setSelectedOHT(oht);
-    // Reset form
-    setTankCleaningStatus(0);
-    setSolarCleaningStatus(0);
-    setCleaningDate(new Date().toISOString().split('T')[0]);
-    setElectricityBillAmount("");
-    setDepositAmount("");
-    setDepositDate(new Date().toISOString().split('T')[0]);
-    setShowModal(true);
+  setSelectedOHT(oht);
+  // Reset form
+  setTankCleaningStatus(0);
+  setSolarCleaningStatus(0);
+  setCleaningDate(new Date().toISOString().split('T')[0]);
+  setSolarCleaningDate(new Date().toISOString().split('T')[0]);
+  setElectricityBillAmount("");
+  setDepositAmount("");
+  setDepositDate(new Date().toISOString().split('T')[0]);
+  setUploadedFile(null);
+  setFileBase64("");
+  setShowModal(true);
+};
+
+const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) {
+    setUploadedFile(null);
+    setFileBase64("");
+    return;
+  }
+
+  // Validate file type (PDF only)
+  if (file.type !== 'application/pdf') {
+    toast.error("Please upload only PDF files");
+    e.target.value = "";
+    return;
+  }
+
+  // Validate file size (max 5MB)
+  if (file.size > 5 * 1024 * 1024) {
+    toast.error("File size must be less than 5MB");
+    e.target.value = "";
+    return;
+  }
+
+  setUploadedFile(file);
+
+  // Convert to base64
+  const reader = new FileReader();
+  reader.onloadend = () => {
+    const base64String = reader.result as string;
+    // Remove data:application/pdf;base64, prefix
+    const base64Data = base64String.split(',')[1];
+    setFileBase64(base64Data);
   };
+  reader.onerror = () => {
+    toast.error("Failed to read file");
+    setUploadedFile(null);
+    setFileBase64("");
+  };
+  reader.readAsDataURL(file);
+};
 
   const handleSaveCleaningRecord = async () => {
     if (!selectedOHT || !userId) {
@@ -222,19 +283,26 @@ const ManageOHTCleaning = () => {
 
     try {
       const payload = {
-        OhtId: selectedOHT.OHTId,
-        VillageId: selectedOHT.VillageId,
-        OhtTankCleaningStatus: tankCleaningStatus,
-        OhtSolarCleaningStatus: solarCleaningStatus,
-        OhtCleaningDate: new Date(cleaningDate).toISOString(),
-        OhtElectricityBillAmnt: Number(electricityBillAmount) || 0,
-        DepositeAmnt: Number(depositAmount) || 0,
-        DepositeAmntDate: new Date(depositDate).toISOString(),
-        BalanceAmnt: balanceAmount,
-        CreatedBy: userId,
-        DeviceToken: "web-application",
-        IpAddress: "127.0.0.1"
-      };
+  OhtId: selectedOHT.OHTId,
+  VillageId: selectedOHT.VillageId,
+  OhtTankCleaningStatus: tankCleaningStatus,
+  OhtSolarCleaningStatus: solarCleaningStatus,
+  OhtCleaningDate: new Date(cleaningDate).toISOString(),
+  OhtElectricityBillAmnt: Number(electricityBillAmount) || 0,
+  DepositeAmnt: Number(depositAmount) || 0,
+  DepositeAmntDate: new Date(depositDate).toISOString(),
+  BalanceAmnt: balanceAmount,
+  OhtTankCleaningDueDate: new Date(tankCleaningDueDate).toISOString(),
+  OhtSolarCleaningDate: new Date(solarCleaningDate).toISOString(),
+  OhtSolarCleaningDueDate: new Date(solarCleaningDueDate).toISOString(),
+  UploadedFilePath: uploadedFile?.name || "",
+  UploadedFilebase64String: fileBase64,
+  FromDate: new Date().toISOString(),
+  ToDate: new Date().toISOString(),
+  CreatedBy: userId,
+  DeviceToken: "web-application",
+  IpAddress: "127.0.0.1"
+};
 
       console.log("Submitting cleaning record:", payload);
 
@@ -595,6 +663,44 @@ const ManageOHTCleaning = () => {
                 />
               </div>
 
+              <div>
+  <label className="block text-sm font-medium mb-2">Solar Panel Cleaning Date</label>
+  <input
+    type="date"
+    value={solarCleaningDate}
+    onChange={(e) => setSolarCleaningDate(e.target.value)}
+    className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+  />
+</div>
+
+{/* Due Dates - Auto Calculated */}
+<div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+  <h4 className="font-semibold text-blue-900 mb-3">Auto-Calculated Due Dates (6 Months)</h4>
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+      <label className="block text-sm font-medium text-blue-800 mb-1">Tank Cleaning Due Date</label>
+      <div className="p-2 bg-white border border-blue-300 rounded-md font-medium text-blue-900">
+        {new Date(tankCleaningDueDate).toLocaleDateString('en-IN', { 
+          day: '2-digit', 
+          month: 'short', 
+          year: 'numeric' 
+        })}
+      </div>
+    </div>
+    
+    <div>
+      <label className="block text-sm font-medium text-blue-800 mb-1">Solar Cleaning Due Date</label>
+      <div className="p-2 bg-white border border-blue-300 rounded-md font-medium text-blue-900">
+        {new Date(solarCleaningDueDate).toLocaleDateString('en-IN', { 
+          day: '2-digit', 
+          month: 'short', 
+          year: 'numeric' 
+        })}
+      </div>
+    </div>
+  </div>
+</div>
+
               {/* Billing Details */}
               <div className="border-t pt-4">
                 <h3 className="font-semibold mb-4">Billing Details</h3>
@@ -645,6 +751,41 @@ const ManageOHTCleaning = () => {
 </div>
                 </div>
               </div>
+
+              {/* File Upload */}
+<div className="border-t pt-4">
+  <h3 className="font-semibold mb-4">Upload Document (PDF Only)</h3>
+  <div>
+    <label className="block text-sm font-medium mb-2">
+      Upload Bill/Receipt (Optional)
+    </label>
+    <input
+      type="file"
+      accept="application/pdf"
+      onChange={handleFileChange}
+      className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+    />
+    {uploadedFile && (
+      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md flex items-center justify-between">
+        <span className="text-sm text-green-700">
+          📄 {uploadedFile.name} ({(uploadedFile.size / 1024).toFixed(2)} KB)
+        </span>
+        <button
+          onClick={() => {
+            setUploadedFile(null);
+            setFileBase64("");
+          }}
+          className="text-red-600 hover:text-red-800 text-sm font-medium"
+        >
+          Remove
+        </button>
+      </div>
+    )}
+    <p className="text-xs text-gray-500 mt-1">
+      Maximum file size: 5MB. Only PDF files are allowed.
+    </p>
+  </div>
+</div>
 
               {/* Action Buttons */}
               <div className="flex gap-3 justify-end pt-4 border-t">
