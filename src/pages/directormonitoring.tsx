@@ -68,108 +68,266 @@ const DirectorMonitoring: React.FC = () => {
 
   // --- Export Functions ---
   const exportToExcel = () => {
-    // Create comprehensive Excel export including performance data
-    const workbook = XLSX.utils.book_new();
-    
-    // Summary Sheet
-    const summaryData = [{
-      'Location': locationData.getSelectedLocationName(),
-      'Period': `${new Date(fromDate).toLocaleDateString()} to ${new Date(toDate).toLocaleDateString()}`,
-      'Total Beneficiaries': directorData.stats.totalBeneficiaries,
-      'Active Beneficiaries': directorData.stats.activeBeneficiaries,
-      'Total OHTs': directorData.stats.totalOHT,
-      'Active OHTs': directorData.stats.activeOHT,
-      'Total Pump Houses': directorData.stats.totalPumpHouse,
-      'Active Pump Houses': directorData.stats.activePumpHouse,
-      'Total Fee Collection': directorData.stats.totalFeeCollection,
-      'Total Complaints': directorData.stats.totalComplaints,
-      'Resolved Complaints': directorData.stats.resolvedComplaints
-    }];
-    const summarySheet = XLSX.utils.json_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
-    
-    // Beneficiaries Sheet
-    const beneficiariesFiltered = directorData.filterByLocation(directorData.beneficiariesData);
-    if (beneficiariesFiltered.length > 0) {
-      const beneficiariesSheet = XLSX.utils.json_to_sheet(beneficiariesFiltered);
-      XLSX.utils.book_append_sheet(workbook, beneficiariesSheet, 'Beneficiaries');
-    }
-    
-    // OHTs Sheet
-    const ohtsFiltered = directorData.filterOHTsByLocation(directorData.ohtData);
-    if (ohtsFiltered.length > 0) {
-      const ohtsSheet = XLSX.utils.json_to_sheet(ohtsFiltered);
-      XLSX.utils.book_append_sheet(workbook, ohtsSheet, 'OHTs');
-    }
-    
-    // Pump Houses Sheet
-    const pumpHousesFiltered = directorData.filterPumpHousesByOHT(
-      directorData.pumpHouseData, 
-      ohtsFiltered
-    );
-    if (pumpHousesFiltered.length > 0) {
-      const pumpHousesSheet = XLSX.utils.json_to_sheet(pumpHousesFiltered);
-      XLSX.utils.book_append_sheet(workbook, pumpHousesSheet, 'Pump Houses');
-    }
-    
-    // Water Fee Sheet
-    const waterFeeFiltered = directorData.filterWaterFeeSummaryByLocation(directorData.waterFeeSummaryData);
-    if (waterFeeFiltered.length > 0) {
-      const waterFeeSheet = XLSX.utils.json_to_sheet(waterFeeFiltered);
-      XLSX.utils.book_append_sheet(workbook, waterFeeSheet, 'Water Fee');
-    }
-    
-    // Complaints Sheet
-    const complaintsFiltered = directorData.filterComplaintsByLocation(directorData.complaintsData);
-    if (complaintsFiltered.length > 0) {
-      const complaintsSheet = XLSX.utils.json_to_sheet(complaintsFiltered);
-      XLSX.utils.book_append_sheet(workbook, complaintsSheet, 'Complaints');
-    }
-    
-    // Water Quality Sheet
-    const waterQualityFiltered = directorData.filterWaterQualityByLocation(directorData.waterQualityData);
-    if (waterQualityFiltered.length > 0) {
-      const waterQualitySheet = XLSX.utils.json_to_sheet(waterQualityFiltered);
-      XLSX.utils.book_append_sheet(workbook, waterQualitySheet, 'Water Quality');
-    }
-    
-    // Performance Sheets
-    if (directorData.topDistrictsData.length > 0) {
-      const topDistrictsSheet = XLSX.utils.json_to_sheet(directorData.topDistrictsData);
-      XLSX.utils.book_append_sheet(workbook, topDistrictsSheet, 'Top Districts');
-    }
-    
-    if (directorData.bottomDistrictsData.length > 0) {
-      const bottomDistrictsSheet = XLSX.utils.json_to_sheet(directorData.bottomDistrictsData);
-      XLSX.utils.book_append_sheet(workbook, bottomDistrictsSheet, 'Bottom Districts');
-    }
-    
-    if (directorData.topBlocksData.length > 0) {
-      const topBlocksSheet = XLSX.utils.json_to_sheet(directorData.topBlocksData);
-      XLSX.utils.book_append_sheet(workbook, topBlocksSheet, 'Top Blocks');
-    }
-    
-    if (directorData.bottomBlocksData.length > 0) {
-      const bottomBlocksSheet = XLSX.utils.json_to_sheet(directorData.bottomBlocksData);
-      XLSX.utils.book_append_sheet(workbook, bottomBlocksSheet, 'Bottom Blocks');
-    }
-    
-    if (directorData.topGPsData.length > 0) {
-      const topGPsSheet = XLSX.utils.json_to_sheet(directorData.topGPsData);
-      XLSX.utils.book_append_sheet(workbook, topGPsSheet, 'Top GPs');
-    }
-    
-    if (directorData.bottomGPsData.length > 0) {
-      const bottomGPsSheet = XLSX.utils.json_to_sheet(directorData.bottomGPsData);
-      XLSX.utils.book_append_sheet(workbook, bottomGPsSheet, 'Bottom GPs');
-    }
-    
-    // Generate and download Excel file
-    XLSX.writeFile(
-      workbook, 
-      `director_monitoring_${locationData.getSelectedLocationName().replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`
-    );
-  };
+  // Calculate statistics directly from filtered data
+  const filteredBeneficiaries = directorData.filterByLocation(directorData.beneficiariesData);
+  const filteredOHTs = directorData.filterOHTsByLocation(directorData.ohtData);
+  const filteredPumpHouses = directorData.filterPumpHousesByOHT(
+    directorData.pumpHouseData, 
+    filteredOHTs
+  );
+  const filteredWaterFee = directorData.filterWaterFeeSummaryByLocation(directorData.waterFeeSummaryData);
+  const filteredComplaints = directorData.filterComplaintsByLocation(directorData.complaintsData);
+  const filteredWaterQuality = directorData.filterWaterQualityByLocation(directorData.waterQualityData);
+
+  // Calculate actual values
+  const totalBeneficiaries = filteredBeneficiaries.length;
+  const activeBeneficiaries = filteredBeneficiaries.filter(b => 
+    b.Status === 1 || b.Status === 'Active'
+  ).length;
+
+  const totalOHTs = filteredOHTs.length;
+  const activeOHTs = filteredOHTs.filter(oht => 
+    oht.Status === 1 || oht.IsActive === 1
+  ).length;
+
+  const totalPumpHouses = filteredPumpHouses.length;
+  const activePumpHouses = filteredPumpHouses.filter(ph => 
+    ph.Status === 1
+  ).length;
+
+  const totalFeeCollection = filteredWaterFee.reduce((sum, fee) => 
+    sum + (Number(fee.PaidAmount) || 0), 0
+  );
+
+  const totalComplaints = filteredComplaints.length;
+  const resolvedComplaints = filteredComplaints.filter(c => c.Status === 1).length;
+  const pendingComplaints = filteredComplaints.filter(c => c.Status === 0).length;
+  const closedComplaints = filteredComplaints.filter(c => c.Status === 2).length;
+
+  // Create comprehensive Excel export
+  const workbook = XLSX.utils.book_new();
+  
+  // Summary Sheet with actual calculated values
+  const summaryData = [{
+    'Location': locationData.getSelectedLocationName(),
+    'Period': `${new Date(fromDate).toLocaleDateString('en-IN')} to ${new Date(toDate).toLocaleDateString('en-IN')}`,
+    'Total Beneficiaries': totalBeneficiaries,
+    'Active Beneficiaries': activeBeneficiaries,
+    'Inactive Beneficiaries': totalBeneficiaries - activeBeneficiaries,
+    'Total Family Members': directorData.stats.totalFamilyMembers || 0,
+    'Total OHTs': totalOHTs,
+    'Active OHTs': activeOHTs,
+    'Inactive OHTs': totalOHTs - activeOHTs,
+    'Total OHT Capacity (KL)': directorData.stats.totalOHTCapacity || 0,
+    'Total Pump Houses': totalPumpHouses,
+    'Active Pump Houses': activePumpHouses,
+    'Inactive Pump Houses': totalPumpHouses - activePumpHouses,
+    'Solar Pumps': directorData.stats.solarPumps || 0,
+    'Total Base Fee (₹)': (directorData.stats.totalBaseFee || 0).toFixed(2),
+    'Total Previous Balance (₹)': (directorData.stats.totalPreviousBalance || 0).toFixed(2),
+    'Total Outstanding (₹)': (directorData.stats.totalOutstanding || 0).toFixed(2),
+    'Total Fee Collected (₹)': totalFeeCollection.toFixed(2),
+    'Collection Efficiency (%)': (directorData.stats.collectionEfficiency || 0).toFixed(2),
+    'Total Complaints': totalComplaints,
+    'Pending Complaints': pendingComplaints,
+    'Resolved Complaints': resolvedComplaints,
+    'Closed Complaints': closedComplaints,
+    'Water Quality Tests': filteredWaterQuality.length,
+    'Generated On': new Date().toLocaleString('en-IN'),
+    'Generated By': role || 'User',
+    'User ID': userId
+  }];
+  
+  const summarySheet = XLSX.utils.json_to_sheet(summaryData);
+  
+  // Add column widths for better formatting
+  summarySheet['!cols'] = [
+    { wch: 30 }, // Column A - Labels
+    { wch: 25 }  // Column B - Values
+  ];
+  
+  XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
+  
+  // Beneficiaries Sheet
+  if (filteredBeneficiaries.length > 0) {
+    const beneficiariesExport = filteredBeneficiaries.map(b => ({
+      'Beneficiary ID': b.BeneficiaryId,
+      'Name': b.BeneficiaryName,
+      'Father/Husband Name': b.FatherHusbandName || '',
+      'Contact': b.Contact,
+      'District': b.DistrictName,
+      'Block': b.BlockName,
+      'Gram Panchayat': b.GrampanchayatName,
+      'Village': b.VillageName,
+      'Family Members': b.FamilyMembers || b.FamilyCount || 0,
+      'Status': b.Status === 1 || b.Status === 'Active' ? 'Active' : 'Inactive'
+    }));
+    const beneficiariesSheet = XLSX.utils.json_to_sheet(beneficiariesExport);
+    XLSX.utils.book_append_sheet(workbook, beneficiariesSheet, 'Beneficiaries');
+  }
+  
+  // OHTs Sheet
+  if (filteredOHTs.length > 0) {
+    const ohtsExport = filteredOHTs.map(oht => ({
+      'OHT ID': oht.OhtId,
+      'District': oht.Districtname,
+      'Block': oht.BlockName,
+      'Gram Panchayat': oht.GramPanchayatName,
+      'Village': oht.VillageName,
+      'Capacity (KL)': oht.OHTCapacity,
+      'Number of Pumps': oht.NoOfPumps,
+      'Status': oht.Status === 1 ? 'Active' : 'Inactive'
+    }));
+    const ohtsSheet = XLSX.utils.json_to_sheet(ohtsExport);
+    XLSX.utils.book_append_sheet(workbook, ohtsSheet, 'OHTs');
+  }
+  
+  // Pump Houses Sheet
+  if (filteredPumpHouses.length > 0) {
+    const pumpHousesExport = filteredPumpHouses.map(ph => ({
+      'Pump House ID': ph.PumpHouseId,
+      'OHT ID': ph.OhtId,
+      'Pump Name': ph.PumpName || '',
+      'Power Source': ph.PowerSource === '1' ? 'Electric' : ph.PowerSource === '2' ? 'Solar' : 'Other',
+      'Status': ph.Status === 1 ? 'Active' : 'Inactive'
+    }));
+    const pumpHousesSheet = XLSX.utils.json_to_sheet(pumpHousesExport);
+    XLSX.utils.book_append_sheet(workbook, pumpHousesSheet, 'Pump Houses');
+  }
+  
+  // Water Fee Sheet
+  if (filteredWaterFee.length > 0) {
+    const waterFeeExport = filteredWaterFee.map(fee => ({
+      'District': fee.DistrictName,
+      'Block': fee.BlockName,
+      'Gram Panchayat': fee.GramPanchayatName,
+      'Village': fee.VillageName,
+      'Month': fee.Month,
+      'Year': fee.Year,
+      'Base Fee (₹)': (fee.BaseFee || 0).toFixed(2),
+      'Previous Balance (₹)': (fee.PreviousBalance || 0).toFixed(2),
+      'Outstanding (₹)': (fee.OutstandingAmount || 0).toFixed(2),
+      'Paid Amount (₹)': (fee.PaidAmount || 0).toFixed(2)
+    }));
+    const waterFeeSheet = XLSX.utils.json_to_sheet(waterFeeExport);
+    XLSX.utils.book_append_sheet(workbook, waterFeeSheet, 'Water Fee');
+  }
+  
+  // Complaints Sheet
+  if (filteredComplaints.length > 0) {
+    const complaintsExport = filteredComplaints.map(c => ({
+      'Complaint ID': c.ComplaintID,
+      'District': c.District,
+      'Block': c.Block,
+      'Gram Panchayat': c.GramPanchayat,
+      'Village': c.Village,
+      'Beneficiary Name': c.BeneficiaryName,
+      'Contact': c.Contact,
+      'Category': c.Category,
+      'Other Category': c.OtherCategory || '',
+      'Landmark': c.Landmark || '',
+      'Status': c.Status === 0 ? 'Pending' : c.Status === 1 ? 'Resolved' : 'Closed',
+      'Details': c.ComplaintDetails || ''
+    }));
+    const complaintsSheet = XLSX.utils.json_to_sheet(complaintsExport);
+    XLSX.utils.book_append_sheet(workbook, complaintsSheet, 'Complaints');
+  }
+  
+  // Water Quality Sheet
+  if (filteredWaterQuality.length > 0) {
+    const waterQualityExport = filteredWaterQuality.map(wq => ({
+      'Test ID': wq.TestId || '',
+      'District': wq.DistrictName,
+      'Block': wq.BlockName,
+      'Gram Panchayat': wq.GramPanchayatName,
+      'Village': wq.VillageName || '',
+      'Test Date': wq.TestDate || '',
+      'pH Level': wq.PHLevel || '',
+      'TDS': wq.TDS || '',
+      'Chlorine': wq.Chlorine || '',
+      'Status': wq.Status || ''
+    }));
+    const waterQualitySheet = XLSX.utils.json_to_sheet(waterQualityExport);
+    XLSX.utils.book_append_sheet(workbook, waterQualitySheet, 'Water Quality');
+  }
+  
+  // Performance Sheets (only if data exists)
+  if (directorData.topDistrictsData.length > 0) {
+    const topDistrictsExport = directorData.topDistrictsData.map((d, index) => ({
+      'Rank': index + 1,
+      'District ID': d.DistrictId,
+      'District Name': d.DistrictName,
+      'Total Amount Collected (₹)': (d.TotalAmountPaid || d.TotalAmount || 0).toFixed(2)
+    }));
+    const topDistrictsSheet = XLSX.utils.json_to_sheet(topDistrictsExport);
+    XLSX.utils.book_append_sheet(workbook, topDistrictsSheet, 'Top 10 Districts');
+  }
+  
+  if (directorData.bottomDistrictsData.length > 0) {
+    const bottomDistrictsExport = directorData.bottomDistrictsData.map((d, index) => ({
+      'Rank': index + 1,
+      'District ID': d.DistrictId,
+      'District Name': d.DistrictName,
+      'Total Amount Collected (₹)': (d.TotalAmountPaid || d.TotalAmount || 0).toFixed(2)
+    }));
+    const bottomDistrictsSheet = XLSX.utils.json_to_sheet(bottomDistrictsExport);
+    XLSX.utils.book_append_sheet(workbook, bottomDistrictsSheet, 'Bottom 10 Districts');
+  }
+  
+  if (directorData.topBlocksData.length > 0) {
+    const topBlocksExport = directorData.topBlocksData.map((b, index) => ({
+      'Rank': index + 1,
+      'Block ID': b.BlockId,
+      'Block Name': b.BlockName,
+      'District': b.DistrictName,
+      'Total Amount Collected (₹)': (b.TotalAmountPaid || b.TotalAmount || 0).toFixed(2)
+    }));
+    const topBlocksSheet = XLSX.utils.json_to_sheet(topBlocksExport);
+    XLSX.utils.book_append_sheet(workbook, topBlocksSheet, 'Top 10 Blocks');
+  }
+  
+  if (directorData.bottomBlocksData.length > 0) {
+    const bottomBlocksExport = directorData.bottomBlocksData.map((b, index) => ({
+      'Rank': index + 1,
+      'Block ID': b.BlockId,
+      'Block Name': b.BlockName,
+      'District': b.DistrictName,
+      'Total Amount Collected (₹)': (b.TotalAmountPaid || b.TotalAmount || 0).toFixed(2)
+    }));
+    const bottomBlocksSheet = XLSX.utils.json_to_sheet(bottomBlocksExport);
+    XLSX.utils.book_append_sheet(workbook, bottomBlocksSheet, 'Bottom 10 Blocks');
+  }
+  
+  if (directorData.topGPsData.length > 0) {
+    const topGPsExport = directorData.topGPsData.map((gp, index) => ({
+      'Rank': index + 1,
+      'GP ID': gp.GpId || gp.GPId,
+      'GP Name': gp.GpName || gp.GPName,
+      'Block': gp.BlockName,
+      'District': gp.DistrictName,
+      'Total Amount Collected (₹)': (gp.TotalAmountPaid || gp.TotalAmount || 0).toFixed(2)
+    }));
+    const topGPsSheet = XLSX.utils.json_to_sheet(topGPsExport);
+    XLSX.utils.book_append_sheet(workbook, topGPsSheet, 'Top 10 GPs');
+  }
+  
+  if (directorData.bottomGPsData.length > 0) {
+    const bottomGPsExport = directorData.bottomGPsData.map((gp, index) => ({
+      'Rank': index + 1,
+      'GP ID': gp.GpId || gp.GPId,
+      'GP Name': gp.GpName || gp.GPName,
+      'Block': gp.BlockName,
+      'District': gp.DistrictName,
+      'Total Amount Collected (₹)': (gp.TotalAmountPaid || gp.TotalAmount || 0).toFixed(2)
+    }));
+    const bottomGPsSheet = XLSX.utils.json_to_sheet(bottomGPsExport);
+    XLSX.utils.book_append_sheet(workbook, bottomGPsSheet, 'Bottom 10 GPs');
+  }
+  
+  // Generate and download Excel file
+  const filename = `monitoring_report_${locationData.getSelectedLocationName().replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(workbook, filename);
+};
 
   const exportToExcelSheet = (data: any[], filename: string) => {
   if (!data.length) {
