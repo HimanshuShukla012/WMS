@@ -37,11 +37,25 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({
     }
 
     try {
+      // Hide export buttons by adding a class
+      const exportButtons = chartRef.current.querySelectorAll('.export-button-container');
+      exportButtons.forEach(btn => {
+        (btn as HTMLElement).style.display = 'none';
+      });
+
+      // Wait for DOM update
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       // Capture the chart as canvas
       const canvas = await html2canvas(chartRef.current, {
         scale: 2,
         backgroundColor: '#ffffff',
         logging: false
+      });
+
+      // Show export buttons again
+      exportButtons.forEach(btn => {
+        (btn as HTMLElement).style.display = 'flex';
       });
 
       // Create PDF
@@ -70,6 +84,13 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({
       pdf.save(`${filename}_${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (error) {
       console.error('Error exporting chart:', error);
+      
+      // Ensure buttons are shown again even on error
+      const exportButtons = chartRef.current?.querySelectorAll('.export-button-container');
+      exportButtons?.forEach(btn => {
+        (btn as HTMLElement).style.display = 'flex';
+      });
+      
       alert('Failed to export chart. Please try again.');
     }
   };
@@ -83,8 +104,7 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({
       <TrendingUp className="w-5 h-5 text-blue-600" />
       Beneficiary Growth Trend
     </h4>
-    <div className="flex gap-2">
-      
+      <div className="flex gap-2 export-button-container">
       <button 
         onClick={() => exportChartToPDF(beneficiaryChartRef, 'beneficiary_growth_trend')}
         className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
@@ -137,8 +157,7 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({
         <DollarSign className="w-5 h-5 text-green-600" />
         Fee Collection Trend
       </h4>
-      <div className="flex gap-2">
-        
+        <div className="flex gap-2 export-button-container">
         <button 
           onClick={() => exportChartToPDF(feeCollectionChartRef, 'fee_collection_trend')}
           className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
