@@ -214,7 +214,9 @@ const solarCleaningDueDate = calculateDueDate(solarCleaningDate);
     const matchesSearch = o.DistrictName.toLowerCase().includes(search.toLowerCase()) ||
                          o.BlockName.toLowerCase().includes(search.toLowerCase()) ||
                          o.GramPanchayatName.toLowerCase().includes(search.toLowerCase()) ||
-                         o.VillageName.toLowerCase().includes(search.toLowerCase());
+                         o.VillageName.toLowerCase().includes(search.toLowerCase()) ||
+                         o.OHTId.toString().includes(search) ||
+                         o.OHTCapacity.toString().includes(search);
     
     const matchesDistrict = !selectedDistrict || o.DistrictName === selectedDistrict;
     const matchesBlock = !selectedBlock || o.BlockName === selectedBlock;
@@ -558,7 +560,7 @@ ToDate: new Date(billToDate).toISOString(),
             <input
               type="text"
               className="flex-1 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Search by district, block, panchayat, or village..."
+              placeholder="Search by district, block, panchayat, village OHT Id or Capacity"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               disabled={loading}
