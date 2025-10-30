@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import BubblesBackground from "./BubblesBackground";
 import { Link, useLocation, Outlet } from "react-router-dom";
 import { useAuth } from "./AuthContext"; // Add this import
 import {
@@ -241,7 +240,6 @@ const DashboardLayout = ({ role }: { children?: React.ReactNode; role: Role }) =
 
   return (
     <div className="relative h-screen overflow-visible">
-      <BubblesBackground />
 
       {/* Main Layout */}
       <div className="flex h-full bg-gradient-to-br from-blue-50 to-blue-100">

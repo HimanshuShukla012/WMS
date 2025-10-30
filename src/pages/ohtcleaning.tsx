@@ -64,21 +64,27 @@ const ManageOHTCleaning = () => {
   // Cleaning form state
   const [tankCleaningStatus, setTankCleaningStatus] = useState<number>(0);
   const [solarCleaningStatus, setSolarCleaningStatus] = useState<number>(0);
-  const [cleaningDate, setCleaningDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [cleaningDate, setCleaningDate] = useState<string>("");
   const [electricityBillAmount, setElectricityBillAmount] = useState<number>("");
   const [depositAmount, setDepositAmount] = useState<number>("");
-  const [depositDate, setDepositDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [depositDate, setDepositDate] = useState<string>("");
   const balanceAmount = (Number(electricityBillAmount) || 0) - (Number(depositAmount) || 0);
-  const [solarCleaningDate, setSolarCleaningDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [solarCleaningDate, setSolarCleaningDate] = useState<string>("");
+  const [billFromDate, setBillFromDate] = useState<string>("");
+const [billToDate, setBillToDate] = useState<string>("");
 const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 const [fileBase64, setFileBase64] = useState<string>("");
+const [isSolarApplicable, setIsSolarApplicable] = useState<number>(0);
+
 
 // Calculate due dates (6 months from cleaning dates)
 const calculateDueDate = (cleaningDate: string): string => {
+  if (!cleaningDate) return "";
   const date = new Date(cleaningDate);
   date.setMonth(date.getMonth() + 6);
   return date.toISOString().split('T')[0];
 };
+
 
 const tankCleaningDueDate = calculateDueDate(cleaningDate);
 const solarCleaningDueDate = calculateDueDate(solarCleaningDate);
@@ -222,12 +228,15 @@ const solarCleaningDueDate = calculateDueDate(solarCleaningDate);
   setSelectedOHT(oht);
   // Reset form
   setTankCleaningStatus(0);
+  setIsSolarApplicable(0);
   setSolarCleaningStatus(0);
-  setCleaningDate(new Date().toISOString().split('T')[0]);
-  setSolarCleaningDate(new Date().toISOString().split('T')[0]);
+  setCleaningDate("");
+  setSolarCleaningDate("");
   setElectricityBillAmount("");
   setDepositAmount("");
-  setDepositDate(new Date().toISOString().split('T')[0]);
+  setDepositDate("");
+  setBillFromDate("");
+  setBillToDate("");
   setUploadedFile(null);
   setFileBase64("");
   setShowModal(true);
@@ -261,16 +270,46 @@ const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
   const reader = new FileReader();
   reader.onloadend = () => {
     const base64String = reader.result as string;
-    // Remove data:application/pdf;base64, prefix
-    const base64Data = base64String.split(',')[1];
-    setFileBase64(base64Data);
+    // Store the full data URL for validation, will extract base64 part when submitting
+    setFileBase64(base64String);
   };
   reader.onerror = () => {
     toast.error("Failed to read file");
     setUploadedFile(null);
     setFileBase64("");
+    e.target.value = ""; // Also clear the input on error
   };
   reader.readAsDataURL(file);
+};
+
+
+const validateBillTenure = (): boolean => {
+  if (new Date(billToDate) < new Date(billFromDate)) {
+    toast.error("Bill 'To Date' cannot be earlier than 'From Date'");
+    return false;
+  }
+  
+  const daysDiff = Math.floor((new Date(billToDate).getTime() - new Date(billFromDate).getTime()) / (1000 * 60 * 60 * 24));
+  if (daysDiff > 365) {
+    toast.warning("Bill tenure period exceeds 1 year. Please verify the dates.");
+  }
+  
+  return true;
+};
+
+const isFormValid = (): boolean => {
+  // Tank cleaning fields
+  if (!cleaningDate) return false;
+  
+  // Solar panel fields (only if applicable)
+  if (isSolarApplicable === 1) {
+    if (!solarCleaningDate) return false;
+  }
+  
+  // Billing fields
+  if (!electricityBillAmount || !depositAmount || !depositDate || !billFromDate || !billToDate) return false;
+  
+  return true;
 };
 
   const handleSaveCleaningRecord = async () => {
@@ -278,6 +317,9 @@ const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
       toast.error("Missing required information");
       return;
     }
+if (!validateBillTenure()) {
+  return;
+}
 
     setSaving(true);
 
@@ -296,9 +338,11 @@ const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
   OhtSolarCleaningDate: new Date(solarCleaningDate).toISOString(),
   OhtSolarCleaningDueDate: new Date(solarCleaningDueDate).toISOString(),
   UploadedFilePath: uploadedFile?.name || "",
-  UploadedFilebase64String: fileBase64,
-  FromDate: new Date().toISOString(),
-  ToDate: new Date().toISOString(),
+  UploadedFilebase64String: fileBase64 && fileBase64.includes(',')
+  ? fileBase64.replace('data:', 'Base64:')
+  : "",
+  FromDate: new Date(billFromDate).toISOString(),
+ToDate: new Date(billToDate).toISOString(),
   CreatedBy: userId,
   DeviceToken: "web-application",
   IpAddress: "127.0.0.1"
@@ -404,7 +448,7 @@ const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
       <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
         <h1 className="text-3xl font-bold mb-2 text-gray-800">OHT Cleaning Management</h1>
         <p className="text-gray-600 mb-6">
-          Manage OHT tank cleaning, solar panel cleaning, and billing details for Overhead Tanks.
+          Manage Over Head tank cleaning, solar panel cleaning, and billing details for Overhead Tanks.
         </p>
 
         {loading && (
@@ -625,136 +669,202 @@ const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
                 </div>
               </div>
 
-              {/* Cleaning Status */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">OHT Tank Cleaning Status</label>
-                  <select
-                    value={tankCleaningStatus}
-                    onChange={(e) => setTankCleaningStatus(Number(e.target.value))}
-                    className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value={0}>Not Cleaned</option>
-                    <option value={1}>Cleaned</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Solar Panel Cleaning Status</label>
-                  <select
-                    value={solarCleaningStatus}
-                    onChange={(e) => setSolarCleaningStatus(Number(e.target.value))}
-                    className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value={0}>Not Cleaned</option>
-                    <option value={1}>Cleaned</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Cleaning Date */}
-              <div>
-                <label className="block text-sm font-medium mb-2">Cleaning Date</label>
-                <input
-                  type="date"
-                  value={cleaningDate}
-                  onChange={(e) => setCleaningDate(e.target.value)}
-                  className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-  <label className="block text-sm font-medium mb-2">Solar Panel Cleaning Date</label>
-  <input
-    type="date"
-    value={solarCleaningDate}
-    onChange={(e) => setSolarCleaningDate(e.target.value)}
-    className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-  />
-</div>
-
-{/* Due Dates - Auto Calculated */}
-<div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-  <h4 className="font-semibold text-blue-900 mb-3">Auto-Calculated Due Dates (6 Months)</h4>
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-    <div>
-      <label className="block text-sm font-medium text-blue-800 mb-1">Tank Cleaning Due Date</label>
-      <div className="p-2 bg-white border border-blue-300 rounded-md font-medium text-blue-900">
-        {new Date(tankCleaningDueDate).toLocaleDateString('en-IN', { 
-          day: '2-digit', 
-          month: 'short', 
-          year: 'numeric' 
-        })}
+              {/* Cleaning Section */}
+<div className="border-t pt-4">
+  <h3 className="font-bold text-lg mb-4 text-blue-900">🧹 Cleaning Section</h3>
+  
+  {/* OHT Cleaning Subsection */}
+  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-4">
+    <h4 className="font-semibold text-blue-900 mb-3">Over Head Tank Cleaning</h4>
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium mb-2">OHT Cleaning Status *</label>
+        <select
+          value={tankCleaningStatus}
+          onChange={(e) => setTankCleaningStatus(Number(e.target.value))}
+          className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option value={0}>Not Cleaned</option>
+          <option value={1}>Cleaned</option>
+        </select>
       </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">OHT Cleaning Date *</label>
+        <input
+          type="date"
+          value={cleaningDate}
+          onChange={(e) => setCleaningDate(e.target.value)}
+          className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+
+      {cleaningDate && (
+        <div>
+          <label className="block text-sm font-medium text-blue-800 mb-1">OHT Cleaning Due Date (Auto-calculated)</label>
+          <div className="p-2 bg-white border border-blue-300 rounded-md font-medium text-blue-900">
+            {new Date(tankCleaningDueDate).toLocaleDateString('en-IN', { 
+              day: '2-digit', 
+              month: 'short', 
+              year: 'numeric' 
+            })}
+          </div>
+        </div>
+      )}
     </div>
-    
-    <div>
-      <label className="block text-sm font-medium text-blue-800 mb-1">Solar Cleaning Due Date</label>
-      <div className="p-2 bg-white border border-blue-300 rounded-md font-medium text-blue-900">
-        {new Date(solarCleaningDueDate).toLocaleDateString('en-IN', { 
-          day: '2-digit', 
-          month: 'short', 
-          year: 'numeric' 
-        })}
+  </div>
+
+  {/* Solar Panel Cleaning Subsection */}
+  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+    <h4 className="font-semibold text-green-900 mb-3">Solar Panel Cleaning</h4>
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium mb-2">Is Solar Panel Applicable? *</label>
+        <select
+          value={isSolarApplicable}
+          onChange={(e) => {
+            setIsSolarApplicable(Number(e.target.value));
+            if (Number(e.target.value) === 0) {
+              setSolarCleaningStatus(0);
+              setSolarCleaningDate("");
+            }
+          }}
+          className="w-full p-2 border rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
+        >
+          <option value={0}>Not Applicable</option>
+          <option value={1}>Applicable</option>
+        </select>
       </div>
+
+      {isSolarApplicable === 1 && (
+        <>
+          <div>
+            <label className="block text-sm font-medium mb-2">Solar Panel Cleaning Status *</label>
+            <select
+              value={solarCleaningStatus}
+              onChange={(e) => setSolarCleaningStatus(Number(e.target.value))}
+              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            >
+              <option value={0}>Not Cleaned</option>
+              <option value={1}>Cleaned</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Solar Panel Cleaning Date *</label>
+            <input
+              type="date"
+              value={solarCleaningDate}
+              onChange={(e) => setSolarCleaningDate(e.target.value)}
+              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            />
+          </div>
+
+          {solarCleaningDate && (
+            <div>
+              <label className="block text-sm font-medium text-green-800 mb-1">Solar Cleaning Due Date (Auto-calculated)</label>
+              <div className="p-2 bg-white border border-green-300 rounded-md font-medium text-green-900">
+                {new Date(solarCleaningDueDate).toLocaleDateString('en-IN', { 
+                  day: '2-digit', 
+                  month: 'short', 
+                  year: 'numeric' 
+                })}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   </div>
 </div>
 
-              {/* Billing Details */}
-              <div className="border-t pt-4">
-                <h3 className="font-semibold mb-4">Billing Details</h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Electricity Bill Amount (₹)</label>
-                    <input
-                      type="number"
-                      value={electricityBillAmount}
-                      onChange={(e) => setElectricityBillAmount(e.target.value)}
-                      className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
+{/* Billing Section */}
+<div className="border-t pt-4">
+  <h3 className="font-bold text-lg mb-4 text-purple-900">💰 Billing Section</h3>
+  
+  {/* Bill Tenure */}
+  <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 mb-4">
+    <h4 className="font-semibold text-yellow-900 mb-3">Bill Tenure Period</h4>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label className="block text-sm font-medium mb-2">Bill From Date *</label>
+        <input
+          type="date"
+          value={billFromDate}
+          onChange={(e) => setBillFromDate(e.target.value)}
+          className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
 
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Deposit Amount (₹)</label>
-                    <input
-                      type="number"
-                      value={depositAmount}
-                      onChange={(e) => setDepositAmount(e.target.value)}
-                      className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Deposit Date</label>
-                    <input
-                      type="date"
-                      value={depositDate}
-                      onChange={(e) => setDepositDate(e.target.value)}
-                      className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-  <label className="block text-sm font-medium mb-2">Balance Amount (₹)</label>
-  <div className="w-full p-2 border rounded-md bg-gray-100 font-semibold">
-    <span className={balanceAmount > 0 ? 'text-red-600' : balanceAmount < 0 ? 'text-green-600' : 'text-gray-600'}>
-      ₹{balanceAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-    </span>
+      <div>
+        <label className="block text-sm font-medium mb-2">Bill To Date *</label>
+        <input
+          type="date"
+          value={billToDate}
+          onChange={(e) => setBillToDate(e.target.value)}
+          min={billFromDate}
+          className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+    </div>
+    <p className="text-xs text-yellow-700 mt-2">
+      ℹ️ Specify the period for which the electricity bill is being uploaded
+    </p>
   </div>
   
-</div>
-                </div>
-              </div>
+  {/* Billing Details */}
+  <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+    <h4 className="font-semibold text-purple-900 mb-3">Payment Details</h4>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label className="block text-sm font-medium mb-2">Electricity Bill Amount (₹) *</label>
+        <input
+          type="number"
+          value={electricityBillAmount}
+          onChange={(e) => setElectricityBillAmount(e.target.value)}
+          className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          min="0"
+          step="0.01"
+        />
+      </div>
 
-              {/* File Upload */}
+      <div>
+        <label className="block text-sm font-medium mb-2">Deposit Amount (₹) *</label>
+        <input
+          type="number"
+          value={depositAmount}
+          onChange={(e) => setDepositAmount(e.target.value)}
+          className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          min="0"
+          step="0.01"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Deposit Date *</label>
+        <input
+          type="date"
+          value={depositDate}
+          onChange={(e) => setDepositDate(e.target.value)}
+          className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Balance Amount (₹)</label>
+        <div className="w-full p-2 border rounded-md bg-gray-100 font-semibold">
+          <span className={balanceAmount > 0 ? 'text-red-600' : balanceAmount < 0 ? 'text-green-600' : 'text-gray-600'}>
+            ₹{balanceAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{/* File Upload */}
 <div className="border-t pt-4">
-  <h3 className="font-semibold mb-4">Upload Document (PDF Only)</h3>
+  <h3 className="font-semibold mb-4">📎 Upload Document (PDF Only)</h3>
   <div>
     <label className="block text-sm font-medium mb-2">
       Upload Bill/Receipt (Optional)
@@ -788,24 +898,24 @@ const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
 </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-3 justify-end pt-4 border-t">
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                  disabled={saving}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveCleaningRecord}
-                  className={`px-6 py-2 rounded-md text-white transition-colors ${
-                    saving ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
-                  disabled={saving}
-                >
-                  {saving ? 'Saving...' : 'Save Record'}
-                </button>
-              </div>
+<div className="flex gap-3 justify-end pt-4 border-t">
+  <button
+    onClick={() => setShowModal(false)}
+    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+    disabled={saving}
+  >
+    Cancel
+  </button>
+  <button
+    onClick={handleSaveCleaningRecord}
+    className={`px-6 py-2 rounded-md text-white transition-colors ${
+      saving || !isFormValid() ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+    }`}
+    disabled={saving || !isFormValid()}
+  >
+    {saving ? 'Saving...' : 'Save Record'}
+  </button>
+</div>
             </div>
           </div>
         </div>

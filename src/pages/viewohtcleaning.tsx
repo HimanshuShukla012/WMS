@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import * as XLSX from 'xlsx';
-import { toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import { ToastContainer } from "react-toastify";
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from 'recharts';
+import { Calendar, DollarSign, Droplets, TrendingUp, AlertCircle, CheckCircle, Clock, FileText, Download, Filter, Search, X } from 'lucide-react';
 import { useUserInfo } from "../utils/userInfo";
 
 interface OHTApiItem {
@@ -33,6 +32,9 @@ interface CleaningStatusItem {
   OhtTankCleaningStatus: number;
   OhtSolarCleaningStatus: number;
   OhtCleaningDate: string;
+  OhtTankCleaningDueDate: string | null;
+  OhtSolarCleaningDate: string | null;
+  OhtSolarCleaningDueDate: string | null;
   Status: number;
 }
 
@@ -45,6 +47,9 @@ interface BillingStatusItem {
   DepositAmount: number;
   DepositAmountDate: string;
   BalanceAmount: number;
+  FromDate: string | null;
+  ToDate: string | null;
+  PdfBillFilePath: string;
   Status: number;
 }
 
@@ -59,34 +64,45 @@ interface CombinedRecord {
   OhtTankCleaningStatus: number | null;
   OhtSolarCleaningStatus: number | null;
   OhtCleaningDate: string | null;
+  OhtTankCleaningDueDate: string | null;
+  OhtSolarCleaningDate: string | null;
+  OhtSolarCleaningDueDate: string | null;
   OhtElectricityBillAmount: number | null;
   DepositAmount: number | null;
   DepositAmountDate: string | null;
   BalanceAmount: number | null;
+  BillFromDate: string | null;
+  BillToDate: string | null;
+  PdfBillFilePath: string | null;
 }
 
-const ViewOHTCleaningDetails = () => {
-  const { userId, role, isLoading: userLoading } = useUserInfo();
+const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
+const ViewOHTCleaningDetails = () => {
+  
   const [ohtDetailsMap, setOhtDetailsMap] = useState<Map<number, OHTDetails>>(new Map());
   const [combinedRecords, setCombinedRecords] = useState<CombinedRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const [search, setSearch] = useState("");
   const [selectedDistrict, setSelectedDistrict] = useState<string>("");
   const [selectedBlock, setSelectedBlock] = useState<string>("");
   const [selectedGramPanchayat, setSelectedGramPanchayat] = useState<string>("");
   const [selectedVillage, setSelectedVillage] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"cleaning" | "billing" | "combined">("combined");
+  const [search, setSearch] = useState("");
+  const [activeView, setActiveView] = useState<"overview" | "cleaning" | "billing" | "timeline">("overview");
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [currentPdfUrl, setCurrentPdfUrl] = useState<string>("");
   const [selectedOht, setSelectedOht] = useState<OHTDetails | null>(null);
-const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const { userId } = useUserInfo();
 
   useEffect(() => {
-    if (!userLoading && userId) {
-      fetchAllData();
-    }
-  }, [userId, userLoading]);
+  if (userId) {
+    fetchAllData();
+  }
+}, [userId]);
+
+  
 
   const fetchAllData = async () => {
     if (!userId) {
@@ -171,12 +187,9 @@ const [showModal, setShowModal] = useState(false);
       const combined = combineData(detailsMap, cleaningData, billingData);
       setCombinedRecords(combined);
 
-      toast.success(`Loaded ${combined.length} records`);
-
     } catch (e: any) {
       console.error("Fetch error:", e);
       setError(e?.message || "Failed to load data");
-      toast.error("Failed to load data: " + (e?.message || "Unknown error"));
     } finally {
       setLoading(false);
     }
@@ -189,7 +202,6 @@ const [showModal, setShowModal] = useState(false);
   ): CombinedRecord[] => {
     const recordsMap = new Map<string, CombinedRecord>();
 
-    // Process cleaning data
     cleaningData.forEach((cleaning) => {
       const details = detailsMap.get(cleaning.OhtId);
       if (!details) return;
@@ -208,20 +220,20 @@ const [showModal, setShowModal] = useState(false);
           OhtTankCleaningStatus: cleaning.OhtTankCleaningStatus,
           OhtSolarCleaningStatus: cleaning.OhtSolarCleaningStatus,
           OhtCleaningDate: cleaning.OhtCleaningDate,
+          OhtTankCleaningDueDate: cleaning.OhtTankCleaningDueDate,
+          OhtSolarCleaningDate: cleaning.OhtSolarCleaningDate,
+          OhtSolarCleaningDueDate: cleaning.OhtSolarCleaningDueDate,
           OhtElectricityBillAmount: null,
           DepositAmount: null,
           DepositAmountDate: null,
           BalanceAmount: null,
+          BillFromDate: null,
+          BillToDate: null,
+          PdfBillFilePath: null,
         });
-      } else {
-        const existing = recordsMap.get(key)!;
-        existing.OhtTankCleaningStatus = cleaning.OhtTankCleaningStatus;
-        existing.OhtSolarCleaningStatus = cleaning.OhtSolarCleaningStatus;
-        existing.OhtCleaningDate = cleaning.OhtCleaningDate;
       }
     });
 
-    // Process billing data
     billingData.forEach((billing) => {
       const details = detailsMap.get(billing.OhtId);
       if (!details) return;
@@ -240,10 +252,16 @@ const [showModal, setShowModal] = useState(false);
           OhtTankCleaningStatus: null,
           OhtSolarCleaningStatus: null,
           OhtCleaningDate: null,
+          OhtTankCleaningDueDate: null,
+          OhtSolarCleaningDate: null,
+          OhtSolarCleaningDueDate: null,
           OhtElectricityBillAmount: billing.OhtElectricityBillAmount,
           DepositAmount: billing.DepositAmount,
           DepositAmountDate: billing.DepositAmountDate,
           BalanceAmount: billing.BalanceAmount,
+          BillFromDate: billing.FromDate,
+          BillToDate: billing.ToDate,
+          PdfBillFilePath: billing.PdfBillFilePath,
         });
       } else {
         const existing = recordsMap.get(key)!;
@@ -251,73 +269,14 @@ const [showModal, setShowModal] = useState(false);
         existing.DepositAmount = billing.DepositAmount;
         existing.DepositAmountDate = billing.DepositAmountDate;
         existing.BalanceAmount = billing.BalanceAmount;
+        existing.BillFromDate = billing.FromDate;
+        existing.BillToDate = billing.ToDate;
+        existing.PdfBillFilePath = billing.PdfBillFilePath;
       }
     });
 
     return Array.from(recordsMap.values()).sort((a, b) => b.OhtId - a.OhtId);
   };
-
-  const getUniqueDistricts = () => {
-    const districts = combinedRecords
-      .filter(r => r.DistrictName)
-      .map(r => r.DistrictName)
-      .filter((value, index, self) => self.indexOf(value) === index)
-      .sort();
-    return districts;
-  };
-
-  const getUniqueBlocks = () => {
-    const blocks = combinedRecords
-      .filter(r => r.BlockName && (!selectedDistrict || r.DistrictName === selectedDistrict))
-      .map(r => r.BlockName)
-      .filter((value, index, self) => self.indexOf(value) === index)
-      .sort();
-    return blocks;
-  };
-
-  const getUniqueGramPanchayats = () => {
-    const gramPanchayats = combinedRecords
-      .filter(r => r.GramPanchayatName && 
-        (!selectedDistrict || r.DistrictName === selectedDistrict) &&
-        (!selectedBlock || r.BlockName === selectedBlock))
-      .map(r => r.GramPanchayatName)
-      .filter((value, index, self) => self.indexOf(value) === index)
-      .sort();
-    return gramPanchayats;
-  };
-
-  const getUniqueVillages = () => {
-    const villages = combinedRecords
-      .filter(r => r.VillageName && 
-        (!selectedDistrict || r.DistrictName === selectedDistrict) &&
-        (!selectedBlock || r.BlockName === selectedBlock) &&
-        (!selectedGramPanchayat || r.GramPanchayatName === selectedGramPanchayat))
-      .map(r => r.VillageName)
-      .filter((value, index, self) => self.indexOf(value) === index)
-      .sort();
-    return villages;
-  };
-
-  const clearFilters = () => {
-    setSelectedDistrict("");
-    setSelectedBlock("");
-    setSelectedGramPanchayat("");
-    setSelectedVillage("");
-    setSearch("");
-  };
-
-  const handleOhtClick = (ohtId: number) => {
-  const details = ohtDetailsMap.get(ohtId);
-  if (details) {
-    setSelectedOht(details);
-    setShowModal(true);
-  }
-};
-
-const closeModal = () => {
-  setShowModal(false);
-  setSelectedOht(null);
-};
 
   const filteredData = combinedRecords.filter((r) => {
     const matchesSearch = r.DistrictName.toLowerCase().includes(search.toLowerCase()) ||
@@ -330,19 +289,34 @@ const closeModal = () => {
     const matchesBlock = !selectedBlock || r.BlockName === selectedBlock;
     const matchesGramPanchayat = !selectedGramPanchayat || r.GramPanchayatName === selectedGramPanchayat;
     const matchesVillage = !selectedVillage || r.VillageName === selectedVillage;
-    
-
-    // Tab filtering
-    if (activeTab === "cleaning") {
-      return matchesSearch && matchesDistrict && matchesBlock && matchesGramPanchayat && matchesVillage && 
-             (r.OhtTankCleaningStatus !== null || r.OhtSolarCleaningStatus !== null);
-    } else if (activeTab === "billing") {
-      return matchesSearch && matchesDistrict && matchesBlock && matchesGramPanchayat && matchesVillage && 
-             r.OhtElectricityBillAmount !== null;
-    }
 
     return matchesSearch && matchesDistrict && matchesBlock && matchesGramPanchayat && matchesVillage;
   });
+
+  const getUniqueDistricts = () => {
+    return [...new Set(combinedRecords.map(r => r.DistrictName))].sort();
+  };
+
+  const getUniqueBlocks = () => {
+    return [...new Set(combinedRecords
+      .filter(r => !selectedDistrict || r.DistrictName === selectedDistrict)
+      .map(r => r.BlockName))].sort();
+  };
+
+  const getUniqueGramPanchayats = () => {
+    return [...new Set(combinedRecords
+      .filter(r => (!selectedDistrict || r.DistrictName === selectedDistrict) &&
+                   (!selectedBlock || r.BlockName === selectedBlock))
+      .map(r => r.GramPanchayatName))].sort();
+  };
+
+  const getUniqueVillages = () => {
+    return [...new Set(combinedRecords
+      .filter(r => (!selectedDistrict || r.DistrictName === selectedDistrict) &&
+                   (!selectedBlock || r.BlockName === selectedBlock) &&
+                   (!selectedGramPanchayat || r.GramPanchayatName === selectedGramPanchayat))
+      .map(r => r.VillageName))].sort();
+  };
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "N/A";
@@ -350,11 +324,67 @@ const closeModal = () => {
     return date.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
-  const getStatusBadge = (status: number | null) => {
-    if (status === null) return <span className="text-gray-400">-</span>;
-    if (status === 1) return <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">Cleaned</span>;
-    return <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-medium">Not Cleaned</span>;
+  const handleViewPdf = (pdfPath: string) => {
+    if (!pdfPath || pdfPath.trim() === "") return;
+    const fullUrl = pdfPath.startsWith('http') ? pdfPath : `https://wmsapi.kdsgroup.co.in/${pdfPath}`;
+    setCurrentPdfUrl(fullUrl);
+    setShowPdfModal(true);
   };
+
+  const handleOhtClick = (ohtId: number) => {
+    const details = ohtDetailsMap.get(ohtId);
+    if (details) {
+      setSelectedOht(details);
+      setShowModal(true);
+    }
+  };
+
+  const clearFilters = () => {
+    setSelectedDistrict("");
+    setSelectedBlock("");
+    setSelectedGramPanchayat("");
+    setSelectedVillage("");
+    setSearch("");
+  };
+
+  // Analytics Calculations
+  const totalBillAmount = filteredData.reduce((sum, r) => sum + (r.OhtElectricityBillAmount || 0), 0);
+  const totalDeposits = filteredData.reduce((sum, r) => sum + (r.DepositAmount || 0), 0);
+  const totalBalance = filteredData.reduce((sum, r) => sum + (r.BalanceAmount || 0), 0);
+  const tankCleaned = filteredData.filter(r => r.OhtTankCleaningStatus === 1).length;
+  const solarCleaned = filteredData.filter(r => r.OhtSolarCleaningStatus === 1).length;
+  const pendingCleaning = filteredData.filter(r => r.OhtTankCleaningStatus === 0 || r.OhtSolarCleaningStatus === 0).length;
+
+  // District-wise billing data
+  const districtBillingData = Object.values(
+    filteredData.reduce((acc, r) => {
+      if (!acc[r.DistrictName]) {
+        acc[r.DistrictName] = { name: r.DistrictName, amount: 0, balance: 0 };
+      }
+      acc[r.DistrictName].amount += r.OhtElectricityBillAmount || 0;
+      acc[r.DistrictName].balance += r.BalanceAmount || 0;
+      return acc;
+    }, {} as Record<string, any>)
+  );
+
+  // Cleaning status pie data
+  const cleaningPieData = [
+    { name: 'Tank Cleaned', value: tankCleaned, color: '#10B981' },
+    { name: 'Solar Cleaned', value: solarCleaned, color: '#F59E0B' },
+    { name: 'Pending', value: pendingCleaning, color: '#EF4444' }
+  ];
+
+  // Timeline data for billing
+  const billingTimeline = filteredData
+    .filter(r => r.BillFromDate && r.BillToDate)
+    .sort((a, b) => new Date(a.BillFromDate!).getTime() - new Date(b.BillFromDate!).getTime())
+    .slice(0, 20);
+
+  // Timeline data for cleaning
+  const cleaningTimeline = filteredData
+    .filter(r => r.OhtCleaningDate)
+    .sort((a, b) => new Date(a.OhtCleaningDate!).getTime() - new Date(b.OhtCleaningDate!).getTime())
+    .slice(0, 20);
 
   const handleDownload = () => {
     try {
@@ -369,529 +399,1050 @@ const closeModal = () => {
         'Tank Cleaning': r.OhtTankCleaningStatus === 1 ? 'Cleaned' : r.OhtTankCleaningStatus === 0 ? 'Not Cleaned' : 'N/A',
         'Solar Cleaning': r.OhtSolarCleaningStatus === 1 ? 'Cleaned' : r.OhtSolarCleaningStatus === 0 ? 'Not Cleaned' : 'N/A',
         'Cleaning Date': formatDate(r.OhtCleaningDate),
+        'Bill From Date': formatDate(r.BillFromDate),
+        'Bill To Date': formatDate(r.BillToDate),
         'Electricity Bill (₹)': r.OhtElectricityBillAmount || 'N/A',
         'Deposit Amount (₹)': r.DepositAmount || 'N/A',
-        'Deposit Date': formatDate(r.DepositAmountDate),
         'Balance Amount (₹)': r.BalanceAmount || 'N/A',
       }));
 
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(exportData);
-
-      const colWidths = Object.keys(exportData[0] || {}).map(key => ({
-        wch: Math.max(
-          key.length,
-          ...exportData.map(row => String(row[key as keyof typeof row]).length)
-        ) + 2
-      }));
-      ws['!cols'] = colWidths;
-
-      XLSX.utils.book_append_sheet(wb, ws, 'OHT_Cleaning_Billing');
-
-      const now = new Date();
-      const dateStr = now.toISOString().split('T')[0];
-      const filename = `oht_cleaning_billing_${dateStr}.xlsx`;
-
+      XLSX.utils.book_append_sheet(wb, ws, 'OHT_Analytics');
+      const filename = `oht_analytics_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, filename);
-      toast.success("Excel file downloaded successfully");
-      
     } catch (error) {
       console.error('Export error:', error);
-      toast.error('Failed to export data. Please try again.');
     }
   };
 
-  if (userLoading) {
+if (userId === undefined) {
     return (
-      <div className="p-6 min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading user information...</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading analytics dashboard...</p>
         </div>
       </div>
     );
   }
 
-  if (!userLoading && !userId) {
+if (userId === null) {
     return (
-      <div className="p-6 min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-          <div className="text-red-500 text-4xl mb-4">⚠️</div>
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Authentication Required</h2>
-          <p className="text-gray-600">Please log in to access OHT cleaning and billing details.</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-xl p-8 text-center max-w-md">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Authentication Required</h2>
+          <p className="text-gray-600">Please log in to access the OHT analytics dashboard.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 relative z-10 min-h-screen bg-gray-50">
-      <ToastContainer position="top-right" autoClose={3000} />
-      
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-        <h1 className="text-3xl font-bold mb-2 text-gray-800">OHT Cleaning & Billing Details</h1>
-        <p className="text-gray-600 mb-6">
-          View comprehensive records of OHT tank cleaning, solar panel cleaning, and billing information.
-        </p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 p-6">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-4xl font-bold text-gray-800 mb-2">OHT Analytics Dashboard</h1>
+        <p className="text-gray-600">Comprehensive analysis of cleaning operations and billing data</p>
+      </div>
 
-        {loading && (
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-            <p className="text-blue-700">Loading records...</p>
+      {/* Top Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between mb-4">
+            <Droplets className="w-10 h-10 opacity-80" />
+            <span className="text-3xl font-bold">{filteredData.length}</span>
           </div>
-        )}
+          <h3 className="text-lg font-medium opacity-90">Total OHTs</h3>
+          <p className="text-sm opacity-75">Active records</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between mb-4">
+            <CheckCircle className="w-10 h-10 opacity-80" />
+            <span className="text-3xl font-bold">{tankCleaned}</span>
+          </div>
+          <h3 className="text-lg font-medium opacity-90">Tanks Cleaned</h3>
+          <p className="text-sm opacity-75">Current status</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between mb-4">
+            <DollarSign className="w-10 h-10 opacity-80" />
+            <span className="text-2xl font-bold">₹{(totalBillAmount / 100000).toFixed(1)}L</span>
+          </div>
+          <h3 className="text-lg font-medium opacity-90">Total Bills</h3>
+          <p className="text-sm opacity-75">Electricity charges</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between mb-4">
+            <AlertCircle className="w-10 h-10 opacity-80" />
+            <span className="text-2xl font-bold">₹{(totalBalance / 100000).toFixed(1)}L</span>
+          </div>
+          <h3 className="text-lg font-medium opacity-90">Balance Due</h3>
+          <p className="text-sm opacity-75">Pending payments</p>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Filter className="w-5 h-5 text-blue-600" />
+          <h2 className="text-xl font-bold text-gray-800">Filters</h2>
+        </div>
         
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-red-700">Error: {error}</p>
-          </div>
-        )}
-
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b">
-          <button
-            onClick={() => setActiveTab("combined")}
-            className={`px-4 py-2 font-medium transition-colors ${
-              activeTab === "combined"
-                ? "text-blue-600 border-b-2 border-blue-600"
-                : "text-gray-600 hover:text-gray-800"
-            }`}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+          <select
+            value={selectedDistrict}
+            onChange={(e) => {
+              setSelectedDistrict(e.target.value);
+              setSelectedBlock("");
+              setSelectedGramPanchayat("");
+              setSelectedVillage("");
+            }}
+            className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            All Records
-          </button>
-          <button
-            onClick={() => setActiveTab("cleaning")}
-            className={`px-4 py-2 font-medium transition-colors ${
-              activeTab === "cleaning"
-                ? "text-blue-600 border-b-2 border-blue-600"
-                : "text-gray-600 hover:text-gray-800"
-            }`}
+            <option value="">All Districts</option>
+            {getUniqueDistricts().map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+
+          <select
+            value={selectedBlock}
+            onChange={(e) => {
+              setSelectedBlock(e.target.value);
+              setSelectedGramPanchayat("");
+              setSelectedVillage("");
+            }}
+            className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            Cleaning Status
-          </button>
-          <button
-            onClick={() => setActiveTab("billing")}
-            className={`px-4 py-2 font-medium transition-colors ${
-              activeTab === "billing"
-                ? "text-blue-600 border-b-2 border-blue-600"
-                : "text-gray-600 hover:text-gray-800"
-            }`}
+            <option value="">All Blocks</option>
+            {getUniqueBlocks().map((b) => (
+              <option key={b} value={b}>{b}</option>
+            ))}
+          </select>
+
+          <select
+            value={selectedGramPanchayat}
+            onChange={(e) => {
+              setSelectedGramPanchayat(e.target.value);
+              setSelectedVillage("");
+            }}
+            className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            Billing Details
-          </button>
-        </div>
+            <option value="">All Gram Panchayats</option>
+            {getUniqueGramPanchayats().map((g) => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
 
-        {/* Location Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div>
-            <label className="block text-sm font-medium mb-1">District</label>
-            <select
-              value={selectedDistrict}
-              onChange={(e) => {
-                setSelectedDistrict(e.target.value);
-                if (e.target.value !== selectedDistrict) {
-                  setSelectedBlock("");
-                  setSelectedGramPanchayat("");
-                  setSelectedVillage("");
-                }
-              }}
-              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading}
-            >
-              <option value="">All Districts</option>
-              {getUniqueDistricts().map((district) => (
-                <option key={district} value={district}>
-                  {district}
-                </option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={selectedVillage}
+            onChange={(e) => setSelectedVillage(e.target.value)}
+            className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">All Villages</option>
+            {getUniqueVillages().map((v) => (
+              <option key={v} value={v}>{v}</option>
+            ))}
+          </select>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Block</label>
-            <select
-              value={selectedBlock}
-              onChange={(e) => {
-                setSelectedBlock(e.target.value);
-                if (e.target.value !== selectedBlock) {
-                  setSelectedGramPanchayat("");
-                  setSelectedVillage("");
-                }
-              }}
-              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading}
-            >
-              <option value="">All Blocks</option>
-              {getUniqueBlocks().map((block) => (
-                <option key={block} value={block}>
-                  {block}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Gram Panchayat</label>
-            <select
-              value={selectedGramPanchayat}
-              onChange={(e) => {
-                setSelectedGramPanchayat(e.target.value);
-                if (e.target.value !== selectedGramPanchayat) {
-                  setSelectedVillage("");
-                }
-              }}
-              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading}
-            >
-              <option value="">All Gram Panchayats</option>
-              {getUniqueGramPanchayats().map((gp) => (
-                <option key={gp} value={gp}>
-                  {gp}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Village</label>
-            <select
-              value={selectedVillage}
-              onChange={(e) => setSelectedVillage(e.target.value)}
-              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading}
-            >
-              <option value="">All Villages</option>
-              {getUniqueVillages().map((village) => (
-                <option key={village} value={village}>
-                  {village}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Search and Actions */}
-        <div className="flex flex-col lg:flex-row justify-between gap-4 mb-6">
-          <div className="flex flex-col sm:flex-row gap-4 flex-1">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              className="flex-1 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Search by OHT ID, district, block, panchayat, or village..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              disabled={loading}
+              placeholder="Search OHT..."
+              className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
-            <button
-              onClick={clearFilters}
-              className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
-              disabled={loading}
-            >
-              Clear Filters
-            </button>
-          </div>
-
-          <div className="flex gap-2">
-            <button 
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              onClick={fetchAllData} 
-              disabled={loading}
-            >
-              {loading ? 'Refreshing...' : 'Refresh Data'}
-            </button>
-            <button 
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-              onClick={handleDownload} 
-              disabled={loading || filteredData.length === 0}
-            >
-              Download Excel
-            </button>
           </div>
         </div>
-      </div>
 
-      {/* Results Summary */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-        <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-          <span>Showing <strong>{filteredData.length}</strong> of <strong>{combinedRecords.length}</strong> records</span>
-          <span className="text-gray-400">|</span>
-          <span>Tab: <strong>{activeTab === "combined" ? "All Records" : activeTab === "cleaning" ? "Cleaning Status" : "Billing Details"}</strong></span>
-        </div>
-      </div>
-
-      {/* Data Table */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-blue-600 text-white">
-                <th className="border border-gray-300 p-3 text-left font-medium">S.No.</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">OHT ID</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">District</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Block</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Gram Panchayat</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Village</th>
-                {(activeTab === "combined" || activeTab === "cleaning") && (
-                  <>
-                    <th className="border border-gray-300 p-3 text-left font-medium">Tank Cleaning</th>
-                    <th className="border border-gray-300 p-3 text-left font-medium">Solar Cleaning</th>
-                    <th className="border border-gray-300 p-3 text-left font-medium">Cleaning Date</th>
-                  </>
-                )}
-                {(activeTab === "combined" || activeTab === "billing") && (
-                  <>
-                    <th className="border border-gray-300 p-3 text-left font-medium">Electricity Bill (₹)</th>
-                    <th className="border border-gray-300 p-3 text-left font-medium">Deposit (₹)</th>
-                    <th className="border border-gray-300 p-3 text-left font-medium">Deposit Date</th>
-                    <th className="border border-gray-300 p-3 text-left font-medium">Balance (₹)</th>
-                  </>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredData.map((r, index) => (
-                <tr 
-                  key={`${r.OhtId}-${index}`} 
-                  className={`${
-                    index % 2 === 0 ? 'bg-gray-50' : 'bg-white'
-                  } hover:bg-blue-50 transition-colors`}
-                >
-                    <td className="border border-gray-300 p-3 text-center">
-  {index + 1}
-</td>
-                  <td className="border border-gray-300 p-3 font-medium text-blue-600">
-  <button
-    onClick={() => handleOhtClick(r.OhtId)}
-    className="hover:underline hover:text-blue-800 transition-colors cursor-pointer"
-  >
-    #{r.OhtId}
-  </button>
-</td>
-                  <td className="border border-gray-300 p-3">{r.DistrictName}</td>
-                  <td className="border border-gray-300 p-3">{r.BlockName}</td>
-                  <td className="border border-gray-300 p-3">{r.GramPanchayatName}</td>
-                  <td className="border border-gray-300 p-3">{r.VillageName}</td>
-                  
-                  {(activeTab === "combined" || activeTab === "cleaning") && (
-                    <>
-                      <td className="border border-gray-300 p-3">
-                        {getStatusBadge(r.OhtTankCleaningStatus)}
-                      </td>
-                      <td className="border border-gray-300 p-3">
-                        {getStatusBadge(r.OhtSolarCleaningStatus)}
-                      </td>
-                      <td className="border border-gray-300 p-3">
-                        {formatDate(r.OhtCleaningDate)}
-                      </td>
-                    </>
-                  )}
-                  
-                  {(activeTab === "combined" || activeTab === "billing") && (
-  <>
-    <td className="border border-gray-300 p-3 text-right">
-      {r.OhtElectricityBillAmount !== null ? 
-        `₹${r.OhtElectricityBillAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
-        : <span className="text-gray-400">-</span>
-      }
-    </td>
-    <td className="border border-gray-300 p-3 text-right">
-      {r.DepositAmount !== null ? 
-        `₹${r.DepositAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
-        : <span className="text-gray-400">-</span>
-      }
-    </td>
-    <td className="border border-gray-300 p-3">
-      {formatDate(r.DepositAmountDate)}
-    </td>
-    <td className="border border-gray-300 p-3 text-right">
-      {r.BalanceAmount !== null ? 
-        <span className={r.BalanceAmount > 0 ? 'text-red-600 font-medium' : 'text-green-600 font-medium'}>
-          ₹{r.BalanceAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </span>
-        : <span className="text-gray-400">-</span>
-      }
-    </td>
-  </>
-)}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {filteredData.length === 0 && !loading && (
-          <div className="text-center py-12 text-gray-500">
-            <div className="text-4xl mb-4">📋</div>
-            <h3 className="text-lg font-medium mb-2">No records found</h3>
-            <p className="text-sm">Try adjusting your filters or search criteria.</p>
-          </div>
-        )}
-      </div>
-
-      {/* Summary Cards */}
-      {filteredData.length > 0 && activeTab === "billing" && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-100 p-2 rounded-lg">
-                <span className="text-2xl">💡</span>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Total Electricity Bills</p>
-                <p className="text-xl font-bold text-blue-600">
-                  ₹{filteredData
-                    .filter(r => r.OhtElectricityBillAmount !== null)
-                    .reduce((sum, r) => sum + (r.OhtElectricityBillAmount || 0), 0)
-                    .toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-green-100 p-2 rounded-lg">
-                <span className="text-2xl">💰</span>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Total Deposits</p>
-                <p className="text-xl font-bold text-green-600">
-                  ₹{filteredData
-                    .filter(r => r.DepositAmount !== null)
-                    .reduce((sum, r) => sum + (r.DepositAmount || 0), 0)
-                    .toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-red-100 p-2 rounded-lg">
-                <span className="text-2xl">⚠️</span>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Total Balance Due</p>
-                <p className="text-xl font-bold text-red-600">
-                  ₹{filteredData
-                    .filter(r => r.BalanceAmount !== null)
-                    .reduce((sum, r) => sum + (r.BalanceAmount || 0), 0)
-                    .toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-{/* OHT Details Modal */}
-{showModal && selectedOht && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-      <div className="bg-blue-600 text-white p-4 rounded-t-lg flex justify-between items-center">
-        <h2 className="text-xl font-bold">OHT Details - #{selectedOht.OHTId}</h2>
-        <button
-          onClick={closeModal}
-          className="text-white hover:text-gray-200 text-2xl font-bold"
-        >
-          ×
-        </button>
-      </div>
-      
-      <div className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="border-b pb-3">
-            <p className="text-sm text-gray-600 mb-1">OHT ID</p>
-            <p className="text-lg font-semibold text-blue-600">#{selectedOht.OHTId}</p>
-          </div>
-          
-          <div className="border-b pb-3">
-            <p className="text-sm text-gray-600 mb-1">District</p>
-            <p className="text-lg font-semibold">{selectedOht.DistrictName}</p>
-          </div>
-          
-          <div className="border-b pb-3">
-            <p className="text-sm text-gray-600 mb-1">Block</p>
-            <p className="text-lg font-semibold">{selectedOht.BlockName}</p>
-          </div>
-          
-          <div className="border-b pb-3">
-            <p className="text-sm text-gray-600 mb-1">Gram Panchayat</p>
-            <p className="text-lg font-semibold">{selectedOht.GramPanchayatName}</p>
-          </div>
-          
-          <div className="border-b pb-3">
-            <p className="text-sm text-gray-600 mb-1">Village</p>
-            <p className="text-lg font-semibold">{selectedOht.VillageName}</p>
-          </div>
-          
-          <div className="border-b pb-3">
-            <p className="text-sm text-gray-600 mb-1">OHT Capacity</p>
-            <p className="text-lg font-semibold">{selectedOht.OHTCapacity} KL</p>
-          </div>
-          
-          <div className="border-b pb-3">
-            <p className="text-sm text-gray-600 mb-1">Number of Pumps</p>
-            <p className="text-lg font-semibold">{selectedOht.NoOfPumps}</p>
-          </div>
-        </div>
-        
-        <div className="mt-6 flex justify-end">
+        <div className="flex gap-2">
           <button
-            onClick={closeModal}
-            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            onClick={clearFilters}
+            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
           >
-            Close
+            <X className="w-4 h-4" />
+            Clear Filters
+          </button>
+          <button
+            onClick={fetchAllData}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Refresh Data
+          </button>
+          <button
+            onClick={handleDownload}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" />
+            Export Excel
           </button>
         </div>
       </div>
-    </div>
-  </div>
-)}
-      {/* Cleaning Summary Cards */}
-      {filteredData.length > 0 && activeTab === "cleaning" && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-green-100 p-2 rounded-lg">
-                <span className="text-2xl">🏗️</span>
+
+      {/* View Tabs */}
+      <div className="bg-white rounded-xl shadow-lg mb-6">
+        <div className="flex border-b overflow-x-auto">
+          {[
+            { id: 'overview', label: 'Overview', icon: TrendingUp },
+            { id: 'cleaning', label: 'Cleaning Analytics', icon: Droplets },
+            { id: 'billing', label: 'Billing Analytics', icon: DollarSign },
+            { id: 'timeline', label: 'Timeline View', icon: Clock }
+          ].map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setActiveView(id as any)}
+              className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors whitespace-nowrap ${
+                activeView === id
+                  ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+              }`}
+            >
+              <Icon className="w-5 h-5" />
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Overview View */}
+      {activeView === 'overview' && (
+        <div className="space-y-6">
+          {/* Charts Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* District-wise Billing */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-bold mb-4 text-gray-800">District-wise Billing Analysis</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={districtBillingData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => `₹${Number(value).toLocaleString()}`} />
+                  <Legend />
+                  <Bar dataKey="amount" fill="#3B82F6" name="Bill Amount" />
+                  <Bar dataKey="balance" fill="#EF4444" name="Balance Due" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Cleaning Status Pie */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-bold mb-4 text-gray-800">Cleaning Status Distribution</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={cleaningPieData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {cleaningPieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Capacity and Pumps Analysis */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-bold mb-4 text-gray-800">OHT Capacity Distribution</h3>
+              <div className="space-y-3">
+                {Object.entries(
+                  filteredData.reduce((acc, r) => {
+                    const range = r.OHTCapacity < 60 ? '<60 KL' : r.OHTCapacity < 80 ? '60-80 KL' : '80+ KL';
+                    acc[range] = (acc[range] || 0) + 1;
+                    return acc;
+                  }, {} as Record<string, number>)
+                ).map(([range, count]) => (
+                  <div key={range} className="flex items-center gap-4">
+                    <div className="w-32 font-medium text-gray-700">{range}</div>
+                    <div className="flex-1">
+                      <div className="bg-gray-200 rounded-full h-8 overflow-hidden">
+                        <div
+                          className="bg-gradient-to-r from-blue-500 to-blue-600 h-full flex items-center justify-end pr-3 text-white text-sm font-medium"
+                          style={{ width: `${(count / filteredData.length) * 100}%` }}
+                        >
+                          {count}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div>
-                <p className="text-sm text-gray-600">Tank Cleaned</p>
-                <p className="text-xl font-bold text-green-600">
-                  {filteredData.filter(r => r.OhtTankCleaningStatus === 1).length}
-                </p>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-bold mb-4 text-gray-800">Payment Status Summary</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
+                  <div className="text-3xl font-bold text-green-600 mb-1">
+                    {filteredData.filter(r => r.BalanceAmount === 0).length}
+                  </div>
+                  <div className="text-sm text-green-700 font-medium">Fully Paid</div>
+                </div>
+                <div className="bg-yellow-50 rounded-lg p-4 border-2 border-yellow-200">
+                  <div className="text-3xl font-bold text-yellow-600 mb-1">
+                    {filteredData.filter(r => r.BalanceAmount && r.BalanceAmount > 0 && r.BalanceAmount < (r.OhtElectricityBillAmount || 0)).length}
+                  </div>
+                  <div className="text-sm text-yellow-700 font-medium">Partial Payment</div>
+                </div>
+                <div className="bg-red-50 rounded-lg p-4 border-2 border-red-200">
+                  <div className="text-3xl font-bold text-red-600 mb-1">
+                    {filteredData.filter(r => r.BalanceAmount && r.BalanceAmount > 0).length}
+                  </div>
+                  <div className="text-sm text-red-700 font-medium">Pending Balance</div>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
+                  <div className="text-3xl font-bold text-blue-600 mb-1">
+                    {filteredData.filter(r => r.OhtElectricityBillAmount !== null).length}
+                  </div>
+                  <div className="text-sm text-blue-700 font-medium">Total Bills</div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-yellow-100 p-2 rounded-lg">
-                <span className="text-2xl">☀️</span>
+          {/* Recent Activity Table */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h3 className="text-xl font-bold mb-4 text-gray-800">Recent Records Summary</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-100 border-b-2 border-gray-200">
+                    <th className="p-3 text-left font-semibold text-gray-700">OHT ID</th>
+                    <th className="p-3 text-left font-semibold text-gray-700">Location</th>
+                    <th className="p-3 text-left font-semibold text-gray-700">Capacity</th>
+                    <th className="p-3 text-left font-semibold text-gray-700">Tank Status</th>
+                    <th className="p-3 text-left font-semibold text-gray-700">Solar Status</th>
+                    <th className="p-3 text-right font-semibold text-gray-700">Bill Amount</th>
+                    <th className="p-3 text-right font-semibold text-gray-700">Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredData.slice(0, 10).map((r, idx) => (
+                    <tr key={idx} className="border-b hover:bg-blue-50 transition-colors">
+                      <td className="p-3">
+                        <button
+                          onClick={() => handleOhtClick(r.OhtId)}
+                          className="text-blue-600 font-semibold hover:underline"
+                        >
+                          #{r.OhtId}
+                        </button>
+                      </td>
+                      <td className="p-3 text-gray-700">
+                        <div className="font-medium">{r.VillageName}</div>
+                        <div className="text-sm text-gray-500">{r.DistrictName}</div>
+                      </td>
+                      <td className="p-3 text-gray-700">{r.OHTCapacity} KL</td>
+                      <td className="p-3">
+                        {r.OhtTankCleaningStatus === 1 ? (
+                          <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                            Cleaned
+                          </span>
+                        ) : r.OhtTankCleaningStatus === 0 ? (
+                          <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
+                            Pending
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {r.OhtSolarCleaningStatus === 1 ? (
+                          <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                            Cleaned
+                          </span>
+                        ) : r.OhtSolarCleaningStatus === 0 ? (
+                          <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
+                            Pending
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-right font-medium text-gray-700">
+                        {r.OhtElectricityBillAmount ? `₹${r.OhtElectricityBillAmount.toLocaleString()}` : '-'}
+                      </td>
+                      <td className="p-3 text-right">
+                        {r.BalanceAmount !== null ? (
+                          <span className={r.BalanceAmount > 0 ? 'text-red-600 font-semibold' : 'text-green-600 font-semibold'}>
+                            ₹{r.BalanceAmount.toLocaleString()}
+                          </span>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cleaning Analytics View */}
+      {activeView === 'cleaning' && (
+        <div className="space-y-6">
+          {/* Cleaning Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+              <CheckCircle className="w-12 h-12 mb-3 opacity-80" />
+              <div className="text-3xl font-bold mb-1">{tankCleaned}</div>
+              <div className="text-sm opacity-90">Tanks Cleaned</div>
+            </div>
+            <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl shadow-lg p-6 text-white">
+              <CheckCircle className="w-12 h-12 mb-3 opacity-80" />
+              <div className="text-3xl font-bold mb-1">{solarCleaned}</div>
+              <div className="text-sm opacity-90">Solar Panels Cleaned</div>
+            </div>
+            <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-lg p-6 text-white">
+              <AlertCircle className="w-12 h-12 mb-3 opacity-80" />
+              <div className="text-3xl font-bold mb-1">{pendingCleaning}</div>
+              <div className="text-sm opacity-90">Pending Cleaning</div>
+            </div>
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+              <Clock className="w-12 h-12 mb-3 opacity-80" />
+              <div className="text-3xl font-bold mb-1">
+                {filteredData.filter(r => r.OhtTankCleaningDueDate || r.OhtSolarCleaningDueDate).length}
               </div>
-              <div>
-                <p className="text-sm text-gray-600">Solar Cleaned</p>
-                <p className="text-xl font-bold text-yellow-600">
-                  {filteredData.filter(r => r.OhtSolarCleaningStatus === 1).length}
-                </p>
+              <div className="text-sm opacity-90">Upcoming Due Dates</div>
+            </div>
+          </div>
+
+          {/* Cleaning Timeline */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h3 className="text-xl font-bold mb-4 text-gray-800">Cleaning Activity Timeline</h3>
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {cleaningTimeline.map((r, idx) => (
+                <div key={idx} className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg hover:bg-blue-50 transition-colors">
+                  <div className="flex-shrink-0 w-16 text-center">
+                    <div className="text-2xl font-bold text-blue-600">{new Date(r.OhtCleaningDate!).getDate()}</div>
+                    <div className="text-xs text-gray-600">
+                      {new Date(r.OhtCleaningDate!).toLocaleDateString('en-IN', { month: 'short' })}
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <button
+                        onClick={() => handleOhtClick(r.OhtId)}
+                        className="text-lg font-semibold text-blue-600 hover:underline"
+                      >
+                        OHT #{r.OhtId}
+                      </button>
+                      <span className="text-gray-400">•</span>
+                      <span className="text-gray-600">{r.VillageName}, {r.DistrictName}</span>
+                    </div>
+                    <div className="flex gap-2 mb-2">
+                      {r.OhtTankCleaningStatus === 1 && (
+                        <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                          Tank Cleaned
+                        </span>
+                      )}
+                      {r.OhtSolarCleaningStatus === 1 && (
+                        <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">
+                          Solar Cleaned
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {r.OhtTankCleaningDueDate && (
+                        <div>Tank Due: {formatDate(r.OhtTankCleaningDueDate)}</div>
+                      )}
+                      {r.OhtSolarCleaningDueDate && (
+                        <div>Solar Due: {formatDate(r.OhtSolarCleaningDueDate)}</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-gray-700">{r.OHTCapacity} KL</div>
+                    <div className="text-xs text-gray-500">{r.NoOfPumps} Pumps</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Detailed Cleaning Table */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h3 className="text-xl font-bold mb-4 text-gray-800">Detailed Cleaning Records</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-100 border-b-2 border-gray-200">
+                    <th className="p-3 text-left font-semibold text-gray-700">OHT ID</th>
+                    <th className="p-3 text-left font-semibold text-gray-700">Location</th>
+                    <th className="p-3 text-left font-semibold text-gray-700">Cleaning Date</th>
+                    <th className="p-3 text-left font-semibold text-gray-700">Tank Status</th>
+                    <th className="p-3 text-left font-semibold text-gray-700">Tank Due</th>
+                    <th className="p-3 text-left font-semibold text-gray-700">Solar Status</th>
+                    <th className="p-3 text-left font-semibold text-gray-700">Solar Due</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredData.filter(r => r.OhtCleaningDate).map((r, idx) => (
+                    <tr key={idx} className="border-b hover:bg-blue-50 transition-colors">
+                      <td className="p-3">
+                        <button
+                          onClick={() => handleOhtClick(r.OhtId)}
+                          className="text-blue-600 font-semibold hover:underline"
+                        >
+                          #{r.OhtId}
+                        </button>
+                      </td>
+                      <td className="p-3 text-gray-700">
+                        <div className="font-medium">{r.VillageName}</div>
+                        <div className="text-sm text-gray-500">{r.BlockName}, {r.DistrictName}</div>
+                      </td>
+                      <td className="p-3 text-gray-700">{formatDate(r.OhtCleaningDate)}</td>
+                      <td className="p-3">
+                        {r.OhtTankCleaningStatus === 1 ? (
+                          <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                            Cleaned
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
+                            Pending
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {r.OhtTankCleaningDueDate ? (
+                          <span className="text-orange-600 font-medium">{formatDate(r.OhtTankCleaningDueDate)}</span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {r.OhtSolarCleaningStatus === 1 ? (
+                          <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                            Cleaned
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
+                            Pending
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {r.OhtSolarCleaningDueDate ? (
+                          <span className="text-orange-600 font-medium">{formatDate(r.OhtSolarCleaningDueDate)}</span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Billing Analytics View */}
+      {activeView === 'billing' && (
+        <div className="space-y-6">
+          {/* Billing Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+              <FileText className="w-12 h-12 mb-3 opacity-80" />
+              <div className="text-3xl font-bold mb-1">₹{(totalBillAmount / 100000).toFixed(2)}L</div>
+              <div className="text-sm opacity-90">Total Electricity Bills</div>
+              <div className="text-xs opacity-75 mt-2">{filteredData.filter(r => r.OhtElectricityBillAmount).length} bills</div>
+            </div>
+            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+              <DollarSign className="w-12 h-12 mb-3 opacity-80" />
+              <div className="text-3xl font-bold mb-1">₹{(totalDeposits / 100000).toFixed(2)}L</div>
+              <div className="text-sm opacity-90">Total Deposits Made</div>
+              <div className="text-xs opacity-75 mt-2">{((totalDeposits / totalBillAmount) * 100).toFixed(1)}% collection rate</div>
+            </div>
+            <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-lg p-6 text-white">
+              <AlertCircle className="w-12 h-12 mb-3 opacity-80" />
+              <div className="text-3xl font-bold mb-1">₹{(totalBalance / 100000).toFixed(2)}L</div>
+              <div className="text-sm opacity-90">Outstanding Balance</div>
+              <div className="text-xs opacity-75 mt-2">{filteredData.filter(r => r.BalanceAmount && r.BalanceAmount > 0).length} pending</div>
+            </div>
+          </div>
+
+          {/* Billing Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-bold mb-4 text-gray-800">Payment vs Outstanding</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: 'Paid', value: totalDeposits, color: '#10B981' },
+                      { name: 'Outstanding', value: totalBalance, color: '#EF4444' }
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, value, percent }) => `${name}: ₹${(value/100000).toFixed(1)}L (${(percent * 100).toFixed(0)}%)`}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    <Cell fill="#10B981" />
+                    <Cell fill="#EF4444" />
+                  </Pie>
+                  <Tooltip formatter={(value) => `₹${Number(value).toLocaleString()}`} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-bold mb-4 text-gray-800">Top Outstanding Bills</h3>
+              <div className="space-y-3">
+                {filteredData
+                  .filter(r => r.BalanceAmount && r.BalanceAmount > 0)
+                  .sort((a, b) => (b.BalanceAmount || 0) - (a.BalanceAmount || 0))
+                  .slice(0, 5)
+                  .map((r, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
+                      <div>
+                        <button
+                          onClick={() => handleOhtClick(r.OhtId)}
+                          className="font-semibold text-blue-600 hover:underline"
+                        >
+                          OHT #{r.OhtId}
+                        </button>
+                        <div className="text-sm text-gray-600">{r.VillageName}, {r.DistrictName}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-red-600">₹{r.BalanceAmount?.toLocaleString()}</div>
+                        <div className="text-xs text-gray-500">Balance</div>
+                      </div>
+                    </div>
+                  ))}
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-red-100 p-2 rounded-lg">
-                <span className="text-2xl">❌</span>
+          {/* Billing Table */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h3 className="text-xl font-bold mb-4 text-gray-800">Detailed Billing Records</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-100 border-b-2 border-gray-200">
+                    <th className="p-3 text-left font-semibold text-gray-700">OHT ID</th>
+                    <th className="p-3 text-left font-semibold text-gray-700">Location</th>
+                    <th className="p-3 text-left font-semibold text-gray-700">Bill Period</th>
+                    <th className="p-3 text-right font-semibold text-gray-700">Bill Amount</th>
+                    <th className="p-3 text-right font-semibold text-gray-700">Deposit</th>
+                    <th className="p-3 text-left font-semibold text-gray-700">Deposit Date</th>
+                    <th className="p-3 text-right font-semibold text-gray-700">Balance</th>
+                    <th className="p-3 text-center font-semibold text-gray-700">PDF</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredData.filter(r => r.OhtElectricityBillAmount).map((r, idx) => (
+                    <tr key={idx} className="border-b hover:bg-blue-50 transition-colors">
+                      <td className="p-3">
+                        <button
+                          onClick={() => handleOhtClick(r.OhtId)}
+                          className="text-blue-600 font-semibold hover:underline"
+                        >
+                          #{r.OhtId}
+                        </button>
+                      </td>
+                      <td className="p-3 text-gray-700">
+                        <div className="font-medium">{r.VillageName}</div>
+                        <div className="text-sm text-gray-500">{r.DistrictName}</div>
+                      </td>
+                      <td className="p-3 text-gray-700 text-sm">
+                        {r.BillFromDate && r.BillToDate ? (
+                          <div>
+                            <div>{formatDate(r.BillFromDate)}</div>
+                            <div className="text-gray-500">to {formatDate(r.BillToDate)}</div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-right font-medium text-gray-700">
+                        ₹{r.OhtElectricityBillAmount?.toLocaleString()}
+                      </td>
+                      <td className="p-3 text-right font-medium text-green-600">
+                        {r.DepositAmount ? `₹${r.DepositAmount.toLocaleString()}` : '-'}
+                      </td>
+                      <td className="p-3 text-gray-700">{formatDate(r.DepositAmountDate)}</td>
+                      <td className="p-3 text-right">
+                        {r.BalanceAmount !== null ? (
+                          <span className={r.BalanceAmount > 0 ? 'text-red-600 font-semibold' : 'text-green-600 font-semibold'}>
+                            ₹{r.BalanceAmount.toLocaleString()}
+                          </span>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                      <td className="p-3 text-center">
+                        {r.PdfBillFilePath && r.PdfBillFilePath.trim() !== "" ? (
+                          <button
+                            onClick={() => handleViewPdf(r.PdfBillFilePath!)}
+                            className="text-red-600 hover:text-red-800 transition-colors p-2 hover:bg-red-50 rounded"
+                            title="View PDF"
+                          >
+                            <FileText className="w-5 h-5" />
+                          </button>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Timeline View */}
+      {activeView === 'timeline' && (
+        <div className="space-y-6">
+          {/* Billing Timeline */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <DollarSign className="w-6 h-6 text-blue-600" />
+              <h3 className="text-xl font-bold text-gray-800">Billing Timeline</h3>
+            </div>
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {billingTimeline.map((r, idx) => (
+                <div key={idx} className="relative pl-8 pb-6 border-l-2 border-blue-300">
+                  <div className="absolute left-0 top-0 w-4 h-4 bg-blue-600 rounded-full -ml-2"></div>
+                  <div className="bg-gradient-to-r from-blue-50 to-white p-4 rounded-lg shadow hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <button
+                            onClick={() => handleOhtClick(r.OhtId)}
+                            className="text-lg font-bold text-blue-600 hover:underline"
+                          >
+                            OHT #{r.OhtId}
+                          </button>
+                          <span className="text-gray-400">•</span>
+                          <span className="text-gray-700 font-medium">{r.VillageName}</span>
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {r.DistrictName} • {r.BlockName} • {r.GramPanchayatName}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-gray-500 mb-1">Bill Period</div>
+                        <div className="font-medium text-gray-700">
+                          {formatDate(r.BillFromDate)} - {formatDate(r.BillToDate)}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-4 mb-3">
+                      <div className="bg-white p-3 rounded-lg border border-gray-200">
+                        <div className="text-xs text-gray-500 mb-1">Bill Amount</div>
+                        <div className="text-lg font-bold text-blue-600">
+                          ₹{r.OhtElectricityBillAmount?.toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-gray-200">
+                        <div className="text-xs text-gray-500 mb-1">Deposit</div>
+                        <div className="text-lg font-bold text-green-600">
+                          ₹{r.DepositAmount?.toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-gray-200">
+                        <div className="text-xs text-gray-500 mb-1">Balance</div>
+                        <div className={`text-lg font-bold ${r.BalanceAmount && r.BalanceAmount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          ₹{r.BalanceAmount?.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-500">Deposit Date:</span>
+                          <span className="ml-2 font-medium text-gray-700">{formatDate(r.DepositAmountDate)}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Capacity:</span>
+                          <span className="ml-2 font-medium text-gray-700">{r.OHTCapacity} KL</span>
+                        </div>
+                      </div>
+                      {r.PdfBillFilePath && r.PdfBillFilePath.trim() !== "" && (
+                        <button
+                          onClick={() => handleViewPdf(r.PdfBillFilePath!)}
+                          className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                        >
+                          <FileText className="w-4 h-4" />
+                          View Bill PDF
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Cleaning Timeline */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Droplets className="w-6 h-6 text-green-600" />
+              <h3 className="text-xl font-bold text-gray-800">Cleaning Timeline</h3>
+            </div>
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {cleaningTimeline.map((r, idx) => (
+                <div key={idx} className="relative pl-8 pb-6 border-l-2 border-green-300">
+                  <div className="absolute left-0 top-0 w-4 h-4 bg-green-600 rounded-full -ml-2"></div>
+                  <div className="bg-gradient-to-r from-green-50 to-white p-4 rounded-lg shadow hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <button
+                            onClick={() => handleOhtClick(r.OhtId)}
+                            className="text-lg font-bold text-blue-600 hover:underline"
+                          >
+                            OHT #{r.OhtId}
+                          </button>
+                          <span className="text-gray-400">•</span>
+                          <span className="text-gray-700 font-medium">{r.VillageName}</span>
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {r.DistrictName} • {r.BlockName}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-gray-500 mb-1">Cleaning Date</div>
+                        <div className="font-bold text-green-600">
+                          {formatDate(r.OhtCleaningDate)}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 mb-3">
+                      <div className="bg-white p-3 rounded-lg border-2 border-green-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-sm font-medium text-gray-700">Tank Cleaning</div>
+                          {r.OhtTankCleaningStatus === 1 ? (
+                            <CheckCircle className="w-5 h-5 text-green-600" />
+                          ) : (
+                            <AlertCircle className="w-5 h-5 text-red-600" />
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {r.OhtTankCleaningStatus === 1 ? 'Completed' : 'Pending'}
+                        </div>
+                        {r.OhtTankCleaningDueDate && (
+                          <div className="text-xs text-orange-600 mt-1">
+                            Due: {formatDate(r.OhtTankCleaningDueDate)}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="bg-white p-3 rounded-lg border-2 border-yellow-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-sm font-medium text-gray-700">Solar Cleaning</div>
+                          {r.OhtSolarCleaningStatus === 1 ? (
+                            <CheckCircle className="w-5 h-5 text-green-600" />
+                          ) : (
+                            <AlertCircle className="w-5 h-5 text-red-600" />
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {r.OhtSolarCleaningStatus === 1 ? 'Completed' : 'Pending'}
+                        </div>
+                        {r.OhtSolarCleaningDueDate && (
+                          <div className="text-xs text-orange-600 mt-1">
+                            Due: {formatDate(r.OhtSolarCleaningDueDate)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <div>
+                        <span className="text-gray-500">Capacity:</span>
+                        <span className="ml-2 font-medium">{r.OHTCapacity} KL</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Pumps:</span>
+                        <span className="ml-2 font-medium">{r.NoOfPumps}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* OHT Details Modal */}
+      {showModal && selectedOht && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-t-2xl">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-2xl font-bold mb-1">OHT Details</h2>
+                  <p className="text-blue-100">Complete information for OHT #{selectedOht.OHTId}</p>
+                </div>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
               </div>
-              <div>
-                <p className="text-sm text-gray-600">Pending Cleaning</p>
-                <p className="text-xl font-bold text-red-600">
-                  {filteredData.filter(r => r.OhtTankCleaningStatus === 0 || r.OhtSolarCleaningStatus === 0).length}
-                </p>
+            </div>
+            
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <div className="text-sm text-blue-600 font-medium mb-1">OHT ID</div>
+                  <div className="text-2xl font-bold text-blue-700">#{selectedOht.OHTId}</div>
+                </div>
+                
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div className="text-sm text-gray-600 font-medium mb-1">District</div>
+                  <div className="text-lg font-semibold text-gray-800">{selectedOht.DistrictName}</div>
+                </div>
+                
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div className="text-sm text-gray-600 font-medium mb-1">Block</div>
+                  <div className="text-lg font-semibold text-gray-800">{selectedOht.BlockName}</div>
+                </div>
+                
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div className="text-sm text-gray-600 font-medium mb-1">Gram Panchayat</div>
+                  <div className="text-lg font-semibold text-gray-800">{selectedOht.GramPanchayatName}</div>
+                </div>
+                
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div className="text-sm text-gray-600 font-medium mb-1">Village</div>
+                  <div className="text-lg font-semibold text-gray-800">{selectedOht.VillageName}</div>
+                </div>
+                
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                  <div className="text-sm text-green-600 font-medium mb-1">OHT Capacity</div>
+                  <div className="text-lg font-semibold text-green-700">{selectedOht.OHTCapacity} KL</div>
+                </div>
+                
+                <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                  <div className="text-sm text-purple-600 font-medium mb-1">Number of Pumps</div>
+                  <div className="text-lg font-semibold text-purple-700">{selectedOht.NoOfPumps}</div>
+                </div>
+              </div>
+              
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
-      
+
+      {/* PDF Viewer Modal */}
+      {showPdfModal && currentPdfUrl && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col">
+            <div className="bg-gradient-to-r from-red-600 to-red-700 text-white p-6 rounded-t-2xl flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <FileText className="w-8 h-8" />
+                <div>
+                  <h2 className="text-2xl font-bold">Electricity Bill PDF</h2>
+                  <p className="text-red-100 text-sm">View and download bill document</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPdfModal(false)}
+                className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="flex-1 p-4 overflow-hidden">
+              <iframe
+                src={currentPdfUrl}
+                className="w-full h-full border-2 border-gray-300 rounded-lg"
+                title="PDF Viewer"
+              />
+            </div>
+            
+            <div className="p-4 border-t bg-gray-50 rounded-b-2xl flex justify-between items-center">
+              <a
+                href={currentPdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
+              >
+                <FileText className="w-5 h-5" />
+                Open in New Tab
+              </a>
+
+              <button
+                onClick={() => setShowPdfModal(false)}
+                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Overlay */}
+      {loading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 text-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+            <p className="text-gray-700 text-lg font-medium">Loading data...</p>
+            <p className="text-gray-500 text-sm mt-2">Please wait while we fetch the latest records</p>
+          </div>
+        </div>
+      )}
+
+      {/* Error Message */}
+      {error && (
+        <div className="fixed bottom-6 right-6 bg-red-100 border-2 border-red-400 text-red-700 px-6 py-4 rounded-lg shadow-lg z-50 max-w-md">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-6 h-6 flex-shrink-0 mt-0.5" />
+            <div>
+              <div className="font-bold mb-1">Error Loading Data</div>
+              <div className="text-sm">{error}</div>
+            </div>
+            <button
+              onClick={() => setError(null)}
+              className="text-red-700 hover:text-red-900 ml-4"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

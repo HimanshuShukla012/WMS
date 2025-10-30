@@ -69,44 +69,106 @@ const DirectorMonitoring: React.FC = () => {
   // --- Export Functions ---
   const exportToExcel = () => {
     // Create comprehensive Excel export including performance data
-    const exportData = {
-      summary: {
-        location: locationData.getSelectedLocationName(),
-        period: `${new Date(fromDate).toLocaleDateString()} to ${new Date(toDate).toLocaleDateString()}`,
-        ...directorData.stats
-      },
-      beneficiaries: directorData.filterByLocation(directorData.beneficiariesData),
-      ohts: directorData.filterOHTsByLocation(directorData.ohtData),
-      pumpHouses: directorData.filterPumpHousesByOHT(
-        directorData.pumpHouseData, 
-        directorData.filterOHTsByLocation(directorData.ohtData)
-      ),
-      waterFee: directorData.filterWaterFeeSummaryByLocation(directorData.waterFeeSummaryData),
-      complaints: directorData.filterComplaintsByLocation(directorData.complaintsData),
-      waterQuality: directorData.filterWaterQualityByLocation(directorData.waterQualityData),
-      // Add performance data to export
-      topDistricts: directorData.topDistrictsData,
-      bottomDistricts: directorData.bottomDistrictsData,
-      topBlocks: directorData.topBlocksData,
-      bottomBlocks: directorData.bottomBlocksData,
-      topGPs: directorData.topGPsData,
-      bottomGPs: directorData.bottomGPsData
-    };
-
-    // Create download (simplified implementation)
-    const blob = new Blob(['Director Monitoring Export'], { 
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-    });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', 
+    const workbook = XLSX.utils.book_new();
+    
+    // Summary Sheet
+    const summaryData = [{
+      'Location': locationData.getSelectedLocationName(),
+      'Period': `${new Date(fromDate).toLocaleDateString()} to ${new Date(toDate).toLocaleDateString()}`,
+      'Total Beneficiaries': directorData.stats.totalBeneficiaries,
+      'Active Beneficiaries': directorData.stats.activeBeneficiaries,
+      'Total OHTs': directorData.stats.totalOHT,
+      'Active OHTs': directorData.stats.activeOHT,
+      'Total Pump Houses': directorData.stats.totalPumpHouse,
+      'Active Pump Houses': directorData.stats.activePumpHouse,
+      'Total Fee Collection': directorData.stats.totalFeeCollection,
+      'Total Complaints': directorData.stats.totalComplaints,
+      'Resolved Complaints': directorData.stats.resolvedComplaints
+    }];
+    const summarySheet = XLSX.utils.json_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
+    
+    // Beneficiaries Sheet
+    const beneficiariesFiltered = directorData.filterByLocation(directorData.beneficiariesData);
+    if (beneficiariesFiltered.length > 0) {
+      const beneficiariesSheet = XLSX.utils.json_to_sheet(beneficiariesFiltered);
+      XLSX.utils.book_append_sheet(workbook, beneficiariesSheet, 'Beneficiaries');
+    }
+    
+    // OHTs Sheet
+    const ohtsFiltered = directorData.filterOHTsByLocation(directorData.ohtData);
+    if (ohtsFiltered.length > 0) {
+      const ohtsSheet = XLSX.utils.json_to_sheet(ohtsFiltered);
+      XLSX.utils.book_append_sheet(workbook, ohtsSheet, 'OHTs');
+    }
+    
+    // Pump Houses Sheet
+    const pumpHousesFiltered = directorData.filterPumpHousesByOHT(
+      directorData.pumpHouseData, 
+      ohtsFiltered
+    );
+    if (pumpHousesFiltered.length > 0) {
+      const pumpHousesSheet = XLSX.utils.json_to_sheet(pumpHousesFiltered);
+      XLSX.utils.book_append_sheet(workbook, pumpHousesSheet, 'Pump Houses');
+    }
+    
+    // Water Fee Sheet
+    const waterFeeFiltered = directorData.filterWaterFeeSummaryByLocation(directorData.waterFeeSummaryData);
+    if (waterFeeFiltered.length > 0) {
+      const waterFeeSheet = XLSX.utils.json_to_sheet(waterFeeFiltered);
+      XLSX.utils.book_append_sheet(workbook, waterFeeSheet, 'Water Fee');
+    }
+    
+    // Complaints Sheet
+    const complaintsFiltered = directorData.filterComplaintsByLocation(directorData.complaintsData);
+    if (complaintsFiltered.length > 0) {
+      const complaintsSheet = XLSX.utils.json_to_sheet(complaintsFiltered);
+      XLSX.utils.book_append_sheet(workbook, complaintsSheet, 'Complaints');
+    }
+    
+    // Water Quality Sheet
+    const waterQualityFiltered = directorData.filterWaterQualityByLocation(directorData.waterQualityData);
+    if (waterQualityFiltered.length > 0) {
+      const waterQualitySheet = XLSX.utils.json_to_sheet(waterQualityFiltered);
+      XLSX.utils.book_append_sheet(workbook, waterQualitySheet, 'Water Quality');
+    }
+    
+    // Performance Sheets
+    if (directorData.topDistrictsData.length > 0) {
+      const topDistrictsSheet = XLSX.utils.json_to_sheet(directorData.topDistrictsData);
+      XLSX.utils.book_append_sheet(workbook, topDistrictsSheet, 'Top Districts');
+    }
+    
+    if (directorData.bottomDistrictsData.length > 0) {
+      const bottomDistrictsSheet = XLSX.utils.json_to_sheet(directorData.bottomDistrictsData);
+      XLSX.utils.book_append_sheet(workbook, bottomDistrictsSheet, 'Bottom Districts');
+    }
+    
+    if (directorData.topBlocksData.length > 0) {
+      const topBlocksSheet = XLSX.utils.json_to_sheet(directorData.topBlocksData);
+      XLSX.utils.book_append_sheet(workbook, topBlocksSheet, 'Top Blocks');
+    }
+    
+    if (directorData.bottomBlocksData.length > 0) {
+      const bottomBlocksSheet = XLSX.utils.json_to_sheet(directorData.bottomBlocksData);
+      XLSX.utils.book_append_sheet(workbook, bottomBlocksSheet, 'Bottom Blocks');
+    }
+    
+    if (directorData.topGPsData.length > 0) {
+      const topGPsSheet = XLSX.utils.json_to_sheet(directorData.topGPsData);
+      XLSX.utils.book_append_sheet(workbook, topGPsSheet, 'Top GPs');
+    }
+    
+    if (directorData.bottomGPsData.length > 0) {
+      const bottomGPsSheet = XLSX.utils.json_to_sheet(directorData.bottomGPsData);
+      XLSX.utils.book_append_sheet(workbook, bottomGPsSheet, 'Bottom GPs');
+    }
+    
+    // Generate and download Excel file
+    XLSX.writeFile(
+      workbook, 
       `director_monitoring_${locationData.getSelectedLocationName().replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`
     );
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   const exportToExcelSheet = (data: any[], filename: string) => {

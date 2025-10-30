@@ -95,9 +95,9 @@ interface RoasterStats {
 }
 
 // Location API functions
-const fetchDistricts = async () => {
+const fetchDistricts = async (userId: number) => {
   try {
-    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/AllDistrict', {
+    const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetDistrict?UserId=${userId}`, {
       method: 'POST',
       headers: { 'accept': '*/*' },
     });
@@ -113,11 +113,17 @@ const fetchDistricts = async () => {
   }
 };
 
-const fetchBlocks = async (districtId: number) => {
+const fetchBlocks = async (userId: number) => {
   try {
-    const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetAllBlocks?DistrictId=${districtId}`, {
+    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict', {
       method: 'POST',
-      headers: { 'accept': '*/*' },
+      headers: { 
+        'accept': '*/*',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        UserId: userId
+      })
     });
 
     if (response.ok) {
@@ -131,11 +137,17 @@ const fetchBlocks = async (districtId: number) => {
   }
 };
 
-const fetchGramPanchayats = async (blockId: number) => {
+const fetchGramPanchayats = async (userId: number) => {
   try {
-    const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetAllGramPanchayat?BlockId=${blockId}`, {
+    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock', {
       method: 'POST',
-      headers: { 'accept': '*/*' },
+      headers: { 
+        'accept': '*/*',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        UserId: userId
+      })
     });
 
     if (response.ok) {
@@ -328,28 +340,30 @@ const ViewRoaster: React.FC = () => {
   // Use the userInfo hook instead of hardcoded userId
   const { userId } = useUserInfo();
 
-  // Fetch districts on component mount
-  useEffect(() => {
-    const loadDistricts = async () => {
-      setLocationLoading(true);
-      try {
-        const districtData = await fetchDistricts();
-        setDistricts(districtData || []);
-        
-        // Auto-select first district if only one
-        if (districtData && districtData.length === 1) {
-          setSelectedDistrictId(districtData[0].DistrictId);
-        }
-      } catch (err) {
-        console.error('Error loading districts:', err);
-        setError('Failed to load districts. Please refresh and try again.');
-      } finally {
-        setLocationLoading(false);
+  // Fetch districts on component mount - wait for userId
+useEffect(() => {
+  if (!userId) return;
+  
+  const loadDistricts = async () => {
+    setLocationLoading(true);
+    try {
+      const districtData = await fetchDistricts(userId);
+      setDistricts(districtData || []);
+      
+      // Auto-select first district if only one
+      if (districtData && districtData.length === 1) {
+        setSelectedDistrictId(districtData[0].DistrictId);
       }
-    };
+    } catch (err) {
+      console.error('Error loading districts:', err);
+      setError('Failed to load districts. Please refresh and try again.');
+    } finally {
+      setLocationLoading(false);
+    }
+  };
 
-    loadDistricts();
-  }, []);
+  loadDistricts();
+}, [userId]);
 
   // Fetch pump houses when userId is available
   useEffect(() => {
@@ -395,69 +409,47 @@ const ViewRoaster: React.FC = () => {
     loadPumpHouses();
   }, [userId]);
 
-  // Fetch blocks when district is selected
-  useEffect(() => {
-    if (selectedDistrictId) {
-      const loadBlocks = async () => {
-        try {
-          const blockData = await fetchBlocks(selectedDistrictId);
-          setBlocks(blockData || []);
-          
-          // Reset dependent selections
-          setSelectedBlockId(null);
-          setSelectedGramPanchayatId(null);
-          setSelectedVillageId(null);
-          setGramPanchayats([]);
-          setVillages([]);
-          
-          // Auto-select first block if only one
-          if (blockData && blockData.length === 1) {
-            setSelectedBlockId(blockData[0].BlockId);
-          }
-        } catch (err) {
-          console.error('Error fetching blocks:', err);
-        }
-      };
-      loadBlocks();
-    } else {
-      setBlocks([]);
-      setSelectedBlockId(null);
-      setSelectedGramPanchayatId(null);
-      setSelectedVillageId(null);
-      setGramPanchayats([]);
-      setVillages([]);
+  // Fetch blocks when userId is available (no longer dependent on district selection)
+useEffect(() => {
+  if (!userId) return;
+  
+  const loadBlocks = async () => {
+    try {
+      const blockData = await fetchBlocks(userId);
+      setBlocks(blockData || []);
+      
+      // Auto-select first block if only one
+      if (blockData && blockData.length === 1) {
+        setSelectedBlockId(blockData[0].BlockId);
+      }
+    } catch (err) {
+      console.error('Error fetching blocks:', err);
     }
-  }, [selectedDistrictId]);
+  };
+  
+  loadBlocks();
+}, [userId]);
 
-  // Fetch gram panchayats when block is selected
-  useEffect(() => {
-    if (selectedBlockId) {
-      const loadGramPanchayats = async () => {
-        try {
-          const gpData = await fetchGramPanchayats(selectedBlockId);
-          setGramPanchayats(gpData || []);
-          
-          // Reset dependent selections
-          setSelectedGramPanchayatId(null);
-          setSelectedVillageId(null);
-          setVillages([]);
-          
-          // Auto-select first GP if only one
-          if (gpData && gpData.length === 1) {
-            setSelectedGramPanchayatId(gpData[0].Id);
-          }
-        } catch (err) {
-          console.error('Error fetching gram panchayats:', err);
-        }
-      };
-      loadGramPanchayats();
-    } else {
-      setGramPanchayats([]);
-      setSelectedGramPanchayatId(null);
-      setSelectedVillageId(null);
-      setVillages([]);
+  // Fetch gram panchayats when userId is available (no longer dependent on block selection)
+useEffect(() => {
+  if (!userId) return;
+  
+  const loadGramPanchayats = async () => {
+    try {
+      const gpData = await fetchGramPanchayats(userId);
+      setGramPanchayats(gpData || []);
+      
+      // Auto-select first GP if only one
+      if (gpData && gpData.length === 1) {
+        setSelectedGramPanchayatId(gpData[0].Id);
+      }
+    } catch (err) {
+      console.error('Error fetching gram panchayats:', err);
     }
-  }, [selectedBlockId]);
+  };
+  
+  loadGramPanchayats();
+}, [userId]);
 
   // Fetch villages when block and gram panchayat are selected
   useEffect(() => {
@@ -733,7 +725,13 @@ const ViewRoaster: React.FC = () => {
                   <label className="block font-medium text-gray-700 mb-2">District</label>
                   <select
                     value={selectedDistrictId || ''}
-                    onChange={(e) => setSelectedDistrictId(Number(e.target.value) || null)}
+                    onChange={(e) => {
+  setSelectedDistrictId(Number(e.target.value) || null);
+  // Reset dependent filters when district changes
+  setSelectedBlockId(null);
+  setSelectedGramPanchayatId(null);
+  setSelectedVillageId(null);
+}}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">Select District</option>
@@ -750,7 +748,12 @@ const ViewRoaster: React.FC = () => {
                   <label className="block font-medium text-gray-700 mb-2">Block</label>
                   <select
                     value={selectedBlockId || ''}
-                    onChange={(e) => setSelectedBlockId(Number(e.target.value) || null)}
+                    onChange={(e) => {
+  setSelectedBlockId(Number(e.target.value) || null);
+  // Reset dependent filters when block changes
+  setSelectedGramPanchayatId(null);
+  setSelectedVillageId(null);
+}}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     disabled={!selectedDistrictId}
                   >
@@ -768,7 +771,11 @@ const ViewRoaster: React.FC = () => {
                   <label className="block font-medium text-gray-700 mb-2">Gram Panchayat</label>
                   <select
                     value={selectedGramPanchayatId || ''}
-                    onChange={(e) => setSelectedGramPanchayatId(Number(e.target.value) || null)}
+                    onChange={(e) => {
+  setSelectedGramPanchayatId(Number(e.target.value) || null);
+  // Reset village filter when gram panchayat changes
+  setSelectedVillageId(null);
+}}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     disabled={!selectedBlockId}
                   >
