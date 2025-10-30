@@ -87,9 +87,10 @@ const UserManagement = () => {
   const [newPassword, setNewPassword] = useState("");
 
   // Pagination states
-  const [locationPage, setLocationPage] = useState(1);
-  const [hqPage, setHqPage] = useState(1);
-  const itemsPerPage = 10;
+const [locationPage, setLocationPage] = useState(1);
+const [hqPage, setHqPage] = useState(1);
+const [locationItemsPerPage, setLocationItemsPerPage] = useState(10);
+const [hqItemsPerPage, setHqItemsPerPage] = useState(10);
 
   // search
   const [searchLocation, setSearchLocation] = useState("");
@@ -538,24 +539,24 @@ const UserManagement = () => {
   }, [gramPanchayats, gramPanchayatSearch]);
 
   // Pagination logic
-  const paginateData = <T,>(data: T[], page: number) => {
-    const startIndex = (page - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    return data.slice(startIndex, endIndex);
-  };
+const paginateData = <T,>(data: T[], page: number, itemsPerPage: number) => {
+  const startIndex = (page - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  return data.slice(startIndex, endIndex);
+};
 
   const paginatedLocationUsers = useMemo(
-    () => paginateData(filteredLocationUsers, locationPage),
-    [filteredLocationUsers, locationPage]
-  );
+  () => paginateData(filteredLocationUsers, locationPage, locationItemsPerPage),
+  [filteredLocationUsers, locationPage, locationItemsPerPage]
+);
 
-  const paginatedHqUsers = useMemo(
-    () => paginateData(filteredHqUsers, hqPage),
-    [filteredHqUsers, hqPage]
-  );
+const paginatedHqUsers = useMemo(
+  () => paginateData(filteredHqUsers, hqPage, hqItemsPerPage),
+  [filteredHqUsers, hqPage, hqItemsPerPage]
+);
 
-  const locationTotalPages = Math.ceil(filteredLocationUsers.length / itemsPerPage);
-  const hqTotalPages = Math.ceil(filteredHqUsers.length / itemsPerPage);
+const locationTotalPages = Math.ceil(filteredLocationUsers.length / locationItemsPerPage);
+const hqTotalPages = Math.ceil(filteredHqUsers.length / hqItemsPerPage);
 
   // Reset to page 1 when search changes
   useEffect(() => {
@@ -609,52 +610,165 @@ const UserManagement = () => {
     setShowPasswordModal(true);
   };
 
-  // Pagination component
-  const Pagination = ({
-    currentPage,
-    totalPages,
-    onPageChange,
-  }: {
-    currentPage: number;
-    totalPages: number;
-    onPageChange: (page: number) => void;
-  }) => {
-    if (totalPages <= 1) return null;
+  // Enhanced Pagination component
+const Pagination = ({
+  currentPage,
+  totalPages,
+  totalItems,
+  itemsPerPage,
+  onPageChange,
+  onItemsPerPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+  onPageChange: (page: number) => void;
+  onItemsPerPageChange: (itemsPerPage: number) => void;
+}) => {
+  const startItem = (currentPage - 1) * itemsPerPage + 1;
+  const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
-    return (
-      <div className="flex items-center justify-between mt-4 px-4">
-        <div className="text-sm text-gray-600">
-          Page {currentPage} of {totalPages}
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => onPageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            className={`inline-flex items-center gap-1 px-3 py-1 rounded text-sm ${
-              currentPage === 1
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                : "bg-indigo-600 text-white hover:bg-indigo-700"
-            }`}
-          >
-            <ChevronLeft size={16} />
-            Previous
-          </button>
-          <button
-            onClick={() => onPageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className={`inline-flex items-center gap-1 px-3 py-1 rounded text-sm ${
-              currentPage === totalPages
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                : "bg-indigo-600 text-white hover:bg-indigo-700"
-            }`}
-          >
-            Next
-            <ChevronRight size={16} />
-          </button>
-        </div>
-      </div>
-    );
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) pages.push(i);
+        pages.push('...');
+        pages.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1);
+        pages.push('...');
+        for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
+      } else {
+        pages.push(1);
+        pages.push('...');
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i);
+        pages.push('...');
+        pages.push(totalPages);
+      }
+    }
+    
+    return pages;
   };
+
+  if (totalItems === 0) return null;
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 px-4 py-3 bg-gray-50 border-t">
+      {/* Items per page selector */}
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-gray-600">Rows per page:</span>
+        <select
+          value={itemsPerPage}
+          onChange={(e) => {
+            onItemsPerPageChange(Number(e.target.value));
+            onPageChange(1); // Reset to first page when changing items per page
+          }}
+          className="border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+        >
+          <option value={5}>5</option>
+          <option value={10}>10</option>
+          <option value={25}>25</option>
+          <option value={50}>50</option>
+          <option value={100}>100</option>
+        </select>
+        <span className="text-sm text-gray-600 ml-4">
+          Showing {startItem}-{endItem} of {totalItems}
+        </span>
+      </div>
+
+      {/* Page navigation */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onPageChange(1)}
+          disabled={currentPage === 1}
+          className={`inline-flex items-center px-2 py-1 rounded text-sm ${
+            currentPage === 1
+              ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+              : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+          }`}
+          title="First page"
+        >
+          <ChevronLeft size={14} />
+          <ChevronLeft size={14} className="-ml-2" />
+        </button>
+        
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className={`inline-flex items-center gap-1 px-3 py-1 rounded text-sm ${
+            currentPage === 1
+              ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+              : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          <ChevronLeft size={16} />
+          Previous
+        </button>
+
+        {/* Page numbers */}
+        <div className="hidden sm:flex items-center gap-1">
+          {getPageNumbers().map((page, index) => (
+            page === '...' ? (
+              <span key={`ellipsis-${index}`} className="px-2 text-gray-500">...</span>
+            ) : (
+              <button
+                key={page}
+                onClick={() => onPageChange(page as number)}
+                className={`px-3 py-1 rounded text-sm min-w-[36px] ${
+                  currentPage === page
+                    ? "bg-indigo-600 text-white"
+                    : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                {page}
+              </button>
+            )
+          ))}
+        </div>
+
+        {/* Current page indicator for mobile */}
+        <span className="sm:hidden text-sm text-gray-600 px-2">
+          Page {currentPage} of {totalPages}
+        </span>
+
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className={`inline-flex items-center gap-1 px-3 py-1 rounded text-sm ${
+            currentPage === totalPages
+              ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+              : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          Next
+          <ChevronRight size={16} />
+        </button>
+
+        <button
+          onClick={() => onPageChange(totalPages)}
+          disabled={currentPage === totalPages}
+          className={`inline-flex items-center px-2 py-1 rounded text-sm ${
+            currentPage === totalPages
+              ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+              : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+          }`}
+          title="Last page"
+        >
+          <ChevronRight size={14} />
+          <ChevronRight size={14} className="-ml-2" />
+        </button>
+      </div>
+    </div>
+  );
+};
 
   // table helper
   const Table = <T extends { id: number; active?: boolean }>({
@@ -664,7 +778,10 @@ const UserManagement = () => {
     toolbar,
     currentPage,
     totalPages,
+    totalItems,
+    itemsPerPage,
     onPageChange,
+    onItemsPerPageChange,
   }: {
     title: string;
     data: T[];
@@ -672,7 +789,10 @@ const UserManagement = () => {
     toolbar?: React.ReactNode;
     currentPage: number;
     totalPages: number;
+    totalItems: number;
+    itemsPerPage: number;
     onPageChange: (page: number) => void;
+    onItemsPerPageChange: (itemsPerPage: number) => void;
   }) => (
     <div className="bg-white shadow-lg rounded-2xl p-4 mb-6">
       <div className="flex items-center justify-between mb-3">
@@ -749,7 +869,10 @@ const UserManagement = () => {
       <Pagination
         currentPage={currentPage}
         totalPages={totalPages}
+        totalItems={totalItems}
+        itemsPerPage={itemsPerPage}
         onPageChange={onPageChange}
+        onItemsPerPageChange={onItemsPerPageChange}
       />
     </div>
   );
@@ -866,69 +989,83 @@ const UserManagement = () => {
   const hqColumns = ["Role", "Username", "Password"];
 
   // toolbar nodes
-  const LocationToolbar = (
-    <div className="flex items-center gap-2">
-      <div className="relative">
-        <SearchIcon
-          className="absolute left-2 top-1/2 -translate-y-1/2"
-          size={16}
-        />
-        <input
-          type="text"
-          placeholder="Search..."
-          value={searchLocation}
-          onChange={(e) => setSearchLocation(e.target.value)}
-          className="pl-7 pr-3 py-1 border rounded text-sm"
-        />
-      </div>
-      <button
-        onClick={() =>
-          downloadCsvFrom(
-            filteredLocationUsers as unknown as Record<string, unknown>[],
-            locationColumns,
-            "location_users.csv"
-          )
-        }
-        className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-sm"
-        title="Download CSV"
-      >
-        <Download size={16} />
-        Download
-      </button>
+  const LocationToolbar = useMemo(() => (
+  <div className="flex items-center gap-2">
+    <div className="relative">
+      <SearchIcon
+        className="absolute left-2 top-1/2 -translate-y-1/2"
+        size={16}
+      />
+      <input
+        type="text"
+        placeholder="Search..."
+        value={searchLocation}
+        onChange={(e) => {
+          setSearchLocation(e.target.value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+          }
+        }}
+        className="pl-7 pr-3 py-1 border rounded text-sm"
+      />
     </div>
-  );
+    <button
+      onClick={() =>
+        downloadCsvFrom(
+          filteredLocationUsers as unknown as Record<string, unknown>[],
+          locationColumns,
+          "location_users.csv"
+        )
+      }
+      className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-sm"
+      title="Download CSV"
+    >
+      <Download size={16} />
+      Download
+    </button>
+  </div>
+), [searchLocation]);
 
-  const HqToolbar = (
-    <div className="flex items-center gap-2">
-      <div className="relative">
-        <SearchIcon
-          className="absolute left-2 top-1/2 -translate-y-1/2"
-          size={16}
-        />
-        <input
-          type="text"
-          placeholder="Search..."
-          value={searchHq}
-          onChange={(e) => setSearchHq(e.target.value)}
-          className="pl-7 pr-3 py-1 border rounded text-sm"
-        />
-      </div>
-      <button
-        onClick={() =>
-          downloadCsvFrom(
-            filteredHqUsers as unknown as Record<string, unknown>[],
-            hqColumns,
-            "hq_users.csv"
-          )
-        }
-        className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-sm"
-        title="Download CSV"
-      >
-        <Download size={16} />
-        Download
-      </button>
+  const HqToolbar = useMemo(() => (
+  <div className="flex items-center gap-2">
+    <div className="relative">
+      <SearchIcon
+        className="absolute left-2 top-1/2 -translate-y-1/2"
+        size={16}
+      />
+      <input
+        type="text"
+        placeholder="Search..."
+        value={searchHq}
+        onChange={(e) => {
+          setSearchHq(e.target.value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+          }
+        }}
+        className="pl-7 pr-3 py-1 border rounded text-sm"
+      />
     </div>
-  );
+    <button
+      onClick={() =>
+        downloadCsvFrom(
+          filteredHqUsers as unknown as Record<string, unknown>[],
+          hqColumns,
+          "hq_users.csv"
+        )
+      }
+      className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-sm"
+      title="Download CSV"
+    >
+      <Download size={16} />
+      Download
+    </button>
+  </div>
+), [searchHq]);
 
   // Get the required fields for the current role to conditionally render dropdowns
   const requiredFields = getRequiredLocationFields(newUser.role);
@@ -957,7 +1094,10 @@ const UserManagement = () => {
         toolbar={LocationToolbar}
         currentPage={locationPage}
         totalPages={locationTotalPages}
+        totalItems={filteredLocationUsers.length}
+        itemsPerPage={locationItemsPerPage}
         onPageChange={setLocationPage}
+        onItemsPerPageChange={setLocationItemsPerPage}
       />
 
       <Table
@@ -967,7 +1107,10 @@ const UserManagement = () => {
         toolbar={HqToolbar}
         currentPage={hqPage}
         totalPages={hqTotalPages}
+        totalItems={filteredHqUsers.length}
+        itemsPerPage={hqItemsPerPage}
         onPageChange={setHqPage}
+        onItemsPerPageChange={setHqItemsPerPage}
       />
 
       {/* Create User Modal */}
