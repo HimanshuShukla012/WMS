@@ -805,6 +805,7 @@ try {
     {downloading ? 'Downloading...' : 'Download Excel'}
   </button>
 
+  {role === "Gram Panchayat" && (
   <button 
     className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors" 
     onClick={() => setShowModal(true)} 
@@ -812,6 +813,7 @@ try {
   >
     Bulk Import
   </button>
+)}
 
   {/* Show initial buttons when not in any mode */}
   {!editMode && !deleteMode && role === "DPRO" && (
