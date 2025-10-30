@@ -76,7 +76,12 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       {waterFeeSummaryData.length > 0 && (
         <WaterFeeDetailCard stats={stats} />
       )}
-      
+      {/* Charts Section */}
+      <ChartsSection 
+        beneficiaryTrend={beneficiaryTrend}
+        feeCollectionTrend={feeCollectionTrend}
+        onExportCSV={onExportCSV}
+      />
       {/* Performance Cards Toggle */}
       <PerformanceToggle
         isEnabled={showPerformanceCards}
@@ -128,12 +133,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         </div>
       )}
       
-      {/* Charts Section */}
-      <ChartsSection 
-        beneficiaryTrend={beneficiaryTrend}
-        feeCollectionTrend={feeCollectionTrend}
-        onExportCSV={onExportCSV}
-      />
+      
     </div>
   );
 };
