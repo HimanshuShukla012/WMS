@@ -106,6 +106,7 @@ interface VillageApi {
 const ManageComplaint = () => {
   // Use the same user info hook as AddBeneficiary
   const { userId, role } = useUserInfo();
+  const isCallCenter = role?.toLowerCase() === "call center";
   
   const toast = useToast();
   const modalRef = useRef<HTMLDivElement>(null);
@@ -434,9 +435,13 @@ useEffect(() => {
 // 5. Check if API returns 200 status and data
 
   const handleEditComplaint = (complaint: Complaint) => {
-    setSelectedComplaint({ ...complaint });
-    setShowEditModal(true);
-  };
+  if (complaint.complaintStatus === "Closed") {
+    toast.error("Closed complaints cannot be modified");
+    return;
+  }
+  setSelectedComplaint({ ...complaint });
+  setShowEditModal(true);
+};
 
   const handleSaveComplaintChanges = async () => {
     if (!selectedComplaint || !userId) return;
@@ -451,15 +456,16 @@ useEffect(() => {
     try {
       // Updated payload structure for the correct API
       const payload = {
-        ComplaintId: selectedComplaint.id,
-        VillageId: selectedComplaint.villageId,
-        BeneficiaryName: selectedComplaint.beneficiaryName,
-        Contact: selectedComplaint.beneficiaryContact,
-        Landmark: selectedComplaint.landmark,
-        CategoryId: selectedComplaint.categoryId,
-        Status: selectedComplaint.complaintStatus === "Resolved", // Convert status to boolean
-        OtherCategory: selectedComplaint.otherCategory
-      };
+  ComplaintId: selectedComplaint.id,
+  VillageId: selectedComplaint.villageId,
+  BeneficiaryName: selectedComplaint.beneficiaryName,
+  Contact: selectedComplaint.beneficiaryContact,
+  Landmark: selectedComplaint.landmark,
+  CategoryId: selectedComplaint.categoryId,
+  Status: selectedComplaint.complaintStatus === "Pending" ? 0 : 
+          selectedComplaint.complaintStatus === "Resolved" ? 1 : 2,
+  OtherCategory: selectedComplaint.otherCategory
+};
 
       const response = await fetch(
         "https://wmsapi.kdsgroup.co.in/api/User/UpdateComplaintDetailsByComplaintId",
@@ -885,12 +891,17 @@ useEffect(() => {
                   </td>
                   <td className="border border-gray-300 p-3">
                     <button
-                      onClick={() => handleEditComplaint(c)}
-                      className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors text-xs"
-                      disabled={loading}
-                    >
-                      Edit Status
-                    </button>
+  onClick={() => handleEditComplaint(c)}
+  className={`px-3 py-1 rounded-md transition-colors text-xs ${
+    c.complaintStatus === "Closed"
+      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+      : "bg-blue-500 text-white hover:bg-blue-600"
+  }`}
+  disabled={loading || c.complaintStatus === "Closed"}
+  title={c.complaintStatus === "Closed" ? "Closed complaints cannot be modified" : "Edit complaint status"}
+>
+  {c.complaintStatus === "Closed" ? "Closed" : "Edit Status"}
+</button>
                   </td>
                 </tr>
               ))}
@@ -951,18 +962,20 @@ useEffect(() => {
                   Complaint Status <span className="text-red-500">*</span>
                 </label>
                 <select
-                  className="w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  value={selectedComplaint.complaintStatus}
-                  onChange={(e) => setSelectedComplaint(prev => prev ? {...prev, complaintStatus: e.target.value} : null)}
-                  disabled={saving}
-                >
-                  <option value="Pending">Pending</option>
-                  <option value="Resolved">Resolved</option>
-                  <option value="Closed">Closed</option>
-                </select>
+  className="w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+  value={selectedComplaint.complaintStatus}
+  onChange={(e) => setSelectedComplaint(prev => prev ? {...prev, complaintStatus: e.target.value} : null)}
+  disabled={saving}
+>
+  <option value="Pending">Pending</option>
+  <option value="Resolved">Resolved</option>
+  {isCallCenter && <option value="Closed">Closed</option>}
+</select>
                 <p className="text-xs text-gray-500 mt-1">
-                  Note: Only complaint status can be updated through this interface
-                </p>
+  {isCallCenter 
+    ? "Note: Only Call Center can close complaints. Closed complaints cannot be modified."
+    : "Note: Only 'Pending' and 'Resolved' statuses are available. Call Center can close complaints."}
+</p>
               </div>
 
               {/* Current Status Display */}
@@ -977,6 +990,15 @@ useEffect(() => {
                   </span>
                 </div>
               </div>
+              {selectedComplaint.complaintStatus === "Closed" && isCallCenter && (
+  <div className="bg-red-50 border border-red-200 p-4 rounded-md">
+    <h4 className="font-medium text-red-800 mb-2">⚠️ Warning</h4>
+    <p className="text-sm text-red-700">
+      Once a complaint is marked as "Closed", it cannot be modified by anyone, including Call Center.
+      Please ensure all necessary actions are completed before closing.
+    </p>
+  </div>
+)}
             </div>
 
             <div className="flex justify-end gap-3 mt-6">
