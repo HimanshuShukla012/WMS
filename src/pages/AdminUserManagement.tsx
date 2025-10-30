@@ -6,7 +6,6 @@ import {
   Download,
   PlusCircle,
   X,
-  CheckCircle2,
   Search as SearchIcon,
   ChevronLeft,
   ChevronRight,
@@ -93,8 +92,8 @@ const [locationItemsPerPage, setLocationItemsPerPage] = useState(10);
 const [hqItemsPerPage, setHqItemsPerPage] = useState(10);
 
   // search
-  const [searchLocation, setSearchLocation] = useState("");
-  const [searchHq, setSearchHq] = useState("");
+  const [globalSearch, setGlobalSearch] = useState("");
+
 
   // -------------------- State for dropdowns --------------------
   const [divisions, setDivisions] = useState<Division[]>([]);
@@ -491,24 +490,25 @@ const [hqItemsPerPage, setHqItemsPerPage] = useState(10);
   }, []);
 
   // filtering
-  const filteredLocationUsers = useMemo(() => {
-    const q = searchLocation.trim().toLowerCase();
-    if (!q) return locationUsers;
-    return locationUsers.filter((u) =>
-      [u.district, u.block, u.grampanchayat, u.username, u.password, u.divisionname]
-        .join(" ")
-        .toLowerCase()
-        .includes(q)
-    );
-  }, [locationUsers, searchLocation]);
+  // filtering
+const filteredLocationUsers = useMemo(() => {
+  const q = globalSearch.trim().toLowerCase();
+  if (!q) return locationUsers;
+  return locationUsers.filter((u) =>
+    [u.district, u.block, u.grampanchayat, u.username, u.password, u.divisionname]
+      .join(" ")
+      .toLowerCase()
+      .includes(q)
+  );
+}, [locationUsers, globalSearch]);
 
-  const filteredHqUsers = useMemo(() => {
-    const q = searchHq.trim().toLowerCase();
-    if (!q) return hqUsers;
-    return hqUsers.filter((u) =>
-      [u.role, u.username, u.password].join(" ").toLowerCase().includes(q)
-    );
-  }, [hqUsers, searchHq]);
+const filteredHqUsers = useMemo(() => {
+  const q = globalSearch.trim().toLowerCase();
+  if (!q) return hqUsers;
+  return hqUsers.filter((u) =>
+    [u.role, u.username, u.password].join(" ").toLowerCase().includes(q)
+  );
+}, [hqUsers, globalSearch]);
 
   const filteredDivisions = useMemo(() => {
     if (!divisionSearch.trim()) return divisions;
@@ -559,13 +559,10 @@ const locationTotalPages = Math.ceil(filteredLocationUsers.length / locationItem
 const hqTotalPages = Math.ceil(filteredHqUsers.length / hqItemsPerPage);
 
   // Reset to page 1 when search changes
-  useEffect(() => {
-    setLocationPage(1);
-  }, [searchLocation]);
-
-  useEffect(() => {
-    setHqPage(1);
-  }, [searchHq]);
+useEffect(() => {
+  setLocationPage(1);
+  setHqPage(1);
+}, [globalSearch]);
 
   // actions
   const toggleUserStatus = (userId: number, currentStatus: boolean) => {
@@ -988,84 +985,8 @@ const Pagination = ({
   const locationColumns = ["District", "Block", "Grampanchayat", "Username", "Password"];
   const hqColumns = ["Role", "Username", "Password"];
 
-  // toolbar nodes
-  const LocationToolbar = useMemo(() => (
-  <div className="flex items-center gap-2">
-    <div className="relative">
-      <SearchIcon
-        className="absolute left-2 top-1/2 -translate-y-1/2"
-        size={16}
-      />
-      <input
-        type="text"
-        placeholder="Search..."
-        value={searchLocation}
-        onChange={(e) => {
-          setSearchLocation(e.target.value);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-          }
-        }}
-        className="pl-7 pr-3 py-1 border rounded text-sm"
-      />
-    </div>
-    <button
-      onClick={() =>
-        downloadCsvFrom(
-          filteredLocationUsers as unknown as Record<string, unknown>[],
-          locationColumns,
-          "location_users.csv"
-        )
-      }
-      className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-sm"
-      title="Download CSV"
-    >
-      <Download size={16} />
-      Download
-    </button>
-  </div>
-), [searchLocation]);
+  
 
-  const HqToolbar = useMemo(() => (
-  <div className="flex items-center gap-2">
-    <div className="relative">
-      <SearchIcon
-        className="absolute left-2 top-1/2 -translate-y-1/2"
-        size={16}
-      />
-      <input
-        type="text"
-        placeholder="Search..."
-        value={searchHq}
-        onChange={(e) => {
-          setSearchHq(e.target.value);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-          }
-        }}
-        className="pl-7 pr-3 py-1 border rounded text-sm"
-      />
-    </div>
-    <button
-      onClick={() =>
-        downloadCsvFrom(
-          filteredHqUsers as unknown as Record<string, unknown>[],
-          hqColumns,
-          "hq_users.csv"
-        )
-      }
-      className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-sm"
-      title="Download CSV"
-    >
-      <Download size={16} />
-      Download
-    </button>
-  </div>
-), [searchHq]);
 
   // Get the required fields for the current role to conditionally render dropdowns
   const requiredFields = getRequiredLocationFields(newUser.role);
@@ -1073,45 +994,57 @@ const Pagination = ({
   return (
     <div className="p-6 relative z-10">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">User Management</h1>
-        <button
-          onClick={() => {
-            setShowModal(true);
-          }}
-          className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded"
-        >
-          <PlusCircle size={18} />
-          Create New User
-        </button>
-      </div>
+<div className="mb-6">
+  <div className="flex justify-between items-center mb-4">
+    <h1 className="text-2xl font-bold">User Management</h1>
+    <button
+      onClick={() => {
+        setShowModal(true);
+      }}
+      className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded"
+    >
+      <PlusCircle size={18} />
+      Create New User
+    </button>
+  </div>
+  
+  {/* Global Search Bar */}
+  <div className="relative max-w-md">
+    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+    <input
+      type="text"
+      placeholder="Search users..."
+      value={globalSearch}
+      onChange={(e) => setGlobalSearch(e.target.value)}
+      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+    />
+  </div>
+</div>
 
       {/* Tables */}
       <Table
-        title="Gram Panchayat Users"
-        data={paginatedLocationUsers}
-        columns={locationColumns}
-        toolbar={LocationToolbar}
-        currentPage={locationPage}
-        totalPages={locationTotalPages}
-        totalItems={filteredLocationUsers.length}
-        itemsPerPage={locationItemsPerPage}
-        onPageChange={setLocationPage}
-        onItemsPerPageChange={setLocationItemsPerPage}
-      />
+  title="Gram Panchayat Users"
+  data={paginatedLocationUsers}
+  columns={locationColumns}
+  currentPage={locationPage}
+  totalPages={locationTotalPages}
+  totalItems={filteredLocationUsers.length}
+  itemsPerPage={locationItemsPerPage}
+  onPageChange={setLocationPage}
+  onItemsPerPageChange={setLocationItemsPerPage}
+/>
 
-      <Table
-        title="Administrative Users"
-        data={paginatedHqUsers}
-        columns={hqColumns}
-        toolbar={HqToolbar}
-        currentPage={hqPage}
-        totalPages={hqTotalPages}
-        totalItems={filteredHqUsers.length}
-        itemsPerPage={hqItemsPerPage}
-        onPageChange={setHqPage}
-        onItemsPerPageChange={setHqItemsPerPage}
-      />
+<Table
+  title="Administrative Users"
+  data={paginatedHqUsers}
+  columns={hqColumns}
+  currentPage={hqPage}
+  totalPages={hqTotalPages}
+  totalItems={filteredHqUsers.length}
+  itemsPerPage={hqItemsPerPage}
+  onPageChange={setHqPage}
+  onItemsPerPageChange={setHqItemsPerPage}
+/>
 
       {/* Create User Modal */}
       {showModal && (
