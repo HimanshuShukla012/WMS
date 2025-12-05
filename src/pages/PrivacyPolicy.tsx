@@ -503,7 +503,7 @@ const PrivacyPolicy = () => {
             Understanding how we collect, use, and protect your personal information
           </p>
           <div className="mt-8 text-sm text-blue-200">
-            Last Updated: December 2024
+            Last Updated: December 2025
           </div>
         </div>
       </div>
