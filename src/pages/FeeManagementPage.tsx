@@ -260,86 +260,76 @@ const FeeManagementPage: React.FC = () => {
     }
   };
 
-  const fetchFeeCollectionData = async (villageId: number, month: number, year: number) => {
-    setLoading(true);
-    setError("");
+  const fetchFeeCollectionData = async (month: number, year: number) => {
+  setLoading(true);
+  setError("");
 
-    try {
-      const response = await fetch(
-        'https://wmsapi.kdsgroup.co.in/api/Master/GetFeeCollectionDetails',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'accept': '*/*'
-          },
-          body: JSON.stringify({
-            VillageId: villageId,
-            Month: month,
-            Year: year,
-            p_user_id: userId
-          })
+  try {
+    const response = await fetch(
+      `https://wmsapi.kdsgroup.co.in/api/Master/GetBeneficiaryDetailListByUser?UserId=${userId}&Month=${month}&Year=${year}`,
+      {
+        method: 'GET',
+        headers: {
+          'accept': '*/*'
         }
-      );
-
-      const result = await response.json();
-      
-      if (result.Status && result.Data) {
-        return result.Data;
-      } else {
-        console.warn(`No data found for Village: ${villageId}, Month: ${month}, Year: ${year}`);
-        return [];
       }
-    } catch (error) {
-      console.error('Error fetching fee collection data:', error);
-      throw error;
+    );
+
+    const result = await response.json();
+    
+    if (result.Status && result.Data) {
+      return result.Data;
+    } else {
+      console.warn(`No data found for Month: ${month}, Year: ${year}`);
+      return [];
     }
-  };
+  } catch (error) {
+    console.error('Error fetching fee collection data:', error);
+    throw error;
+  }
+};
 
   const fetchAllFeeData = async () => {
-    if (!selectedYear) return;
+  if (!selectedYear || !selectedMonth) {
+    setError("Please select both financial year and month to view fee collection data.");
+    return;
+  }
 
-    // For non-GP users, ensure proper hierarchy is selected
-    if (isNotGPUser() && (!selectedVillage || !selectedMonth)) {
-      setError("Please select a village and month to view fee collection data.");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
+  setLoading(true);
+  setError("");
+  
+  try {
+    const month = parseInt(selectedMonth);
+    const year = parseInt(selectedYear);
     
-    try {
-      let allData: FeeCollectionData[] = [];
-      
-      // If specific village and month selected
-      if (selectedVillage && selectedMonth) {
-        const villageId = parseInt(selectedVillage);
-        const month = parseInt(selectedMonth);
-        const year = parseInt(selectedYear);
-        
-        const data = await fetchFeeCollectionData(villageId, month, year);
-        allData = data;
-      }
+    // Fetch all data for the user for the selected month and year
+    let allData = await fetchFeeCollectionData(month, year);
 
-      // Remove duplicates based on FeeCollectionId
-      const uniqueData = allData.filter((item, index, self) => 
-        index === self.findIndex(t => t.FeeCollectionId === item.FeeCollectionId)
-      );
-
-      // Process data with calculated balance amounts
-      const processedData = processDataWithCalculatedBalance(uniqueData);
-
-      setFeeData(processedData);
-      setFilteredData(processedData);
-      calculateAnalytics(processedData);
-
-    } catch (error) {
-      setError("Error loading fee collection data");
-      console.error(error);
-    } finally {
-      setLoading(false);
+    // If a specific village is selected, filter the data
+    if (selectedVillage) {
+      const villageId = parseInt(selectedVillage);
+      allData = allData.filter((item: FeeCollectionData) => item.VillageId === villageId);
     }
-  };
+
+    // Remove duplicates based on FeeCollectionId
+    const uniqueData = allData.filter((item, index, self) => 
+      index === self.findIndex(t => t.FeeCollectionId === item.FeeCollectionId)
+    );
+
+    // Process data with calculated balance amounts
+    const processedData = processDataWithCalculatedBalance(uniqueData);
+
+    setFeeData(processedData);
+    setFilteredData(processedData);
+    calculateAnalytics(processedData);
+
+  } catch (error) {
+    setError("Error loading fee collection data");
+    console.error(error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const calculateAnalytics = (data: FeeCollectionData[]) => {
     const totalCollected = data.reduce((sum, item) => sum + item.PaidAmount, 0);
@@ -438,12 +428,12 @@ const FeeManagementPage: React.FC = () => {
     }
   }, [selectedGramPanchayat, selectedBlock]);
 
-  // Fetch fee data when all required selections are made
-  useEffect(() => {
-    if (selectedYear && selectedVillage && selectedMonth) {
-      fetchAllFeeData();
-    }
-  }, [selectedYear, selectedVillage, selectedMonth]);
+  // Fetch fee data when year and month are selected
+useEffect(() => {
+  if (selectedYear && selectedMonth) {
+    fetchAllFeeData();
+  }
+}, [selectedYear, selectedMonth, selectedVillage]);
 
   // Search functionality
   useEffect(() => {
@@ -463,36 +453,18 @@ const FeeManagementPage: React.FC = () => {
 
   // ---------- Handlers ----------
   const handleApplyFilters = () => {
-    if (!selectedYear) {
-      setError("Please select a financial year");
-      return;
-    }
-    
-    if (isNotGPUser()) {
-      if (!selectedDistrict) {
-        setError("Please select a district");
-        return;
-      }
-      if (!selectedBlock) {
-        setError("Please select a block");
-        return;
-      }
-      if (!selectedGramPanchayat) {
-        setError("Please select a gram panchayat");
-        return;
-      }
-      if (!selectedVillage) {
-        setError("Please select a village");
-        return;
-      }
-      if (!selectedMonth) {
-        setError("Please select a month");
-        return;
-      }
-    }
-    
-    fetchAllFeeData();
-  };
+  if (!selectedYear) {
+    setError("Please select a financial year");
+    return;
+  }
+  
+  if (!selectedMonth) {
+    setError("Please select a month");
+    return;
+  }
+  
+  fetchAllFeeData();
+};
 
   const handleExportCSV = () => {
     if (filteredData.length === 0) {
@@ -720,12 +692,12 @@ const FeeManagementPage: React.FC = () => {
           </div>
 
           <button 
-            className="bg-blue-600 text-white px-4 py-2 rounded font-medium hover:bg-blue-700 disabled:bg-gray-400"
-            onClick={handleApplyFilters}
-            disabled={loading || !selectedYear || (isNotGPUser() && (!selectedDistrict || !selectedBlock || !selectedGramPanchayat || !selectedVillage || !selectedMonth))}
-          >
-            Apply Filters
-          </button>
+  className="bg-blue-600 text-white px-4 py-2 rounded font-medium hover:bg-blue-700 disabled:bg-gray-400"
+  onClick={handleApplyFilters}
+  disabled={loading || !selectedYear || !selectedMonth}
+>
+  Apply Filters
+</button>
 
           <button 
             className="bg-gray-500 text-white px-4 py-2 rounded font-medium hover:bg-gray-600"
@@ -837,12 +809,11 @@ const FeeManagementPage: React.FC = () => {
               ) : (
                 <tr>
                   <td colSpan={10} className="text-center py-8 text-gray-500">
-                    {loading ? "Loading..." : 
-                     !selectedYear ? "Please select a financial year to view fee collection data." :
-                     isNotGPUser() && (!selectedDistrict || !selectedBlock || !selectedGramPanchayat || !selectedVillage || !selectedMonth) 
-                       ? "Please complete the hierarchy selection (District → Block → Gram Panchayat → Village) and select a month to view data." :
-                     "No fee collection records found for the selected criteria."}
-                  </td>
+  {loading ? "Loading..." : 
+   !selectedYear ? "Please select a financial year to view fee collection data." :
+   !selectedMonth ? "Please select a month to view fee collection data." :
+   "No fee collection records found for the selected criteria."}
+</td>
                 </tr>
               )}
             </tbody>

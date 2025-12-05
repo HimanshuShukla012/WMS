@@ -31,6 +31,7 @@ const AddBeneficiary = () => {
   const [contact, setContact] = useState("");
   const [familyCount, setFamilyCount] = useState("");
   const [waterSupplyStatus, setWaterSupplyStatus] = useState("");
+  const [waterSupplyStartDate, setWaterSupplyStartDate] = useState("");
 
   // Validation error states
   const [errors, setErrors] = useState({
@@ -43,7 +44,8 @@ const AddBeneficiary = () => {
     block: "",
     gramPanchayat: "",
     village: "",
-    waterSupplyStatus: ""
+    waterSupplyStatus: "",
+    waterSupplyStartDate: ""
   });
 
   // Check if all mandatory fields are filled
@@ -56,7 +58,8 @@ const AddBeneficiary = () => {
       beneficiaryName.trim() !== "" &&
       fatherHusbandName.trim() !== "" &&
       familyCount.trim() !== "" &&
-      waterSupplyStatus !== ""
+      waterSupplyStatus !== "" &&
+      waterSupplyStartDate !== ""
     );
   };
 
@@ -271,6 +274,7 @@ const AddBeneficiary = () => {
       fatherHusbandName: !fatherHusbandName.trim() ? "Father/Husband name is required" : "",
       familyCount: !familyCount.trim() ? "Family count is required" : "",
       waterSupplyStatus: !waterSupplyStatus ? "Water supply status is required" : "",
+      waterSupplyStartDate: !waterSupplyStartDate ? "Water supply start date is required" : "",
       aadhaar: "",
       contact: ""
     };
@@ -299,19 +303,47 @@ const AddBeneficiary = () => {
 
     // Prepare payload according to API
     const payload = {
-      BeneficiaryId: 0, // new beneficiary
+      BeneficiaryId: 0,
       VillId: selectedVillage?.Id || 0,
-      BeneficiaryName: beneficiaryName,
-      FatherHusbandName: fatherHusbandName,
-      Contact: contact,
+      BeneficiaryName: beneficiaryName.trim(),
+      FatherHusbandName: fatherHusbandName.trim(),
+      Contact: contact || "",
       FamilyMemberCount: Number(familyCount),
+      WaterSupplyStartDate: new Date(waterSupplyStartDate).toISOString(),
       WaterSupplyStatus: waterSupplyStatus === "Active",
-      CreatedBy: userId, // set if available
-      DeviceToken: "",
-      IPAddress: "",
-      AadharNo: aadhaar,
+      CreatedBy: userId || 0,
+      CreatedDate: new Date().toISOString(), // Try adding this
+      DeviceToken: "web_app",
+      IPAddress: "192.168.1.1",
+      AadharNo: aadhaar || ""
     };
 
+    console.log('Beneficiary Insert Request:', JSON.stringify(payload, null, 2));
+
+    fetch("https://wmsapi.kdsgroup.co.in/api/User/InsertBeneficiaryDetails", {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "accept": "*/*"
+      },
+      body: JSON.stringify(payload),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        console.log('API Response:', data);
+        if (data.Status) {
+          toast.success(data.Message || "Beneficiary saved successfully");
+          resetForm();
+        } else {
+          toast.error(data.Message || data.Error || "Failed to save beneficiary");
+        }
+      })
+      .catch((error) => {
+        console.error('API Error:', error);
+        toast.error("Failed to save beneficiary: " + error.message);
+      });
+
+      
     fetch("https://wmsapi.kdsgroup.co.in/api/User/InsertBeneficiaryDetails", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -335,6 +367,7 @@ const AddBeneficiary = () => {
     setContact("");
     setFamilyCount("");
     setWaterSupplyStatus("");
+    setWaterSupplyStartDate("");
     setSelectedVillage(null);
     setSelectedGramPanchayatId(null);
     setSelectedBlockId(null);
@@ -349,7 +382,8 @@ const AddBeneficiary = () => {
       block: "",
       gramPanchayat: "",
       village: "",
-      waterSupplyStatus: ""
+      waterSupplyStatus: "",
+      waterSupplyStartDate: ""
     });
   };
 
@@ -569,6 +603,25 @@ const AddBeneficiary = () => {
           </select>
           {errors.waterSupplyStatus && (
             <p className="text-red-500 text-sm mt-1">{errors.waterSupplyStatus}</p>
+          )}
+        </div>
+
+        {/* Water Supply Start Date */}
+        <div>
+          <label className="block font-medium mb-1">
+            Water Supply Start Date <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="date"
+            className={`w-full border rounded-md px-3 py-2 ${errors.waterSupplyStartDate ? 'border-red-500' : 'border-gray-300'}`}
+            value={waterSupplyStartDate}
+            onChange={(e) => {
+              setWaterSupplyStartDate(e.target.value);
+              setErrors(prev => ({ ...prev, waterSupplyStartDate: "" }));
+            }}
+          />
+          {errors.waterSupplyStartDate && (
+            <p className="text-red-500 text-sm mt-1">{errors.waterSupplyStartDate}</p>
           )}
         </div>
 

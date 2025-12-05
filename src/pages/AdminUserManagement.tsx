@@ -684,8 +684,12 @@ const Pagination = ({
       {/* Page navigation */}
       <div className="flex items-center gap-2">
         <button
-          onClick={() => onPageChange(1)}
+          onClick={(e) => {
+            e.preventDefault();
+            onPageChange(1);
+          }}
           disabled={currentPage === 1}
+          type="button"
           className={`inline-flex items-center px-2 py-1 rounded text-sm ${
             currentPage === 1
               ? "bg-gray-200 text-gray-400 cursor-not-allowed"
@@ -698,8 +702,12 @@ const Pagination = ({
         </button>
         
         <button
-          onClick={() => onPageChange(currentPage - 1)}
+          onClick={(e) => {
+            e.preventDefault();
+            onPageChange(currentPage - 1);
+          }}
           disabled={currentPage === 1}
+          type="button"
           className={`inline-flex items-center gap-1 px-3 py-1 rounded text-sm ${
             currentPage === 1
               ? "bg-gray-200 text-gray-400 cursor-not-allowed"
@@ -718,7 +726,11 @@ const Pagination = ({
             ) : (
               <button
                 key={page}
-                onClick={() => onPageChange(page as number)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onPageChange(page as number);
+                }}
+                type="button"
                 className={`px-3 py-1 rounded text-sm min-w-[36px] ${
                   currentPage === page
                     ? "bg-indigo-600 text-white"
@@ -737,8 +749,12 @@ const Pagination = ({
         </span>
 
         <button
-          onClick={() => onPageChange(currentPage + 1)}
+          onClick={(e) => {
+            e.preventDefault();
+            onPageChange(currentPage + 1);
+          }}
           disabled={currentPage === totalPages}
+          type="button"
           className={`inline-flex items-center gap-1 px-3 py-1 rounded text-sm ${
             currentPage === totalPages
               ? "bg-gray-200 text-gray-400 cursor-not-allowed"
@@ -750,8 +766,12 @@ const Pagination = ({
         </button>
 
         <button
-          onClick={() => onPageChange(totalPages)}
+          onClick={(e) => {
+            e.preventDefault();
+            onPageChange(totalPages);
+          }}
           disabled={currentPage === totalPages}
+          type="button"
           className={`inline-flex items-center px-2 py-1 rounded text-sm ${
             currentPage === totalPages
               ? "bg-gray-200 text-gray-400 cursor-not-allowed"

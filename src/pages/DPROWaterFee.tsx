@@ -12,26 +12,19 @@ import {
   Building2,
 } from "lucide-react";
 
-// Mock useUserInfo hook for demo purposes
-const useUserInfo = () => {
-  return {
-    userId: 51, // Mock user ID from your API example
-    role: 'admin',
-    isLoading: false
-  };
-};
+import { useUserInfo } from "../utils/userInfo";
 
 const DPROWaterFee = () => {
   type GPFeeApiResponse = {
-    FeeId: number;
-    GPId: number;
-    BlockName: string;
-    GPName: string;
-    DistrictName: string;
-    BaseFee: number;
-    ApplyFrom: string;
-    TotalAmountCollected: number;
-  };
+  FeeId: number | null;
+  DistrictName: string;
+  GPName: string;
+  BaseFee: number;
+  ApplyFrom: string;
+  MonthNumber: number;
+  Declared_By: number | null;
+  FinancialYear: string;
+};
 
   type GPFee = {
     feeId: number;
@@ -49,6 +42,7 @@ const DPROWaterFee = () => {
   const [gpFees, setGPFees] = useState<GPFee[]>([]);
   const [originalGPFees, setOriginalGPFees] = useState<GPFee[]>([]);
   const [financialYear, setFinancialYear] = useState("2025-2026");
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [districts, setDistricts] = useState([]);
@@ -65,6 +59,11 @@ const DPROWaterFee = () => {
     console.log('Using financial year for API:', fullFinancialYear);
     return fullFinancialYear;
   };
+const getMonthName = (monthNumber: number): string => {
+  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  return months[monthNumber - 1] || "Unknown";
+};
+
 
   // Validation functions
   const validateFeeAmount = (value) => {
@@ -129,7 +128,14 @@ const DPROWaterFee = () => {
         SelectedFinancialYear: financialYear
       });
 
-      const apiUrl = `${API_BASE1}/GetWaterFeeDeclarationByGP?FinancialYear=${encodeURIComponent(financialYearParam)}&UserId=${userId}`;
+      // Extract year from financial year (e.g., "2025-2026" -> "2025")
+const yearOnly = financialYearParam.split('-')[0];
+// Use current month or a default month (e.g., 10 for October)
+const monthParam = selectedMonth;
+
+
+const apiUrl = `${API_BASE1}/GetWaterFeeDeclaration?FinancialYear=${yearOnly}&Month=${monthParam}&UserId=${userId}`;
+
       console.log('API URL:', apiUrl);
 
       const response = await fetch(apiUrl, {
@@ -146,25 +152,30 @@ const DPROWaterFee = () => {
       const result = await response.json();
       console.log('GP data response:', result);
       
-      if (result.Status && result.Data) {
-        const gpData: GPFee[] = result.Data.map((item: GPFeeApiResponse) => ({
-          feeId: item.FeeId,
-          gpId: item.GPId,
-          name: item.GPName,
-          blockName: item.BlockName,
-          districtName: item.DistrictName,
-          fee: item.BaseFee.toString(),
-          totalCollected: item.TotalAmountCollected,
-          applyFrom: item.ApplyFrom
-        }));
+      if (result.Status && result.Data && result.Data.length > 0) {
+  const gpData: GPFee[] = result.Data.map((item: GPFeeApiResponse, index: number) => ({
+  feeId: item.FeeId || 0,
+  gpId: index + 1, // Since GPId is not in response, use index as temporary ID
+  name: item.GPName,
+  blockName: "", // BlockName not in response
+  districtName: item.DistrictName,
+  fee: item.BaseFee.toString(),
+  totalCollected: 0, // TotalAmountCollected not in response
+  applyFrom: item.ApplyFrom
+}));
 
         setGPFees(gpData);
         setOriginalGPFees(JSON.parse(JSON.stringify(gpData)));
         setMessage({ type: "success", text: `Loaded ${gpData.length} Gram Panchayats successfully for FY ${financialYear}` });
         setValidationErrors({});
-      } else {
-        throw new Error(result.Message || result.Error || "Failed to load GP data");
-      }
+      } else if (result.Status && result.Data && result.Data.length === 0) {
+  // No data found for this month/year combination
+  setGPFees([]);
+  setOriginalGPFees([]);
+  setMessage({ type: "error", text: `No GP data found for ${getMonthName(selectedMonth)} ${financialYear}. Try a different month or financial year.` });
+} else {
+  throw new Error(result.Message || result.Error || "Failed to load GP data");
+}
     } catch (error) {
       console.error("Error loading GP data:", error);
       setMessage({ type: "error", text: `Error loading data: ${error.message}` });
@@ -177,11 +188,11 @@ const DPROWaterFee = () => {
   };
 
   useEffect(() => {
-    if (userId) {
-      fetchAllDistricts();
-      loadGPData();
-    }
-  }, [financialYear, userId]);
+  if (userId) {
+    fetchAllDistricts();
+    loadGPData();
+  }
+}, [financialYear, selectedMonth, userId]);
 
   const handleGPFeeChange = (gpId, value) => {
     setGPFees((prev) =>
@@ -219,23 +230,20 @@ const DPROWaterFee = () => {
 
     try {
       const requestBody = {
-        WaterFeeListMew: [
-          {
-            GP_Id: gp.gpId,
-            WaterFeeAmount: parseFloat(gp.fee),
-            ApplyFrom: new Date().toISOString(),
-            UserId: userId,
-            DistrictId: districtId,
-            DeviceToken: "web_app",
-            IPAddress: "192.168.1.1"
-          }
-        ]
+        DeclarationType: "GP",
+        DistrictId: districtId,
+        BlockId: 0,
+        GpId: gp.gpId,
+        BaseFee: parseFloat(gp.fee),
+        ApplyFromDate: new Date().toISOString(),
+        ApplyToDate: null,
+        CreatedBy: userId
       };
 
       console.log('GP Fee Update Request:', JSON.stringify(requestBody, null, 2));
 
       const response = await fetch(
-        `${API_BASE}/UpdateGPWideWaterFee`,
+        `${API_BASE}/InsertWaterBaseFeeMaster`,
         {
           method: "POST",
           headers: {
@@ -300,58 +308,70 @@ const DPROWaterFee = () => {
     setSaving(true);
     setMessage({ type: "", text: "" });
 
+    let successCount = 0;
+    let errorCount = 0;
+
     try {
-      const waterFeeList = changedGPs.map(gp => {
-        const district = districts.find(d => d.DistrictName === gp.districtName);
-        const districtId = district ? district.DistrictId : 0;
+      for (const gp of changedGPs) {
+        try {
+          const district = districts.find(d => d.DistrictName === gp.districtName);
+          const districtId = district ? district.DistrictId : 0;
 
-        return {
-          GP_Id: gp.gpId,
-          DistrictId: districtId,
-          WaterFeeAmount: parseFloat(gp.fee),
-          ApplyFrom: new Date().toISOString(),
-          UserId: userId,
-          DeviceToken: "web_app",
-          IPAddress: "192.168.1.1"
-        };
-      });
+          const requestBody = {
+            DeclarationType: "GP",
+            DistrictId: districtId,
+            BlockId: 0,
+            GpId: gp.gpId,
+            BaseFee: parseFloat(gp.fee),
+            ApplyFromDate: new Date().toISOString(),
+            ApplyToDate: null,
+            CreatedBy: userId
+          };
 
-      const requestBody = {
-        WaterFeeListMew: waterFeeList
-      };
+          const response = await fetch(
+            `${API_BASE}/InsertWaterBaseFeeMaster`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "accept": "*/*"
+              },
+              body: JSON.stringify(requestBody)
+            }
+          );
 
-      console.log('Save all GPs request:', JSON.stringify(requestBody, null, 2));
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
 
-      const response = await fetch(
-        `${API_BASE}/UpdateGPWideWaterFee`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "accept": "*/*"
-          },
-          body: JSON.stringify(requestBody)
+          const data = await response.json();
+          
+          if (data.Status) {
+            successCount++;
+          } else {
+            errorCount++;
+            console.error(`Failed to save ${gp.name}:`, data.Message);
+          }
+        } catch (error) {
+          errorCount++;
+          console.error(`Error saving ${gp.name}:`, error);
         }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
-      console.log('Save all GPs response:', data);
-      
-      if (data.Status) {
+      if (successCount > 0) {
         setMessage({ 
           type: "success", 
-          text: `Bulk update completed for ${changedGPs.length} GPs: ${data.Message}` 
+          text: `Successfully saved ${successCount} GP(s)${errorCount > 0 ? `, ${errorCount} failed` : ''}` 
         });
         
         setTimeout(() => {
           loadGPData();
         }, 1000);
       } else {
-        throw new Error(data.Message || data.Error || 'Bulk update failed');
+        setMessage({ 
+          type: "error", 
+          text: `Failed to save all ${errorCount} GP(s)` 
+        });
       }
       
     } catch (error) {
@@ -422,32 +442,49 @@ const DPROWaterFee = () => {
       )}
 
       {/* Filter & Download */}
-      <div className="bg-white rounded-xl shadow-lg p-6 flex flex-wrap justify-between items-center gap-4">
-        <div className="flex items-center gap-3">
-          <CalendarDays className="w-5 h-5 text-purple-600" />
-          <label className="font-medium">Financial Year</label>
-          <select
-            value={financialYear}
-            onChange={(e) => setFinancialYear(e.target.value)}
-            disabled={loading}
-            className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
-          >
-            <option value="2025-2026">2025-2026</option>
-            <option value="2024-2025">2024-2025</option>
-            <option value="2023-2024">2023-2024</option>
-            <option value="2022-2023">2022-2023</option>
-            <option value="2021-2022">2021-2022</option>
-          </select>
-        </div>
-        <button
-          onClick={handleDownload}
-          disabled={gpFees.length === 0}
-          className="flex items-center gap-2 bg-green-600 text-white px-5 py-2 rounded-lg shadow hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Download size={18} />
-          Download CSV
-        </button>
-      </div>
+<div className="flex items-center gap-6 justify-between">
+  <div className="flex items-center gap-6">
+    <div className="flex items-center gap-3">
+      <CalendarDays className="w-5 h-5 text-purple-600" />
+      <label className="font-medium">Financial Year</label>
+      <select
+        value={financialYear}
+        onChange={(e) => setFinancialYear(e.target.value)}
+        disabled={loading}
+        className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+      >
+        <option value="2025-2026">2025-2026</option>
+        <option value="2024-2025">2024-2025</option>
+        <option value="2023-2024">2023-2024</option>
+        <option value="2022-2023">2022-2023</option>
+        <option value="2021-2022">2021-2022</option>
+      </select>
+    </div>
+
+    <div className="flex items-center gap-3">
+      <label className="font-medium">Month</label>
+      <select
+        value={selectedMonth}
+        onChange={(e) => setSelectedMonth(Number(e.target.value))}
+        disabled={loading}
+        className="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+      >
+        {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((month, index) => (
+          <option key={month} value={index + 1}>{month}</option>
+        ))}
+      </select>
+    </div>
+  </div>
+
+  <button
+    onClick={handleDownload}
+    disabled={gpFees.length === 0}
+    className="flex items-center gap-2 bg-green-600 text-white px-5 py-2 rounded-lg shadow hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+  >
+    <Download size={18} />
+    Download CSV
+  </button>
+</div>
 
       {/* Fee Input Section */}
       <div className="bg-white rounded-xl shadow-lg p-6 space-y-4">

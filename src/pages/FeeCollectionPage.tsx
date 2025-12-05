@@ -80,10 +80,7 @@ const FeeCollectionPage: React.FC = () => {
   const [validationLoading, setValidationLoading] = useState(false);
   const [canProceed, setCanProceed] = useState(false);
   const [validationMessage, setValidationMessage] = useState("");
-  const [existingBeneficiaryIds, setExistingBeneficiaryIds] = useState<number[]>([]);
-  const [fullyPaidBeneficiaryIds, setFullyPaidBeneficiaryIds] = useState<number[]>([]);
-  const [existingRecords, setExistingRecords] = useState<any[]>([]);
-
+  
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadData, setUploadData] = useState({ fromDate: "", toDate: "", pdfFile: null as File | null, remark: "" });
   const [uploading, setUploading] = useState(false);
@@ -141,7 +138,7 @@ const FeeCollectionPage: React.FC = () => {
     }
   };
 
-  const fetchBeneficiaries = async () => {
+  const fetchBeneficiariesList = async () => {
     if (!userId) {
       setError("User ID not found");
       return;
@@ -171,182 +168,162 @@ const FeeCollectionPage: React.FC = () => {
     }
   };
 
-  // Enhanced validation function with detailed beneficiary ID filtering
-  const checkExistingFeeRecords = async (villageId: number, month: string, year: string) => {
-    if (!userId || !villageId || !month || !year) {
-      return false;
+  const fetchBeneficiaryBills = async (month: string, year: string) => {
+    if (!userId || !month || !year) {
+      setError("User ID, month, and year are required");
+      return;
     }
 
     try {
-      setValidationLoading(true);
-      setValidationMessage("");
-      setExistingBeneficiaryIds([]);
-      setFullyPaidBeneficiaryIds([]);
-      setExistingRecords([]);
+      setLoading(true);
       
-      // Create the month index (1-based for API)
+      // Convert month name to number (1-12)
       const monthIndex = [
         "January","February","March","April","May","June",
         "July","August","September","October","November","December"
       ].indexOf(month) + 1;
       
-      // Prepare the POST request payload
-      const requestBody = {
-        VillageId: villageId,
-        Month: monthIndex,
-        Year: parseInt(year)
-      };
-
-      console.log('Validation request body:', requestBody);
-
-      // Use POST method as per the API documentation
+      console.log('Fetching beneficiary details:', { userId, month: monthIndex, year });
+      
       const response = await fetch(
-        'https://wmsapi.kdsgroup.co.in/api/Master/GetFeeCollectionDetails',
+        `https://wmsapi.kdsgroup.co.in/api/Master/GetBeneficiaryDetailListByUser?UserId=${userId}&Month=${monthIndex}&Year=${year}`,
         {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'accept': '*/*' 
-          },
-          body: JSON.stringify(requestBody)
+          method: 'GET',
+          headers: { 'accept': '*/*' }
         }
       );
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
       const result = await response.json();
-      console.log('Validation API Response:', result);
+      console.log('Beneficiary Details Response:', result);
       
-      if (result.Status === true) {
-        if (result.Data && Array.isArray(result.Data) && result.Data.length > 0) {
-          // Store the existing records for reference
-          setExistingRecords(result.Data);
-          
-          // Extract all beneficiary IDs from existing records
-          const existingIds = result.Data.map((record: any) => record.BeneficiaryId);
-          setExistingBeneficiaryIds(existingIds);
-          
-          // Extract beneficiary IDs where PaidAmount > 0 (fully paid)
-          const fullyPaidIds = result.Data
-            .filter((record: any) => record.PaidAmount > 0)
-            .map((record: any) => record.BeneficiaryId);
-          setFullyPaidBeneficiaryIds(fullyPaidIds);
-          
-          // Extract beneficiary IDs where PaidAmount = 0 (unpaid but record exists)
-          const unpaidButExistingIds = result.Data
-            .filter((record: any) => record.PaidAmount === 0)
-            .map((record: any) => record.BeneficiaryId);
-          
-          // Get beneficiaries for current village from the main beneficiaries list
-          const villageBeneficiaries = beneficiaries.filter(b => b.VillageId === villageId);
-          const villageBeneficiaryIds = villageBeneficiaries.map(b => b.BeneficiaryId);
-          
-          // Calculate available beneficiaries (not fully paid)
-          const availableBeneficiaryIds = villageBeneficiaryIds.filter(id => !fullyPaidIds.includes(id));
-          
-          // Check if we can proceed
-          if (availableBeneficiaryIds.length === 0) {
-            setCanProceed(false);
-            setValidationMessage("❌ All beneficiaries have already paid for the selected month and village. Cannot proceed.");
-            return false;
-          } else {
-            setCanProceed(true);
-            const newBeneficiaries = villageBeneficiaryIds.filter(id => !existingIds.includes(id));
-            const unpaidExistingCount = unpaidButExistingIds.length;
-            const fullyPaidCount = fullyPaidIds.length;
-            
-            setValidationMessage(
-              `✅ Found ${availableBeneficiaryIds.length} beneficiaries available for fee collection:\n` +
-              `• ${newBeneficiaries.length} new beneficiaries\n` +
-              `• ${unpaidExistingCount} unpaid existing records\n` +
-              `• ${fullyPaidCount} already fully paid (excluded)`
-            );
-            return true;
-          }
-        } else {
-          // Empty data array means no existing records - can proceed
-          setExistingBeneficiaryIds([]);
-          setFullyPaidBeneficiaryIds([]);
-          setExistingRecords([]);
-          setCanProceed(true);
-          setValidationMessage("✅ No existing records found for the selected Month & Year. You can proceed with fee collection.");
-          return true;
-        }
+      if (result.Status && result.Data) {
+        // Data is already in the correct format from this API
+        setBeneficiaries(result.Data);
+        setError("");
       } else {
-        // API returned false status or error
-        setCanProceed(false);
-        setValidationMessage(`❌ API Error: ${result.Message || 'Unknown error occurred'}`);
-        return false;
+        setError(result.Message || "Failed to fetch beneficiary details");
+        setBeneficiaries([]);
       }
     } catch (error) {
-      console.error('Error checking existing fee records:', error);
-      setCanProceed(false);
-      setValidationMessage("❌ Unable to validate existing records. Please check your connection and try again.");
-      return false;
+      console.error('Error fetching beneficiary details:', error);
+      setError("Error loading beneficiary details");
+      setBeneficiaries([]);
     } finally {
-      setValidationLoading(false);
+      setLoading(false);
     }
   };
+
+  const checkExistingFeeRecords = async (villageId: number, month: string, year: string) => {
+  // This function is no longer needed as filtering is done in the useEffect
+  // Kept for backward compatibility but does nothing
+  return true;
+};
 
   // ---------- Effects ----------
   useEffect(() => {
     // Only fetch data when user loading is complete and userId exists
     if (!userLoading && userId) {
       fetchVillages();
-      fetchBeneficiaries();
+      // Don't fetch beneficiaries initially - wait for month/year selection
     }
   }, [userId, userLoading]);
 
   // Effect to trigger validation when all filters are selected
+  // Effect to trigger validation and fetch bills when month and year are selected
+  // Effect to fetch bills when month and year are selected
   useEffect(() => {
-    if (filters.villageId && filters.month && filters.year && userId) {
-      checkExistingFeeRecords(filters.villageId, filters.month, filters.year);
+    if (filters.month && filters.year && userId) {
+      // Fetch beneficiary bills for the selected month and year
+      fetchBeneficiaryBills(filters.month, filters.year);
     } else {
-      setCanProceed(false);
-      setValidationMessage("");
-      setExistingBeneficiaryIds([]);
-      setFullyPaidBeneficiaryIds([]);
-      setExistingRecords([]);
-    }
-  }, [filters.villageId, filters.month, filters.year, userId, beneficiaries]);
-
-  // Updated effect to filter entries based on payment status
-  useEffect(() => {
-    if (filters.villageId && beneficiaries.length > 0) {
-      // Filter beneficiaries for the selected village
-      // Exclude only those who have fully paid (PaidAmount > 0)
-      const filteredBeneficiaries = beneficiaries.filter(
-        b => b.VillageId === filters.villageId && 
-             !fullyPaidBeneficiaryIds.includes(b.BeneficiaryId) // Only exclude fully paid
-      );
-      
-      const feeEntries: FeeEntry[] = filteredBeneficiaries.map((beneficiary, index) => {
-        // Check if this beneficiary has an existing record with PaidAmount = 0
-        const existingRecord = existingRecords.find(r => r.BeneficiaryId === beneficiary.BeneficiaryId);
-        
-        return {
-          id: beneficiary.BeneficiaryId,
-          village: beneficiary.VillageName,
-          beneficiary: beneficiary.BeneficiaryName,
-          beneficiary_Father: beneficiary.FatherHusbandName,
-          amountPaid: existingRecord && existingRecord.PaidAmount === 0 ? 0 : 0, // Start with 0 for editing
-          previousbalance: existingRecord ? existingRecord.OutstandingAmount : beneficiary.PreviousBalance,
-          baseFee: beneficiary.BaseFee || 0,
-          villId: beneficiary.VillageId,
-          beneficiaryId: beneficiary.BeneficiaryId,
-          feeCollectionId: existingRecord ? existingRecord.FeeCollectionId : beneficiary.FeeCollectionId,
-          paymentMode: "Cash",
-          receiptNo: existingRecord ? existingRecord.ReceiptNo || "" : ""
-        };
-      });
-      
-      setEntries(feeEntries);
-    } else {
+      setBeneficiaries([]);
       setEntries([]);
     }
-  }, [filters.villageId, beneficiaries, fullyPaidBeneficiaryIds, existingRecords]);
+  }, [filters.month, filters.year, userId]);
+
+  
+
+  // Updated effect to filter entries based on payment status
+  // Updated effect to filter entries based on village selection
+  // Filter entries based on village selection and date filtering
+useEffect(() => {
+  if (!filters.month || !filters.year || beneficiaries.length === 0) {
+    setEntries([]);
+    setValidationMessage("");
+    setCanProceed(true);
+    return;
+  }
+
+  console.log("🔄 Filtering entries for", filters.month, filters.year);
+  console.log("Total beneficiaries:", beneficiaries.length);
+
+  const monthIndex = [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December"
+  ].indexOf(filters.month) + 1;
+
+  // Filter beneficiaries by village if selected
+  let filteredBeneficiaries = beneficiaries;
+  if (filters.villageId) {
+    filteredBeneficiaries = beneficiaries.filter(
+      b => b.VillageId === filters.villageId
+    );
+    console.log(`Filtered to village ${filters.village}:`, filteredBeneficiaries.length);
+  }
+
+  // Filter out beneficiaries who already have a record for the selected month/year
+  const availableBeneficiaries = filteredBeneficiaries.filter(beneficiary => {
+    if (beneficiary.FeeCollectionId > 0 && beneficiary.Date) {
+      const recordDate = new Date(beneficiary.Date);
+      const recordMonth = recordDate.getMonth() + 1;
+      const recordYear = recordDate.getFullYear();
+      
+      const hasRecordForSelectedMonth = (recordMonth === monthIndex && recordYear === parseInt(filters.year));
+      
+      if (hasRecordForSelectedMonth) {
+        console.log(`❌ Excluding ${beneficiary.BeneficiaryName} - already has record for ${filters.month} ${filters.year}`);
+        return false;
+      }
+    }
+    
+    console.log(`✅ Including ${beneficiary.BeneficiaryName} - no record for ${filters.month} ${filters.year}`);
+    return true;
+  });
+
+  console.log("✅ Available for collection:", availableBeneficiaries.length);
+  console.log("❌ Excluded (already have records):", filteredBeneficiaries.length - availableBeneficiaries.length);
+
+  const feeEntries: FeeEntry[] = availableBeneficiaries.map((beneficiary) => ({
+    id: beneficiary.BeneficiaryId,
+    village: beneficiary.VillageName,
+    beneficiary: beneficiary.BeneficiaryName,
+    beneficiary_Father: beneficiary.FatherHusbandName,
+    amountPaid: 0,
+    previousbalance: beneficiary.PreviousBalance || 0,
+    baseFee: beneficiary.BaseFee || 0,
+    villId: filters.villageId || beneficiary.VillageId,
+    beneficiaryId: beneficiary.BeneficiaryId,
+    feeCollectionId: beneficiary.FeeCollectionId || 0,
+    paymentMode: "Cash",
+    receiptNo: ""
+  }));
+
+  setEntries(feeEntries);
+
+  // Update validation message based on results
+  const excludedCount = filteredBeneficiaries.length - availableBeneficiaries.length;
+  if (availableBeneficiaries.length === 0) {
+    setValidationMessage(`❌ All beneficiaries ${filters.villageId ? `in ${filters.village}` : ''} already have records for ${filters.month} ${filters.year}.`);
+    setCanProceed(false);
+  } else {
+    setValidationMessage(
+  `⚠️ Showing ${availableBeneficiaries.length} beneficiaries based on latest payment records.` +
+  (excludedCount > 0 ? ` (${excludedCount} excluded based on visible records)` : '') +
+  `\n\n💡 Important: The system shows beneficiaries based on their most recent payment date. Some may have older payment records for ${filters.month} ${filters.year} that aren't visible here. Such beneficiaries will be automatically skipped when you save.`
+);
+    setCanProceed(true);
+  }
+}, [filters.villageId, filters.village, filters.month, filters.year, beneficiaries]);
 
   // ---------- Handlers ----------
   const handleVillageChange = (villageId: string) => {
@@ -360,9 +337,7 @@ const FeeCollectionPage: React.FC = () => {
     setSaveMessage("");
     setCanProceed(false);
     setValidationMessage("");
-    setExistingBeneficiaryIds([]);
-    setFullyPaidBeneficiaryIds([]);
-    setExistingRecords([]);
+    
   };
 
   const handleMonthChange = (month: string) => {
@@ -371,9 +346,6 @@ const FeeCollectionPage: React.FC = () => {
     setSaveMessage("");
     setCanProceed(false);
     setValidationMessage("");
-    setExistingBeneficiaryIds([]);
-    setFullyPaidBeneficiaryIds([]);
-    setExistingRecords([]);
   };
 
   const handleYearChange = (year: string) => {
@@ -382,9 +354,7 @@ const FeeCollectionPage: React.FC = () => {
     setSaveMessage("");
     setCanProceed(false);
     setValidationMessage("");
-    setExistingBeneficiaryIds([]);
-    setFullyPaidBeneficiaryIds([]);
-    setExistingRecords([]);
+    
   };
 
   const handleChangeAmountPaid = (id: number, value: number) => {
@@ -418,9 +388,27 @@ const FeeCollectionPage: React.FC = () => {
     return getCurrentDateTime();
   };
 
-  const callAPI = async (payload: APIPayload) => {
+  const callAPI = async (entry: FeeEntry, month: string, year: string) => {
     try {
-      const response = await fetch('https://wmsapi.kdsgroup.co.in/api/User/InsertFeeCollectionWithLogBook', {
+      const monthIndex = [
+        "January","February","March","April","May","June",
+        "July","August","September","October","November","December"
+      ].indexOf(month) + 1;
+
+      const payload = {
+        FeeCollectionDate: new Date().toISOString(),
+        DeviceToken: apiConfig.deviceToken,
+        IpAddress: apiConfig.ipAddress,
+        VillageId: entry.villId,
+        BeneficiaryId: entry.beneficiaryId,
+        Month: monthIndex,
+        Year: parseInt(year),
+        AmountPaid: entry.amountPaid,
+        PaymentMode: entry.paymentMode,
+        CollectedBy: userId
+      };
+
+      const response = await fetch('https://wmsapi.kdsgroup.co.in/api/User/InsertFeeCollectionFinal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'accept': '*/*' },
         body: JSON.stringify(payload)
@@ -433,81 +421,122 @@ const FeeCollectionPage: React.FC = () => {
   };
 
   const handleProceed = () => {
-    if (!filters.village || !filters.month || !filters.year) {
-      setError("Please select village, month, and year");
-      return;
-    }
-    
-    if (!canProceed) {
-      setError("Cannot proceed. Please check validation message above.");
-      return;
-    }
-    
-    setEditable(true);
-    setSaveMessage("");
-    setError("");
-  };
-
+  if (!filters.month || !filters.year) {
+    setError("Please select month and year");
+    return;
+  }
+  
+  if (entries.length === 0) {
+    setError("No beneficiaries found to edit");
+    return;
+  }
+  
+  setEditable(true);
+  setSaveMessage("💡 Note: Some beneficiaries may have hidden payment records for this month that aren't visible in the list. They will be automatically skipped during save if records already exist.");
+  setError("");
+};
   const handleSave = async () => {
-    if (!userId) {
-      setError("User ID not found");
-      return;
-    }
+  if (!userId) {
+    setError("User ID not found");
+    return;
+  }
 
-    setSaving(true);
-    setSaveMessage("");
+  if (!filters.month || !filters.year) {
+    setError("Month and year are required");
+    return;
+  }
 
-    try {
-      const currentDateTime = getCurrentDateTime();
-      const filterDateTime = getFilterDate();
+  const entriesToSave = entries.filter(e => e.amountPaid > 0);
+  
+  if (entriesToSave.length === 0) {
+    setSaveMessage("⚠️ No amounts entered. Please enter amounts to save.");
+    return;
+  }
 
-      const savePromises = entries.filter(e => e.amountPaid > 0).map(entry => {
-        const payload: APIPayload = {
-          FeeCollectionId: entry.feeCollectionId,
-          FromDate: filterDateTime,
-          ToDate: filterDateTime,
-          UploadBy: apiConfig.uploadBy,
-          FileName: `${apiConfig.fileName}_${entry.id}`,
-          LoogBookRemark: apiConfig.logBookRemark,
-          DeviceToken: apiConfig.deviceToken,
-          IPAddress: apiConfig.ipAddress,
-          FeeCollectionDate: currentDateTime,
-          VillId: entry.villId,
-          BeneficiaryId: entry.beneficiaryId,
-          PreviousBalance: (entry.baseFee + entry.previousbalance) - entry.amountPaid,
-          OutstandingAmount: (entry.baseFee + entry.previousbalance) - entry.amountPaid,
-          PaidAmount: entry.amountPaid,
-          PaymentMode: entry.paymentMode,
-          ReceiptNo: entry.receiptNo || `REC-${entry.id}-${Date.now()}`,
-          Remark: "",
-          CreatedBy: apiConfig.createdBy,
-          ImagePath: apiConfig.imagePath
-        };
-        return callAPI(payload);
-      });
+  console.log("💾 Attempting to save entries:");
+  entriesToSave.forEach(entry => {
+    console.log(`- ${entry.beneficiary} (ID: ${entry.beneficiaryId}): ₹${entry.amountPaid} for ${filters.month} ${filters.year}`);
+  });
 
-      const results = await Promise.all(savePromises);
-      const allSuccess = results.every(r => r.Status === true);
+  setSaving(true);
+  setSaveMessage("");
 
-      if (allSuccess) {
-        setSaveMessage("✅ All entries saved successfully!");
-        setEntries(prev => prev.map(entry => ({ ...entry, amountPaid: 0 })));
-        await fetchBeneficiaries();
-        // Re-run validation to update the display
-        if (filters.villageId && filters.month && filters.year) {
-          await checkExistingFeeRecords(filters.villageId, filters.month, filters.year);
-        }
-      } else {
-        setSaveMessage("⚠️ Some entries failed to save. Check console for details.");
-        console.log("API Results:", results);
+  try {
+    const results = [];
+    
+    // Save one by one to see which one fails
+    for (const entry of entriesToSave) {
+      console.log(`Saving ${entry.beneficiary}...`);
+      try {
+        const result = await callAPI(entry, filters.month, filters.year);
+        console.log(`Result for ${entry.beneficiary}:`, result);
+        results.push({ entry, result });
+      } catch (error) {
+        console.error(`Failed to save ${entry.beneficiary}:`, error);
+        results.push({ entry, result: { Status: false, Message: error.message } });
       }
-    } catch (error) {
-      setSaveMessage("❌ Error saving entries. Please try again.");
-      console.error(error);
-    } finally {
-      setSaving(false);
     }
-  };
+    
+    const successResults = results.filter(r => r.result.Status === true);
+    const partialPaymentResults = results.filter(r => 
+      r.result.Status === false && r.result.Message && r.result.Message.includes("Partial payment")
+    );
+    const alreadyRecordedResults = results.filter(r => 
+      r.result.Status === false && r.result.Message && r.result.Message.includes("already recorded")
+    );
+    const inactiveSupplyResults = results.filter(r => 
+      r.result.Status === false && r.result.Message && r.result.Message.includes("Water supply inactive")
+    );
+    const otherFailedResults = results.filter(r => 
+      r.result.Status === false && 
+      r.result.Message &&
+      !r.result.Message.includes("already recorded") && 
+      !r.result.Message.includes("Water supply inactive") &&
+      !r.result.Message.includes("Partial payment")
+    );
+
+    // Build detailed message
+    // Build detailed message
+let message = "";
+if (successResults.length > 0) {
+  message += `✅ ${successResults.length} entries saved successfully! `;
+}
+if (partialPaymentResults.length > 0) {
+  message += `⚠️ ${partialPaymentResults.length} partial payments recorded. `;
+}
+if (alreadyRecordedResults.length > 0) {
+  const names = alreadyRecordedResults.map(r => r.entry.beneficiary).join(", ");
+  message += `ℹ️ ${alreadyRecordedResults.length} skipped - already have records for ${filters.month} ${filters.year} (${names}). `;
+  console.log("❌ Already recorded details:", alreadyRecordedResults);
+}
+    if (inactiveSupplyResults.length > 0) {
+      message += `❌ ${inactiveSupplyResults.length} have inactive water supply. `;
+    }
+    if (otherFailedResults.length > 0) {
+      message += `❌ ${otherFailedResults.length} failed to save. `;
+      console.log("Failed results:", otherFailedResults);
+    }
+
+    setSaveMessage(message.trim());
+
+    if (successResults.length > 0 || partialPaymentResults.length > 0) {
+      // Clear amounts for successful entries
+      setEntries(prev => prev.map(entry => ({ ...entry, amountPaid: 0 })));
+      
+      // Refresh data
+      if (filters.month && filters.year) {
+        await fetchBeneficiaryBills(filters.month, filters.year);
+      }
+      
+      
+    }
+  } catch (error) {
+    setSaveMessage("❌ Error saving entries. Please try again.");
+    console.error("Save error:", error);
+  } finally {
+    setSaving(false);
+  }
+};
 
   const convertFileToBase64 = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
@@ -638,6 +667,41 @@ const FeeCollectionPage: React.FC = () => {
         User ID: {userId} | Role: {role}
       </div>
 
+      {/* Info Message */}
+{filters.month && filters.year && entries.length > 0 && (
+  <div className="mb-4 p-3 rounded bg-blue-100 text-blue-700">
+    ℹ️ Showing {entries.length} beneficiaries available for {filters.month} {filters.year}
+    {filters.villageId ? ` in ${filters.village}` : ' (all villages)'}.
+    {beneficiaries.length > entries.length && (
+      <span> ({beneficiaries.length - entries.length} already have records for this month)</span>
+    )}
+  </div>
+)}
+
+{filters.month && filters.year && entries.length === 0 && !loading && beneficiaries.length > 0 && (
+  <div className="mb-4 p-3 rounded bg-yellow-100 text-yellow-700">
+    ⚠️ All beneficiaries already have fee records for {filters.month} {filters.year}.
+  </div>
+)}
+
+{filters.month && filters.year && beneficiaries.length === 0 && !loading && (
+  <div className="mb-4 p-3 rounded bg-yellow-100 text-yellow-700">
+    ⚠️ No beneficiaries found for {filters.month} {filters.year}.
+  </div>
+)}
+
+{/* Warning Banner */}
+      {entries.length > 0 && !editable && (
+        <div className="mb-4 p-3 rounded bg-yellow-50 border border-yellow-200">
+          <p className="text-yellow-800 text-sm">
+            ⚠️ <strong>Note:</strong> The list below is based on the most recent payment date for each beneficiary. 
+            Some beneficiaries may have older payment records for {filters.month} {filters.year} that aren't shown. 
+            These will be automatically skipped during save to prevent duplicate entries.
+          </p>
+        </div>
+      )}
+
+
       {/* Filters & Buttons */}
       <div className="flex flex-wrap gap-4 mb-6">
         <select 
@@ -678,15 +742,15 @@ const FeeCollectionPage: React.FC = () => {
 
         <button
           type="button"
-          disabled={!filters.village || !filters.month || !filters.year || loading || validationLoading || !canProceed}
+          disabled={!filters.month || !filters.year || loading || entries.length === 0}
           onClick={handleProceed}
           className={`${
-            (filters.village && filters.month && filters.year && !loading && !validationLoading && canProceed) 
+            (filters.month && filters.year && !loading && entries.length > 0) 
               ? "bg-blue-600 hover:bg-blue-700" 
               : "bg-gray-400 cursor-not-allowed"
           } text-white px-4 py-2 rounded`}
         >
-          {validationLoading ? "Validating..." : "Proceed"}
+          {loading ? "Loading..." : "Proceed to Edit"}
         </button>
 
         <button 
@@ -727,8 +791,7 @@ const FeeCollectionPage: React.FC = () => {
           </thead>
           <tbody>
             {entries.length > 0 ? entries.map(entry => {
-              const isExistingUnpaid = existingBeneficiaryIds.includes(entry.beneficiaryId) && 
-                                     !fullyPaidBeneficiaryIds.includes(entry.beneficiaryId);
+              
               return (
                 <tr key={entry.id} className="bg-white text-black text-center">
                   <td className="px-4 py-2 border">{entry.village}</td>
@@ -776,14 +839,10 @@ const FeeCollectionPage: React.FC = () => {
                   </td>
                   <td className="px-4 py-2 border">{(entry.baseFee + entry.previousbalance) - entry.amountPaid}</td>
                   <td className="px-4 py-2 border">
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      isExistingUnpaid 
-                        ? 'bg-yellow-100 text-yellow-800' 
-                        : 'bg-blue-100 text-blue-800'
-                    }`}>
-                      {isExistingUnpaid ? 'Unpaid' : 'New'}
-                    </span>
-                  </td>
+  <span className="px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+    Available
+  </span>
+</td>
                 </tr>
               );
             }) : (
@@ -792,11 +851,9 @@ const FeeCollectionPage: React.FC = () => {
     colSpan={11}
     className="text-center py-4 text-gray-500 w-full min-w-[1200px]"
   >
-    {filters.village 
-      ? (fullyPaidBeneficiaryIds.length > 0 || existingBeneficiaryIds.length > 0)
-        ? `No beneficiaries available for fee collection. ${fullyPaidBeneficiaryIds.length} already fully paid, ${existingBeneficiaryIds.length - fullyPaidBeneficiaryIds.length} unpaid records exist and are displayed above.`
-        : "No beneficiaries found for selected village."
-      : "Please select a village to view beneficiaries."
+    {filters.month && filters.year
+      ? "No beneficiaries available for the selected criteria."
+      : "Please select month and year to view beneficiaries."
     }
   </td>
 </tr>

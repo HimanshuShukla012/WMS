@@ -37,6 +37,7 @@ import PDFFlipbook from "./pages/gpusermanual";
 import DirectorMonitoring from "./pages/directormonitoring";
 import DPROWaterFee from "./pages/DPROWaterFee";
 import LoginRoute from "./components/LoginRoute"; // Add this import
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 // Declare global types for Google Translate
 declare global {
@@ -55,7 +56,9 @@ const TranslateBar = () => {
     location.pathname === "/" ||
     location.pathname === "/login" ||
     location.pathname === "/guidelines" ||
+    location.pathname === "/privacy-policy" ||
     location.pathname === "/about";
+    
 
   // Adjust positioning for landing/login pages vs dashboard pages
   const translateBarStyle = {
@@ -149,6 +152,15 @@ function App() {
               </div>
             }
           />
+
+          <Route
+  path="/privacy-policy"
+  element={
+    <div style={{ marginTop: "120px" }}>
+      <PrivacyPolicy />
+    </div>
+  }
+/>
 
           <Route
             path="/about"

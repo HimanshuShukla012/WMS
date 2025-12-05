@@ -314,7 +314,7 @@ const isFormValid = (): boolean => {
   return true;
 };
 
-  const handleSaveCleaningRecord = async () => {
+const handleSaveCleaningRecord = async () => {
     if (!selectedOHT || !userId) {
       toast.error("Missing required information");
       return;
@@ -326,25 +326,37 @@ if (!validateBillTenure()) {
     setSaving(true);
 
     try {
+      // Helper function to safely convert date to ISO string
+      const toISOStringOrEmpty = (dateStr: string): string => {
+        if (!dateStr) return "";
+        try {
+          const date = new Date(dateStr);
+          if (isNaN(date.getTime())) return "";
+          return date.toISOString();
+        } catch {
+          return "";
+        }
+      };
+
       const payload = {
   OhtId: selectedOHT.OHTId,
-  VillageId: selectedOHT.VillageId,
+  VillageId: selectedOHT.VillageId || 0,
   OhtTankCleaningStatus: tankCleaningStatus,
-  OhtSolarCleaningStatus: solarCleaningStatus,
-  OhtCleaningDate: new Date(cleaningDate).toISOString(),
+  OhtSolarCleaningStatus: isSolarApplicable === 1 ? solarCleaningStatus : 0,
+  OhtCleaningDate: toISOStringOrEmpty(cleaningDate),
   OhtElectricityBillAmnt: Number(electricityBillAmount) || 0,
   DepositeAmnt: Number(depositAmount) || 0,
-  DepositeAmntDate: new Date(depositDate).toISOString(),
+  DepositeAmntDate: toISOStringOrEmpty(depositDate),
   BalanceAmnt: balanceAmount,
-  OhtTankCleaningDueDate: new Date(tankCleaningDueDate).toISOString(),
-  OhtSolarCleaningDate: new Date(solarCleaningDate).toISOString(),
-  OhtSolarCleaningDueDate: new Date(solarCleaningDueDate).toISOString(),
+  OhtTankCleaningDueDate: toISOStringOrEmpty(tankCleaningDueDate),
+  OhtSolarCleaningDate: isSolarApplicable === 1 ? toISOStringOrEmpty(solarCleaningDate) : null,
+OhtSolarCleaningDueDate: isSolarApplicable === 1 ? toISOStringOrEmpty(solarCleaningDueDate) : null,
   UploadedFilePath: uploadedFile?.name || "",
   UploadedFilebase64String: fileBase64 && fileBase64.includes(',')
-  ? fileBase64.replace('data:', 'Base64:')
+  ? fileBase64.split(',')[1] // Extract only the base64 part after the comma
   : "",
-  FromDate: new Date(billFromDate).toISOString(),
-ToDate: new Date(billToDate).toISOString(),
+  FromDate: toISOStringOrEmpty(billFromDate),
+ToDate: toISOStringOrEmpty(billToDate),
   CreatedBy: userId,
   DeviceToken: "web-application",
   IpAddress: "127.0.0.1"
