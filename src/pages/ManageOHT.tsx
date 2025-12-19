@@ -606,6 +606,7 @@ toast.success(`Loaded ${mapped.length} OHT records`);
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-blue-600 text-white">
+                
                 <th className="border border-gray-300 p-3 text-left font-medium">OHT ID</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">District</th>
                 <th className="border border-gray-300 p-3 text-left font-medium">Block Name</th>

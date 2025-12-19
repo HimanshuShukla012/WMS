@@ -799,7 +799,7 @@ useEffect(() => {
                     <td className="border px-4 py-2">{entry.FatherHusbandName || "N/A"}</td>
                     <td className="border px-4 py-2 text-right">{entry.BaseFee.toLocaleString()}</td>
                     <td className="border px-4 py-2 text-right">{entry.PreviousBalance.toLocaleString()}</td>
-                    <td className="border px-4 py-2 text-right text-orange-600 font-medium">{entry.OutstandingAmount.toLocaleString()}</td>
+                    <td className="border px-4 py-2 text-right">{entry.OutstandingAmount.toLocaleString()}</td>
                     <td className="border px-4 py-2 text-right text-green-600 font-medium">{entry.PaidAmount.toLocaleString()}</td>
                     <td className="border px-4 py-2 text-right text-red-600 font-medium">
                       {calculateBalanceAmount(entry.OutstandingAmount, entry.PaidAmount).toLocaleString()}

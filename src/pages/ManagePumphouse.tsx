@@ -686,6 +686,7 @@ const ManagePumpHouse = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-blue-600 text-white">
+                  
                   <th className="border border-gray-300 p-3 text-left font-medium">OHT ID</th>
                   <th className="border border-gray-300 p-3 text-left font-medium">Location Details</th>
                   <th className="border border-gray-300 p-3 text-left font-medium">Operator Name</th>

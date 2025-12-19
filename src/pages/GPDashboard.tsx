@@ -19,7 +19,7 @@ const Icons = {
   Users: () => <span className="text-2xl">👥</span>,
   Water: () => <span className="text-2xl">💧</span>,
   Warning: () => <span className="text-2xl">⚠️</span>,
-  Money: () => <span className="text-2xl">💰</span>,
+  Money: () => <span className="text-2xl">₹</span>,
   Refresh: () => <span className="text-xl">🔄</span>,
   Search: () => <span className="text-lg">🔍</span>,
   Chart: () => <span className="text-xl">📊</span>,

@@ -17,6 +17,8 @@ import {
   Droplet,
   DropletIcon,
   BookAIcon,
+  ChevronLeft,
+ChevronRight,
 } from "lucide-react";
 import { BiBuildingHouse, BiDroplet, BiMoney } from "react-icons/bi";
 import { FaRupeeSign } from "react-icons/fa";
@@ -186,10 +188,18 @@ const DashboardLayout = ({ role }: { children?: React.ReactNode; role: Role }) =
   const { logout } = useAuth(); // Get logout from AuthContext (this now shows the custom popup)
   const links = getMenuLinks(role);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const toggleMenu = (name: string) => {
     setOpenMenus((prev) => ({ ...prev, [name]: !prev[name] }));
   };
+  const toggleSidebar = () => {
+  setIsCollapsed(!isCollapsed);
+  // Close all menus when collapsing
+  if (!isCollapsed) {
+    setOpenMenus({});
+  }
+};
 
   // Simplified logout handler - just call logout directly
   // The AuthContext will handle showing the custom confirmation modal
@@ -203,37 +213,43 @@ const DashboardLayout = ({ role }: { children?: React.ReactNode; role: Role }) =
         return (
           <div key={item.name}>
             <div
-              onClick={() => toggleMenu(item.name)}
-              className={`cursor-pointer flex items-center justify-between px-3 py-1 rounded-lg hover:bg-white hover:bg-opacity-10 transition ml-${level * 4}`}
-            >
-              <div className="flex items-center gap-2 text-sm">
-                {item.icon}
-                <span>{item.name}</span>
-              </div>
-              <span>{openMenus[item.name] ? "▲" : "▼"}</span>
-            </div>
-            {openMenus[item.name] && (
-              <div className="ml-4 mt-1 flex flex-col gap-1">
-                {renderMenuItems(item.children, level + 1)}
-              </div>
-            )}
+  onClick={() => !isCollapsed && toggleMenu(item.name)}
+  className={`cursor-pointer flex items-center justify-between px-3 py-1 rounded-lg hover:bg-white hover:bg-opacity-10 transition ${
+    level > 0 ? `ml-${level * 4}` : ""
+  } ${isCollapsed ? "justify-center" : ""}`}
+  title={isCollapsed ? item.name : ""}
+>
+  <div className="flex items-center gap-2 text-sm">
+    {item.icon}
+    {!isCollapsed && <span>{item.name}</span>}
+  </div>
+  {!isCollapsed && <span>{openMenus[item.name] ? "▲" : "▼"}</span>}
+</div>
+            {!isCollapsed && openMenus[item.name] && (
+  <div className="ml-4 mt-1 flex flex-col gap-1">
+    {renderMenuItems(item.children, level + 1)}
+  </div>
+)}
           </div>
         );
       }
 
       return (
         <Link
-          key={item.to}
-          to={item.to!}
-          className={`flex items-center gap-2 text-sm px-3 py-1 rounded-lg transition ml-${level * 4} ${
-            location.pathname === item.to
-              ? "bg-white bg-opacity-20 font-semibold"
-              : "hover:bg-white hover:bg-opacity-10"
-          }`}
-        >
-          {item.icon}
-          <span>{item.name}</span>
-        </Link>
+  key={item.to}
+  to={item.to!}
+  className={`flex items-center gap-2 text-sm px-3 py-1 rounded-lg transition ${
+    level > 0 ? `ml-${level * 4}` : ""
+  } ${isCollapsed ? "justify-center" : ""} ${
+    location.pathname === item.to
+      ? "bg-white bg-opacity-20 font-semibold"
+      : "hover:bg-white hover:bg-opacity-10"
+  }`}
+  title={isCollapsed ? item.name : ""}
+>
+  {item.icon}
+  {!isCollapsed && <span>{item.name}</span>}
+</Link>
       );
     });
   };
@@ -244,40 +260,60 @@ const DashboardLayout = ({ role }: { children?: React.ReactNode; role: Role }) =
       {/* Main Layout */}
       <div className="flex h-full bg-gradient-to-br from-blue-50 to-blue-100">
         {/* Sidebar */}
-        <div className="w-72 bg-gradient-to-b from-sky-900 to-indigo-900 text-white shadow-xl flex flex-col p-6 overflow-y-auto relative">
-          <div className="flex flex-col items-center mb-10">
-            <img src="/logo.png" alt="Logo" className="h-16 w-24 rounded-lg object-cover" />
-            <h1 className="text-2xl font-bold tracking-wide text-center">WMS</h1>
-            <span className="text-sm text-indigo-200 mt-1">{roleLabels[role]}</span>
-          </div>
-          <div className="flex flex-col items-center mb-10">
-          </div>
+        <div
+  className={`${
+    isCollapsed ? "w-20" : "w-72"
+  } bg-gradient-to-b from-sky-900 to-indigo-900 text-white shadow-xl flex flex-col p-6 overflow-y-auto relative transition-all duration-300`}
+   
+>          
+{/* Toggle Button */}
+<button
+  onClick={toggleSidebar}
+  className="absolute -right-1 top-6 bg-white text-sky-900 rounded-full p-1 shadow-lg hover:bg-gray-100 transition z-10"
+  title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+>
+  {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+</button>
+<div className={`flex flex-col items-center mb-10 ${isCollapsed ? "mb-6" : ""}`}>
+  <img
+    src="/logo.png"
+    alt="Logo"
+    className={`${isCollapsed ? "h-10 w-10" : "h-16 w-24"} rounded-lg object-cover transition-all duration-300`}
+  />
+  {!isCollapsed && (
+    <>
+      <h1 className="text-2xl font-bold tracking-wide text-center">WMS</h1>
+      <span className="text-sm text-indigo-200 mt-1">{roleLabels[role]}</span>
+    </>
+  )}
+</div>
 
           {/* Menu items */}
           <nav className="flex flex-col gap-3 flex-grow">{renderMenuItems(links)}</nav>
 
-          {/* Logout button fixed at bottom */}
           <button
-            onClick={handleLogout}
-            className="mt-auto flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition text-white font-semibold"
-          >
-            {/* Logout Icon */}
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              viewBox="0 0 24 24"
-            >
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-            Logout
-          </button>
+  onClick={handleLogout}
+  className={`mt-auto flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition text-white font-semibold ${
+    isCollapsed ? "justify-center" : ""
+  }`}
+  title={isCollapsed ? "Logout" : ""}
+>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    className="h-5 w-5"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    viewBox="0 0 24 24"
+  >
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <polyline points="16 17 21 12 16 7" />
+    <line x1="21" y1="12" x2="9" y2="12" />
+  </svg>
+  {!isCollapsed && "Logout"}
+</button>
         </div>
 
         {/* Main Content */}
