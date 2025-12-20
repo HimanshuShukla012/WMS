@@ -796,8 +796,10 @@ export const useDirectorData = (
 
   // Load performance data when user role changes
   useEffect(() => {
+  if (userId && role) {
     loadPerformanceData();
-  }, [userId, role]);
+  }
+}, [userId, role]);
 
   // Recalculate stats when data changes
   useEffect(() => {

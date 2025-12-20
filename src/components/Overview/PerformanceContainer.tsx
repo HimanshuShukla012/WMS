@@ -256,9 +256,98 @@ else if (userRole === 'ADO') {
   }
 }
 
+// Director Role: Explicitly show all data
+else if (userRole === 'Director') {
+  // Top 10 Districts
+  if (topDistricts && topDistricts.length > 0) {
+    cards.push(
+      <PerformanceCard
+        key="top-districts"
+        title="Top 10 Performing Districts"
+        data={topDistricts}
+        icon={<TrendingUp className="w-5 h-5 text-green-600" />}
+        type="district"
+        isTop={true}
+        onExport={onExportCSV}
+      />
+    );
+  }
+
+  if (bottomDistricts && bottomDistricts.length > 0) {
+    cards.push(
+      <PerformanceCard
+        key="bottom-districts"
+        title="Bottom 10 Performing Districts"
+        data={bottomDistricts}
+        icon={<TrendingDown className="w-5 h-5 text-red-600" />}
+        type="district"
+        isTop={false}
+        onExport={onExportCSV}
+      />
+    );
+  }
+
+  if (topBlocks && topBlocks.length > 0) {
+    cards.push(
+      <PerformanceCard
+        key="top-blocks"
+        title="Top 10 Performing Blocks"
+        data={topBlocks}
+        icon={<TrendingUp className="w-5 h-5 text-green-600" />}
+        type="block"
+        isTop={true}
+        onExport={onExportCSV}
+      />
+    );
+  }
+
+  if (bottomBlocks && bottomBlocks.length > 0) {
+    cards.push(
+      <PerformanceCard
+        key="bottom-blocks"
+        title="Bottom 10 Performing Blocks"
+        data={bottomBlocks}
+        icon={<TrendingDown className="w-5 h-5 text-red-600" />}
+        type="block"
+        isTop={false}
+        onExport={onExportCSV}
+      />
+    );
+  }
+
+  if (topGPs && topGPs.length > 0) {
+    cards.push(
+      <PerformanceCard
+        key="top-gps"
+        title="Top 10 Performing Gram Panchayats"
+        data={topGPs}
+        icon={<TrendingUp className="w-5 h-5 text-green-600" />}
+        type="gp"
+        isTop={true}
+        onExport={onExportCSV}
+      />
+    );
+  }
+
+  if (bottomGPs && bottomGPs.length > 0) {
+    cards.push(
+      <PerformanceCard
+        key="bottom-gps"
+        title="Bottom 10 Performing Gram Panchayats"
+        data={bottomGPs}
+        icon={<TrendingDown className="w-5 h-5 text-red-600" />}
+        type="gp"
+        isTop={false}
+        onExport={onExportCSV}
+      />
+    );
+  }
+}
+
+
 // Admin/Director: Show all data (backward compatibility)
-else if (['Admin', 'Director'].includes(userRole)) {
-  // Districts
+else if (userRole === 'Admin') {
+    // Districts
   if (topDistricts && topDistricts.length > 0) {
     cards.push(
       <PerformanceCard

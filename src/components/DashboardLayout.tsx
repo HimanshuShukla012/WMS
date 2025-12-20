@@ -66,6 +66,7 @@ const getMenuLinks = (role: Role): MenuItem[] => {
       { name: "Manage Pump House", to: "/director/manage-pumphouse", icon: <ClipboardList size={16} /> },
       { name: "View Roaster", to: "/director/view-roaster", icon: <ClipboardList size={16} /> },
       { name: "Fee Management", to: "/director/fee-management", icon: <ClipboardList size={16} /> },
+      { name: "MIS Reporting", to: "/gp/reporting", icon: <FileText size={18} /> },
     ];
   }
   else if (role === "dd") {
