@@ -142,7 +142,7 @@ const handleLogin = async () => {
               <MdAlternateEmail size={24} />
               <input
                 type="text"
-                placeholder="Email address / Username"
+                placeholder="Username"
                 className="bg-transparent border-0 w-full outline-none text-lg text-white placeholder-gray-400"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
