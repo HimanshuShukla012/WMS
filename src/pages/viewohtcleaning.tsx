@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import * as XLSX from 'xlsx';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from 'recharts';
-import { Calendar, DollarSign, Droplets, TrendingUp, AlertCircle, CheckCircle, Clock, FileText, Download, Filter, Search, X } from 'lucide-react';
+import { Calendar, IndianRupee, Droplets, TrendingUp, AlertCircle, CheckCircle, Clock, FileText, Download, Filter, Search, X } from 'lucide-react';
 import { useUserInfo } from "../utils/userInfo";
 
 interface OHTApiItem {
@@ -469,7 +469,7 @@ if (userId === null) {
 
         <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg p-6 text-white">
           <div className="flex items-center justify-between mb-4">
-            <DollarSign className="w-10 h-10 opacity-80" />
+            <IndianRupee className="w-10 h-10 opacity-80" />
             <span className="text-2xl font-bold">₹{(totalBillAmount / 100000).toFixed(1)}L</span>
           </div>
           <h3 className="text-lg font-medium opacity-90">Total Bills</h3>
@@ -592,7 +592,7 @@ if (userId === null) {
           {[
             { id: 'overview', label: 'Overview', icon: TrendingUp },
             { id: 'cleaning', label: 'Cleaning Analytics', icon: Droplets },
-            { id: 'billing', label: 'Billing Analytics', icon: DollarSign },
+            { id: 'billing', label: 'Billing Analytics', icon: IndianRupee },
             { id: 'timeline', label: 'Timeline View', icon: Clock }
           ].map(({ id, label, icon: Icon }) => (
             <button
@@ -967,7 +967,7 @@ if (userId === null) {
               <div className="text-xs opacity-75 mt-2">{filteredData.filter(r => r.OhtElectricityBillAmount).length} bills</div>
             </div>
             <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
-              <DollarSign className="w-12 h-12 mb-3 opacity-80" />
+              <IndianRupee className="w-12 h-12 mb-3 opacity-80" />
               <div className="text-3xl font-bold mb-1">₹{(totalDeposits / 100000).toFixed(2)}L</div>
               <div className="text-sm opacity-90">Total Deposits Made</div>
               <div className="text-xs opacity-75 mt-2">{((totalDeposits / totalBillAmount) * 100).toFixed(1)}% collection rate</div>
@@ -1121,7 +1121,7 @@ if (userId === null) {
           {/* Billing Timeline */}
           <div className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex items-center gap-2 mb-4">
-              <DollarSign className="w-6 h-6 text-blue-600" />
+              <IndianRupee className="w-6 h-6 text-blue-600" />
               <h3 className="text-xl font-bold text-gray-800">Billing Timeline</h3>
             </div>
             <div className="space-y-4 max-h-96 overflow-y-auto">
