@@ -116,10 +116,13 @@ const fetchDistricts = async (userId: number) => {
 
 const fetchBlocks = async (districtId: number, userRole: string, userId?: number) => {
   try {
-    // For Admin, Director, DPRO - use GetAllBlocks
-    const isAdminLevelRole = ['admin', 'director', 'dpro'].includes(userRole.toLowerCase());
+    // Normalize role for comparison (remove spaces and convert to lowercase)
+    const normalizedRole = userRole.toLowerCase().replace(/\s+/g, '');
     
-    console.log('Fetching blocks for role:', userRole, 'isAdminLevel:', isAdminLevelRole, 'districtId:', districtId);
+    // For Admin, Director, DPRO - use GetAllBlocks
+    const isAdminLevelRole = ['admin', 'director', 'dpro'].includes(normalizedRole);
+    
+    console.log('Fetching blocks for role:', userRole, 'normalized:', normalizedRole, 'isAdminLevel:', isAdminLevelRole, 'districtId:', districtId);
     
     let response;
     if (isAdminLevelRole) {
@@ -155,8 +158,11 @@ const fetchBlocks = async (districtId: number, userRole: string, userId?: number
 
 const fetchGramPanchayats = async (blockId: number, userRole: string, userId?: number) => {
   try {
+    // Normalize role for comparison (remove spaces and convert to lowercase)
+    const normalizedRole = userRole.toLowerCase().replace(/\s+/g, '');
+    
     // For Admin, Director, DPRO - use GetAllGramPanchayat
-    const isAdminLevelRole = ['admin', 'director', 'dpro'].includes(userRole.toLowerCase());
+    const isAdminLevelRole = ['admin', 'director', 'dpro'].includes(normalizedRole);
     
     let response;
     if (isAdminLevelRole) {
@@ -478,7 +484,8 @@ useEffect(() => {
         const gpData = await fetchGramPanchayats(selectedBlockId, role, userId);
         
         // For non-admin roles, filter by selected block since API returns all GPs for user
-        const isAdminLevelRole = ['admin', 'director', 'dpro'].includes(role.toLowerCase());
+        const normalizedRole = role.toLowerCase().replace(/\s+/g, '');
+        const isAdminLevelRole = ['admin', 'director', 'dpro'].includes(normalizedRole);
         const filteredGpData = isAdminLevelRole 
           ? gpData 
           : (gpData || []).filter(gp => gp.BlockId === selectedBlockId);
