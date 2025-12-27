@@ -25,6 +25,7 @@ export const useDirectorData = (
   const [waterQualityData, setWaterQualityData] = useState<Types.WaterQualityData[]>([]);
   const [waterFeeSummaryData, setWaterFeeSummaryData] = useState<Types.WaterFeeSummaryData[]>([]);
   const [complaintsData, setComplaintsData] = useState<Types.ComplaintData[]>([]);
+const [beneficiaryTrendData, setBeneficiaryTrendData] = useState<Types.BeneficiaryTrendData[]>([]);
   
   // Performance data state
   const [topDistrictsData, setTopDistrictsData] = useState<Types.TopBottomDistrictData[]>([]);
@@ -158,6 +159,46 @@ export const useDirectorData = (
       return [];
     }
   };
+
+
+  const fetchBeneficiarySummaryMonthwise = async (): Promise<Types.BeneficiaryTrendData[]> => {
+  try {
+    const fromDateISO = new Date(fromDate + 'T00:00:00.000Z').toISOString();
+    const toDateISO = new Date(toDate + 'T23:59:59.999Z').toISOString();
+    
+    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetBeneficiarySummaryMonthwise', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        accept: '*/*'
+      },
+      body: JSON.stringify({
+        UserId: userId ? parseInt(userId.toString()) : 1,
+        FromDate: fromDateISO,
+        ToDate: toDateISO
+      })
+    });
+    
+    if (!response.ok) return [];
+    const result = await response.json();
+    
+    if (result.Status && result.Data) {
+      // Transform API data to match our BeneficiaryTrendData interface
+      return result.Data.map((item: any) => ({
+        month: item.MonthName || `${item.Month}-${item.Year}`,
+        total: item.TotalBeneficiaries || 0,
+        active: item.ActiveBeneficiaries || 0
+      }));
+    }
+    
+    return [];
+  } catch (error) {
+    console.error('Failed to fetch beneficiary summary monthwise:', error);
+    return [];
+  }
+};
+
+
 
   const fetchWaterFeeSummaryData = async (): Promise<Types.WaterFeeSummaryData[]> => {
     try {
@@ -721,51 +762,39 @@ export const useDirectorData = (
 
   // --- Load All Data ---
   const loadAllData = async () => {
-    if (!userId) return;
-    setLoading(true); 
-    setError('');
+  if (!userId) return;
+  setLoading(true); 
+  setError('');
+  
+  try {
+    const [ben, ohts, pumps, wq, feeSummary, complaints, benTrend] = await Promise.all([
+      fetchBeneficiaries(), 
+      fetchOHTData(), 
+      fetchPumpHouseData(), 
+      fetchWaterQualityData(),
+      fetchWaterFeeSummaryData(),
+      fetchComplaintsData(),
+      fetchBeneficiarySummaryMonthwise() // Add this
+    ]);
     
-    try {
-      const [ben, ohts, pumps, wq, feeSummary, complaints] = await Promise.all([
-        fetchBeneficiaries(), 
-        fetchOHTData(), 
-        fetchPumpHouseData(), 
-        fetchWaterQualityData(),
-        fetchWaterFeeSummaryData(),
-        fetchComplaintsData()
-      ]);
-      
-      setBeneficiariesData(ben); 
-      setOhtData(ohts); 
-      setPumpHouseData(pumps); 
-      setWaterQualityData(wq);
-      setWaterFeeSummaryData(feeSummary);
-      setComplaintsData(complaints);
+    setBeneficiariesData(ben); 
+    setOhtData(ohts); 
+    setPumpHouseData(pumps); 
+    setWaterQualityData(wq);
+    setWaterFeeSummaryData(feeSummary);
+    setComplaintsData(complaints);
+    setBeneficiaryTrendData(benTrend); // Add this
 
-      calculateLocationStats(ben, ohts, pumps, wq, feeSummary, complaints);
-    } catch (error) { 
-      console.error('Failed to load monitoring data:', error); 
-      setError('Failed to load monitoring data');
-    } finally { 
-      setLoading(false);
-    }
-  };
+    calculateLocationStats(ben, ohts, pumps, wq, feeSummary, complaints);
+  } catch (error) { 
+    console.error('Failed to load monitoring data:', error); 
+    setError('Failed to load monitoring data');
+  } finally { 
+    setLoading(false);
+  }
+};
 
-  // --- Chart Data Preparation ---
-  const beneficiaryTrend: Types.BeneficiaryTrendData[] = useMemo(() => {
-    const months = Array.from({ length: 6 }).map((_, i) => {
-      const d = new Date(); 
-      d.setMonth(d.getMonth() - (5 - i));
-      return d.toLocaleString('en-GB', { month: 'short', year: '2-digit' });
-    });
-    const filtered = filterByLocation(beneficiariesData);
-    const base = filtered.length;
-    return months.map((m, i) => ({ 
-      month: m, 
-      total: Math.max(0, Math.round(base * (0.6 + i * 0.08))), 
-      active: Math.max(0, Math.round(base * (0.5 + i * 0.06))) 
-    }));
-  }, [beneficiariesData, selectedDistrictId, selectedBlockId, selectedGramPanchayatId, selectedVillageId]);
+  
 
   const feeCollectionTrend: Types.FeeCollectionTrendData[] = useMemo(() => {
     const filteredData = filterWaterFeeSummaryByLocation(waterFeeSummaryData);
@@ -807,26 +836,26 @@ export const useDirectorData = (
   }, [waterFeeSummaryData, beneficiariesData, ohtData, pumpHouseData, waterQualityData, complaintsData, selectedDistrictId, selectedBlockId, selectedGramPanchayatId, selectedVillageId]);
 
   return {
-    // Data
-    beneficiariesData,
-    ohtData,
-    pumpHouseData,
-    waterQualityData,
-    waterFeeSummaryData,
-    complaintsData,
-    stats,
-    
-    // Performance data
-    topDistrictsData,
-    bottomDistrictsData,
-    topBlocksData,
-    bottomBlocksData,
-    topGPsData,
-    bottomGPsData,
-    
-    // Derived data
-    beneficiaryTrend,
-    feeCollectionTrend,
+  // Data
+  beneficiariesData,
+  ohtData,
+  pumpHouseData,
+  waterQualityData,
+  waterFeeSummaryData,
+  complaintsData,
+  stats,
+  
+  // Performance data
+  topDistrictsData,
+  bottomDistrictsData,
+  topBlocksData,
+  bottomBlocksData,
+  topGPsData,
+  bottomGPsData,
+  
+  // Derived data
+  beneficiaryTrend: beneficiaryTrendData, // Changed this line
+  feeCollectionTrend,
     
     // States
     loading,
