@@ -443,9 +443,12 @@ useEffect(() => {
   useEffect(() => {
     if (!userId || !role || !selectedDistrictId) return;
     
+    console.log('Loading blocks - userId:', userId, 'role:', role, 'districtId:', selectedDistrictId);
+    
     const loadBlocks = async () => {
       try {
         const blockData = await fetchBlocks(selectedDistrictId, role, userId);
+        console.log('Block data received:', blockData);
         setBlocks(blockData || []);
         
         // Reset dependent selections
