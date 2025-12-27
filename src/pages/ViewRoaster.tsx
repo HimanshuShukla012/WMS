@@ -122,18 +122,18 @@ const fetchBlocks = async (districtId: number, userRole: string, userId?: number
     // For Admin, Director, DPRO - use GetAllBlocks
     const isAdminLevelRole = ['admin', 'director', 'dpro'].includes(normalizedRole);
     
-    console.log('Fetching blocks for role:', userRole, 'normalized:', normalizedRole, 'isAdminLevel:', isAdminLevelRole, 'districtId:', districtId);
+    console.log('Fetching blocks for role:', userRole, 'normalized:', normalizedRole, 'isAdminLevel:', isAdminLevelRole, 'districtId:', districtId, 'userId:', userId);
     
     let response;
     if (isAdminLevelRole) {
-      console.log('Using GetAllBlocks API');
+      console.log('Using GetAllBlocks API with DistrictId:', districtId);
       response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetAllBlocks?DistrictId=${districtId}`, {
         method: 'POST',
         headers: { 'accept': '*/*' }
       });
     } else {
-      // For ADO and Gram Panchayat - use GetBlockListByDistrict
-      const requestBody = { DistrictId: Number(districtId) };
+      // For ADO and Gram Panchayat - use GetBlockListByDistrict with UserId (NOT DistrictId!)
+      const requestBody = { UserId: Number(userId) };
       console.log('Using GetBlockListByDistrict API with body:', JSON.stringify(requestBody));
       
       response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict', {
@@ -151,6 +151,14 @@ const fetchBlocks = async (districtId: number, userRole: string, userId?: number
     if (response.ok) {
       const data = await response.json();
       console.log('Blocks API response:', data);
+      
+      // For non-admin roles, filter by districtId client-side since API returns all blocks for user
+      if (!isAdminLevelRole && data.Status && Array.isArray(data.Data)) {
+        const filteredBlocks = data.Data.filter((block: Block) => block.DistrictId === districtId);
+        console.log('Filtered blocks for districtId', districtId, ':', filteredBlocks);
+        return filteredBlocks;
+      }
+      
       return data.Status ? data.Data : [];
     }
     
