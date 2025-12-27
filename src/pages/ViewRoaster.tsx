@@ -363,7 +363,8 @@ const ViewRoaster: React.FC = () => {
   const [filterActivity, setFilterActivity] = useState<string>('all');
 
   // Use the userInfo hook instead of hardcoded userId
-  const { userId } = useUserInfo();
+  const { userId, role } = useUserInfo();
+
 
   // Fetch districts on component mount - wait for userId
 useEffect(() => {
@@ -435,46 +436,57 @@ useEffect(() => {
   }, [userId]);
 
   // Fetch blocks when userId is available (no longer dependent on district selection)
-useEffect(() => {
-  if (!userId) return;
-  
-  const loadBlocks = async () => {
-    try {
-      const blockData = await fetchBlocks(userId);
-      setBlocks(blockData || []);
-      
-      // Auto-select first block if only one
-      if (blockData && blockData.length === 1) {
-        setSelectedBlockId(blockData[0].BlockId);
+// Fetch blocks when userId, role, and district are available
+  useEffect(() => {
+    if (!userId || !role || !selectedDistrictId) return;
+    
+    const loadBlocks = async () => {
+      try {
+        const blockData = await fetchBlocks(selectedDistrictId, role, userId);
+        setBlocks(blockData || []);
+        
+        // Reset dependent selections
+        setSelectedBlockId(null);
+        setSelectedGramPanchayatId(null);
+        setSelectedVillageId(null);
+        
+        // Auto-select first block if only one
+        if (blockData && blockData.length === 1) {
+          setSelectedBlockId(blockData[0].BlockId);
+        }
+      } catch (err) {
+        console.error('Error fetching blocks:', err);
       }
-    } catch (err) {
-      console.error('Error fetching blocks:', err);
-    }
-  };
-  
-  loadBlocks();
-}, [userId]);
+    };
+    
+    loadBlocks();
+  }, [userId, role, selectedDistrictId]);
 
   // Fetch gram panchayats when userId is available (no longer dependent on block selection)
-useEffect(() => {
-  if (!userId) return;
-  
-  const loadGramPanchayats = async () => {
-    try {
-      const gpData = await fetchGramPanchayats(userId);
-      setGramPanchayats(gpData || []);
-      
-      // Auto-select first GP if only one
-      if (gpData && gpData.length === 1) {
-        setSelectedGramPanchayatId(gpData[0].Id);
+// Fetch gram panchayats when userId, role, and block are available
+  useEffect(() => {
+    if (!userId || !role || !selectedBlockId) return;
+    
+    const loadGramPanchayats = async () => {
+      try {
+        const gpData = await fetchGramPanchayats(selectedBlockId, role, userId);
+        setGramPanchayats(gpData || []);
+        
+        // Reset dependent selections
+        setSelectedGramPanchayatId(null);
+        setSelectedVillageId(null);
+        
+        // Auto-select first GP if only one
+        if (gpData && gpData.length === 1) {
+          setSelectedGramPanchayatId(gpData[0].Id);
+        }
+      } catch (err) {
+        console.error('Error fetching gram panchayats:', err);
       }
-    } catch (err) {
-      console.error('Error fetching gram panchayats:', err);
-    }
-  };
-  
-  loadGramPanchayats();
-}, [userId]);
+    };
+    
+    loadGramPanchayats();
+  }, [userId, role, selectedBlockId]);
 
   // Fetch villages when block and gram panchayat are selected
   useEffect(() => {
@@ -753,8 +765,11 @@ useEffect(() => {
                     onChange={(e) => {
   setSelectedDistrictId(Number(e.target.value) || null);
   // Reset dependent filters when district changes
+  setBlocks([]);
   setSelectedBlockId(null);
+  setGramPanchayats([]);
   setSelectedGramPanchayatId(null);
+  setVillages([]);
   setSelectedVillageId(null);
 }}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -776,7 +791,9 @@ useEffect(() => {
                     onChange={(e) => {
   setSelectedBlockId(Number(e.target.value) || null);
   // Reset dependent filters when block changes
+  setGramPanchayats([]);
   setSelectedGramPanchayatId(null);
+  setVillages([]);
   setSelectedVillageId(null);
 }}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -799,6 +816,7 @@ useEffect(() => {
                     onChange={(e) => {
   setSelectedGramPanchayatId(Number(e.target.value) || null);
   // Reset village filter when gram panchayat changes
+  setVillages([]);
   setSelectedVillageId(null);
 }}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
