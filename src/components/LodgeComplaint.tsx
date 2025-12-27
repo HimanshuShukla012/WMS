@@ -241,7 +241,6 @@ useEffect(() => {
 }, [selectedDistrictId, userId, role]);
 
   // Fetch gram panchayats when block changes
-  // Fetch gram panchayats when block changes
 useEffect(() => {
   if (!selectedBlockId || !userId || !role) return;
   
@@ -249,49 +248,65 @@ useEffect(() => {
     try {
       // Normalize role for comparison
       const normalizedRole = role.toLowerCase().replace(/\s+/g, '');
+      console.log('Loading GPs - Role:', role, 'Normalized:', normalizedRole, 'BlockId:', selectedBlockId, 'UserId:', userId);
+      
       const isAdminLevelRole = ['admin', 'director', 'dpro'].includes(normalizedRole);
       const isCallCenter = normalizedRole === 'callcenter';
       
+      console.log('isAdminLevelRole:', isAdminLevelRole, 'isCallCenter:', isCallCenter);
+      
       let response;
+      let requestBody;
+      
       if (isAdminLevelRole) {
         // For Admin, Director, DPRO - use GetAllGramPanchayat with BlockId
+        console.log('Using GetAllGramPanchayat API');
         response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetAllGramPanchayat?BlockId=${selectedBlockId}`, {
           method: 'POST',
           headers: { 'accept': '*/*' }
         });
       } else if (isCallCenter) {
-        // For Call Center - use GetGramPanchayatByBlock with BlockId
+        // For Call Center - use GetGramPanchayatByBlock with BlockId in body
+        requestBody = { BlockId: Number(selectedBlockId) };
+        console.log('Using GetGramPanchayatByBlock API for Call Center with body:', requestBody);
+        
         response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock', {
           method: 'POST',
           headers: { 
             'accept': '*/*',
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ BlockId: Number(selectedBlockId) })
+          body: JSON.stringify(requestBody)
         });
       } else {
-        // For ADO, Gram Panchayat - use GetGramPanchayatByBlock with UserId
+        // For ADO, Gram Panchayat - use GetGramPanchayatByBlock with UserId in body
+        requestBody = { UserId: Number(userId) };
+        console.log('Using GetGramPanchayatByBlock API for GP/ADO with body:', requestBody);
+        
         response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock', {
           method: 'POST',
           headers: { 
             'accept': '*/*',
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ UserId: Number(userId) })
+          body: JSON.stringify(requestBody)
         });
       }
 
       if (response.ok) {
         const data = await response.json();
+        console.log('GP API Response:', data);
+        
         setGramPanchayats(data.Status ? data.Data : []);
         
         // Auto-select first GP if only one
-        if (data.Status && data.Data.length === 1) {
+        if (data.Status && data.Data && data.Data.length === 1) {
           setSelectedGramPanchayatId(data.Data[0].Id);
         } else {
           setSelectedGramPanchayatId(null);
         }
       } else {
+        console.error('GP API failed with status:', response.status);
         setGramPanchayats([]);
         setSelectedGramPanchayatId(null);
       }
