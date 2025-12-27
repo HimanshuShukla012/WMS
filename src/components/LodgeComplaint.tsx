@@ -54,7 +54,6 @@ interface Village {
 }
 
 const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClose }) => {
-  const { userId } = useUserInfo();
   
   // State for dropdowns
   const [districts, setDistricts] = useState<District[]>([]);
