@@ -83,7 +83,8 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [role, setRole] = useState<string>("");
+  const { userId, role } = useUserInfo();
+  const [localRole, setLocalRole] = useState<string>("");
 
   // Validation function to check if all mandatory fields are filled
   const areAllMandatoryFieldsFilled = (): boolean => {
@@ -128,81 +129,172 @@ const isValidMobileNumber = (mobile: string): boolean => {
 };
 
   // Get role from token
-  useEffect(() => {
-    try {
-      const token = localStorage.getItem("authToken");
-      if (!token) return;
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      setRole(payload?.Role || "");
-    } catch (e) {
-      console.error("Failed to decode token", e);
-    }
-  }, []);
+useEffect(() => {
+  try {
+    const token = localStorage.getItem("authToken");
+    if (!token) return;
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    setLocalRole(payload?.Role || "");
+  } catch (e) {
+    console.error("Failed to decode token", e);
+  }
+}, []);
 
   // Fetch districts when userId is available
-  useEffect(() => {
-    if (!userId) return;
-    fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetDistrict?UserId=${userId}`, {
-      method: "POST",
-      headers: { accept: "*/*" },
-    })
-      .then((res) => res.json())
-      .then((data) => {
+  // Fetch districts when userId is available
+useEffect(() => {
+  if (!userId) return;
+  
+  const loadDistricts = async () => {
+    try {
+      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetDistrict?UserId=${userId}`, {
+        method: "POST",
+        headers: { accept: "*/*" },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
         if (data.Status && data.Data.length) {
           setDistricts(data.Data);
-          if (role.toLowerCase() === "grampanchayat") {
+          
+          // Auto-select first district if only one
+          if (data.Data.length === 1) {
             setSelectedDistrictId(data.Data[0].DistrictId);
           }
         }
-      })
-      .catch(() => toast.error("Failed to fetch districts"));
-  }, [userId, role]);
+      }
+    } catch (error) {
+      console.error('Error fetching districts:', error);
+      toast.error("Failed to fetch districts");
+    }
+  };
+  
+  loadDistricts();
+}, [userId]);
 
   // Fetch blocks when district changes
-  useEffect(() => {
-    if (!selectedDistrictId || !userId) return;
-    fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ UserId: userId, DistrictId: selectedDistrictId }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.Status && data.Data.length) {
-          setBlocks(data.Data);
-          if (role.toLowerCase() === "grampanchayat") {
-            setSelectedBlockId(data.Data[0]?.BlockId || null);
+  // Fetch blocks when district changes
+useEffect(() => {
+  if (!selectedDistrictId || !userId || !role) return;
+  
+  const loadBlocks = async () => {
+    try {
+      // Normalize role for comparison
+      const normalizedRole = role.toLowerCase().replace(/\s+/g, '');
+      const isAdminLevelRole = ['admin', 'director', 'dpro'].includes(normalizedRole);
+      
+      let response;
+      if (isAdminLevelRole) {
+        // For Admin, Director, DPRO - use GetAllBlocks
+        response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetAllBlocks?DistrictId=${selectedDistrictId}`, {
+          method: 'POST',
+          headers: { 'accept': '*/*' }
+        });
+      } else {
+        // For ADO, Gram Panchayat, Call Center - use GetBlockListByDistrict with UserId
+        response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict', {
+          method: 'POST',
+          headers: { 
+            'accept': '*/*',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ UserId: Number(userId) })
+        });
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // For non-admin roles, filter by districtId client-side
+        if (!isAdminLevelRole && data.Status && Array.isArray(data.Data)) {
+          const filteredBlocks = data.Data.filter((block: Block) => block.DistrictId === selectedDistrictId);
+          setBlocks(filteredBlocks);
+          
+          // Auto-select first block if only one
+          if (filteredBlocks.length === 1) {
+            setSelectedBlockId(filteredBlocks[0].BlockId);
+          } else {
+            setSelectedBlockId(null);
           }
         } else {
-          setBlocks([]);
-          setSelectedBlockId(null);
+          setBlocks(data.Status ? data.Data : []);
+          
+          // Auto-select first block if only one
+          if (data.Status && data.Data.length === 1) {
+            setSelectedBlockId(data.Data[0].BlockId);
+          } else {
+            setSelectedBlockId(null);
+          }
         }
-      })
-      .catch(() => toast.error("Failed to fetch blocks"));
-  }, [selectedDistrictId, userId, role]);
+      } else {
+        setBlocks([]);
+        setSelectedBlockId(null);
+      }
+    } catch (error) {
+      console.error('Error fetching blocks:', error);
+      toast.error("Failed to fetch blocks");
+      setBlocks([]);
+      setSelectedBlockId(null);
+    }
+  };
+  
+  loadBlocks();
+}, [selectedDistrictId, userId, role]);
 
   // Fetch gram panchayats when block changes
-  useEffect(() => {
-    if (!selectedBlockId || !userId) return;
-    fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ UserId: userId, BlockId: selectedBlockId }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.Status && data.Data.length) {
-          setGramPanchayats(data.Data);
-          if (role.toLowerCase() === "grampanchayat") {
-            setSelectedGramPanchayatId(data.Data[0]?.Id || null);
-          }
+  // Fetch gram panchayats when block changes
+useEffect(() => {
+  if (!selectedBlockId || !userId || !role) return;
+  
+  const loadGramPanchayats = async () => {
+    try {
+      // Normalize role for comparison
+      const normalizedRole = role.toLowerCase().replace(/\s+/g, '');
+      const isAdminLevelRole = ['admin', 'director', 'dpro'].includes(normalizedRole);
+      
+      let response;
+      if (isAdminLevelRole) {
+        // For Admin, Director, DPRO - use GetAllGramPanchayat
+        response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetAllGramPanchayat?BlockId=${selectedBlockId}`, {
+          method: 'POST',
+          headers: { 'accept': '*/*' }
+        });
+      } else {
+        // For ADO, Gram Panchayat, Call Center - use GetGramPanchayatByBlock with UserId
+        response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock', {
+          method: 'POST',
+          headers: { 
+            'accept': '*/*',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ UserId: Number(userId) })
+        });
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        setGramPanchayats(data.Status ? data.Data : []);
+        
+        // Auto-select first GP if only one
+        if (data.Status && data.Data.length === 1) {
+          setSelectedGramPanchayatId(data.Data[0].Id);
         } else {
-          setGramPanchayats([]);
           setSelectedGramPanchayatId(null);
         }
-      })
-      .catch(() => toast.error("Failed to fetch gram panchayats"));
-  }, [selectedBlockId, userId, role]);
+      } else {
+        setGramPanchayats([]);
+        setSelectedGramPanchayatId(null);
+      }
+    } catch (error) {
+      console.error('Error fetching gram panchayats:', error);
+      toast.error("Failed to fetch gram panchayats");
+      setGramPanchayats([]);
+      setSelectedGramPanchayatId(null);
+    }
+  };
+  
+  loadGramPanchayats();
+}, [selectedBlockId, userId, role]);
 
   // Fetch villages when gram panchayat changes
   useEffect(() => {
@@ -441,7 +533,17 @@ if (!isValidMobileNumber(form.beneficiaryContact)) {
           </label>
           <select
             value={selectedDistrictId || ""}
-            onChange={(e) => setSelectedDistrictId(Number(e.target.value))}
+            onChange={(e) => {
+  setSelectedDistrictId(Number(e.target.value) || null);
+  // Reset dependent filters
+  setBlocks([]);
+  setSelectedBlockId(null);
+  setGramPanchayats([]);
+  setSelectedGramPanchayatId(null);
+  setVillages([]);
+  setSelectedVillage(null);
+  setBeneficiaries([]);
+}}
             className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
             required
           >
@@ -461,7 +563,15 @@ if (!isValidMobileNumber(form.beneficiaryContact)) {
           </label>
           <select
             value={selectedBlockId || ""}
-            onChange={(e) => setSelectedBlockId(Number(e.target.value))}
+            onChange={(e) => {
+  setSelectedBlockId(Number(e.target.value) || null);
+  // Reset dependent filters
+  setGramPanchayats([]);
+  setSelectedGramPanchayatId(null);
+  setVillages([]);
+  setSelectedVillage(null);
+  setBeneficiaries([]);
+}}
             className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
             required
           >
@@ -481,7 +591,13 @@ if (!isValidMobileNumber(form.beneficiaryContact)) {
           </label>
           <select
             value={selectedGramPanchayatId || ""}
-            onChange={(e) => setSelectedGramPanchayatId(Number(e.target.value))}
+            onChange={(e) => {
+  setSelectedGramPanchayatId(Number(e.target.value) || null);
+  // Reset village filter
+  setVillages([]);
+  setSelectedVillage(null);
+  setBeneficiaries([]);
+}}
             className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
             required
           >
