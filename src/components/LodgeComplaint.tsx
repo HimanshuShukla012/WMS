@@ -39,6 +39,7 @@ interface District {
 interface Block {
   BlockId: number;
   BlockName: string;
+  DistrictId: number;
 }
 
 interface GramPanchayat {
