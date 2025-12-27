@@ -470,15 +470,22 @@ useEffect(() => {
     const loadGramPanchayats = async () => {
       try {
         const gpData = await fetchGramPanchayats(selectedBlockId, role, userId);
-        setGramPanchayats(gpData || []);
+        
+        // For non-admin roles, filter by selected block since API returns all GPs for user
+        const isAdminLevelRole = ['admin', 'director', 'dpro'].includes(role.toLowerCase());
+        const filteredGpData = isAdminLevelRole 
+          ? gpData 
+          : (gpData || []).filter(gp => gp.BlockId === selectedBlockId);
+        
+        setGramPanchayats(filteredGpData || []);
         
         // Reset dependent selections
         setSelectedGramPanchayatId(null);
         setSelectedVillageId(null);
         
         // Auto-select first GP if only one
-        if (gpData && gpData.length === 1) {
-          setSelectedGramPanchayatId(gpData[0].Id);
+        if (filteredGpData && filteredGpData.length === 1) {
+          setSelectedGramPanchayatId(filteredGpData[0].Id);
         }
       } catch (err) {
         console.error('Error fetching gram panchayats:', err);
