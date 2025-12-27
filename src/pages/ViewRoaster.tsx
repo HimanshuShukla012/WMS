@@ -119,6 +119,8 @@ const fetchBlocks = async (districtId: number, userRole: string, userId?: number
     // For Admin, Director, DPRO - use GetAllBlocks
     const isAdminLevelRole = ['admin', 'director', 'dpro'].includes(userRole.toLowerCase());
     
+    console.log('Fetching blocks for role:', userRole, 'isAdminLevel:', isAdminLevelRole, 'districtId:', districtId);
+    
     let response;
     if (isAdminLevelRole) {
       response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetAllBlocks?DistrictId=${districtId}`, {
@@ -141,6 +143,7 @@ const fetchBlocks = async (districtId: number, userRole: string, userId?: number
 
     if (response.ok) {
       const data = await response.json();
+      console.log('Blocks API response:', data);
       return data.Status ? data.Data : [];
     }
     return [];
