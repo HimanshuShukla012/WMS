@@ -447,7 +447,10 @@ useEffect(() => {
   // Fetch blocks when userId is available (no longer dependent on district selection)
 // Fetch blocks when userId, role, and district are available
   useEffect(() => {
-    if (!userId || !role || !selectedDistrictId) return;
+    if (!userId || !role || !selectedDistrictId) {
+      console.log('Skipping block load - userId:', userId, 'role:', role, 'districtId:', selectedDistrictId);
+      return;
+    }
     
     console.log('Loading blocks - userId:', userId, 'role:', role, 'districtId:', selectedDistrictId);
     
