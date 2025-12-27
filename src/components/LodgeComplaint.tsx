@@ -250,16 +250,27 @@ useEffect(() => {
       // Normalize role for comparison
       const normalizedRole = role.toLowerCase().replace(/\s+/g, '');
       const isAdminLevelRole = ['admin', 'director', 'dpro'].includes(normalizedRole);
+      const isCallCenter = normalizedRole === 'callcenter';
       
       let response;
       if (isAdminLevelRole) {
-        // For Admin, Director, DPRO - use GetAllGramPanchayat
+        // For Admin, Director, DPRO - use GetAllGramPanchayat with BlockId
         response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetAllGramPanchayat?BlockId=${selectedBlockId}`, {
           method: 'POST',
           headers: { 'accept': '*/*' }
         });
+      } else if (isCallCenter) {
+        // For Call Center - use GetGramPanchayatByBlock with BlockId
+        response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock', {
+          method: 'POST',
+          headers: { 
+            'accept': '*/*',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ BlockId: Number(selectedBlockId) })
+        });
       } else {
-        // For ADO, Gram Panchayat, Call Center - use GetGramPanchayatByBlock with UserId
+        // For ADO, Gram Panchayat - use GetGramPanchayatByBlock with UserId
         response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock', {
           method: 'POST',
           headers: { 
