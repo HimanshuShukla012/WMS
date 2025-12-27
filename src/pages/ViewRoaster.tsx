@@ -95,6 +95,7 @@ interface RoasterStats {
 }
 
 // Location API functions
+// Location API functions
 const fetchDistricts = async (userId: number) => {
   try {
     const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetDistrict?UserId=${userId}`, {
@@ -113,18 +114,30 @@ const fetchDistricts = async (userId: number) => {
   }
 };
 
-const fetchBlocks = async (userId: number) => {
+const fetchBlocks = async (districtId: number, userRole: string, userId?: number) => {
   try {
-    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict', {
-      method: 'POST',
-      headers: { 
-        'accept': '*/*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        UserId: userId
-      })
-    });
+    // For Admin, Director, DPRO - use GetAllBlocks
+    const isAdminLevelRole = ['admin', 'director', 'dpro'].includes(userRole.toLowerCase());
+    
+    let response;
+    if (isAdminLevelRole) {
+      response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetAllBlocks?DistrictId=${districtId}`, {
+        method: 'POST',
+        headers: { 'accept': '*/*' }
+      });
+    } else {
+      // For ADO and Gram Panchayat - use GetBlockListByDistrict
+      response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict', {
+        method: 'POST',
+        headers: { 
+          'accept': '*/*',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          DistrictId: districtId
+        })
+      });
+    }
 
     if (response.ok) {
       const data = await response.json();
@@ -137,18 +150,30 @@ const fetchBlocks = async (userId: number) => {
   }
 };
 
-const fetchGramPanchayats = async (userId: number) => {
+const fetchGramPanchayats = async (blockId: number, userRole: string, userId?: number) => {
   try {
-    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock', {
-      method: 'POST',
-      headers: { 
-        'accept': '*/*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        UserId: userId
-      })
-    });
+    // For Admin, Director, DPRO - use GetAllGramPanchayat
+    const isAdminLevelRole = ['admin', 'director', 'dpro'].includes(userRole.toLowerCase());
+    
+    let response;
+    if (isAdminLevelRole) {
+      response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetAllGramPanchayat?BlockId=${blockId}`, {
+        method: 'POST',
+        headers: { 'accept': '*/*' }
+      });
+    } else {
+      // For ADO and Gram Panchayat - use GetGramPanchayatByBlock
+      response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock', {
+        method: 'POST',
+        headers: { 
+          'accept': '*/*',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          UserId: userId
+        })
+      });
+    }
 
     if (response.ok) {
       const data = await response.json();
