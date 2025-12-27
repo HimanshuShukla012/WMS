@@ -178,14 +178,18 @@ const fetchGramPanchayats = async (blockId: number, userRole: string, userId?: n
     // For Admin, Director, DPRO - use GetAllGramPanchayat
     const isAdminLevelRole = ['admin', 'director', 'dpro'].includes(normalizedRole);
     
+    console.log('Fetching GPs for role:', userRole, 'blockId:', blockId, 'userId:', userId);
+    
     let response;
     if (isAdminLevelRole) {
+      console.log('Using GetAllGramPanchayat API with BlockId:', blockId);
       response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetAllGramPanchayat?BlockId=${blockId}`, {
         method: 'POST',
         headers: { 'accept': '*/*' }
       });
     } else {
-      // For ADO and Gram Panchayat - use GetGramPanchayatByBlock
+      // For ADO and Gram Panchayat - use GetGramPanchayatByBlock with UserId
+      console.log('Using GetGramPanchayatByBlock API with UserId:', userId);
       response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock', {
         method: 'POST',
         headers: { 
@@ -200,6 +204,7 @@ const fetchGramPanchayats = async (blockId: number, userRole: string, userId?: n
 
     if (response.ok) {
       const data = await response.json();
+      console.log('GP API response:', data);
       return data.Status ? data.Data : [];
     }
     return [];
@@ -492,30 +497,24 @@ useEffect(() => {
   }, [userId, role, selectedDistrictId]);
 
   // Fetch gram panchayats when userId is available (no longer dependent on block selection)
-// Fetch gram panchayats when userId, role, and block are available
-  useEffect(() => {
+useEffect(() => {
     if (!userId || !role || !selectedBlockId) return;
     
     const loadGramPanchayats = async () => {
       try {
         const gpData = await fetchGramPanchayats(selectedBlockId, role, userId);
         
-        // For non-admin roles, filter by selected block since API returns all GPs for user
-        const normalizedRole = role.toLowerCase().replace(/\s+/g, '');
-        const isAdminLevelRole = ['admin', 'director', 'dpro'].includes(normalizedRole);
-        const filteredGpData = isAdminLevelRole 
-          ? gpData 
-          : (gpData || []).filter(gp => gp.BlockId === selectedBlockId);
-        
-        setGramPanchayats(filteredGpData || []);
+        // For Gram Panchayat users, the API returns GPs with BlockId: 0
+        // So we don't filter by BlockId for non-admin roles
+        setGramPanchayats(gpData || []);
         
         // Reset dependent selections
         setSelectedGramPanchayatId(null);
         setSelectedVillageId(null);
         
         // Auto-select first GP if only one
-        if (filteredGpData && filteredGpData.length === 1) {
-          setSelectedGramPanchayatId(filteredGpData[0].Id);
+        if (gpData && gpData.length === 1) {
+          setSelectedGramPanchayatId(gpData[0].Id);
         }
       } catch (err) {
         console.error('Error fetching gram panchayats:', err);
