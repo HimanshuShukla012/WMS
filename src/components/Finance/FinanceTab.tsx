@@ -10,7 +10,7 @@ interface FinanceTabProps {
   selectedLocationName: string;
   fromDate: string;
   toDate: string;
-  onExportCSV: (data: any[], filename: string) => void;
+  onExportExcel: (data: any[], filename: string) => void;
   // Filtering function should be passed from parent
   filterWaterFeeSummaryByLocation: (
     data: Types.WaterFeeSummaryData[]
@@ -23,7 +23,7 @@ export const FinanceTab: React.FC<FinanceTabProps> = ({
   selectedLocationName,
   fromDate,
   toDate,
-  onExportCSV,
+  onExportExcel,
   filterWaterFeeSummaryByLocation,
 }) => {
   const filteredWaterFeeSummary =
@@ -56,15 +56,15 @@ export const FinanceTab: React.FC<FinanceTabProps> = ({
         </h3>
         <div className="flex gap-2">
           <button
-            onClick={() =>
-              onExportCSV(filteredWaterFeeSummary, "water_fee_summary")
-            }
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
-            disabled={filteredWaterFeeSummary.length === 0}
-          >
-            <Download className="w-4 h-4" />
-            Export CSV
-          </button>
+  onClick={() =>
+    onExportExcel(filteredWaterFeeSummary, "water_fee_summary")
+  }
+  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2"
+  disabled={filteredWaterFeeSummary.length === 0}
+>
+  <Download className="w-4 h-4" />
+  Export Excel
+</button>
         </div>
       </div>
 
@@ -178,13 +178,13 @@ export const FinanceTab: React.FC<FinanceTabProps> = ({
           Showing first 50 records out of {filteredWaterFeeSummary.length} total
           water fee records.
           <button
-            onClick={() =>
-              onExportCSV(filteredWaterFeeSummary, "all_water_fee_summary")
-            }
-            className="ml-2 text-blue-600 hover:text-blue-800 underline"
-          >
-            Export all records
-          </button>
+  onClick={() =>
+    onExportExcel(filteredWaterFeeSummary, "all_water_fee_summary")
+  }
+  className="ml-2 text-blue-600 hover:text-blue-800 underline"
+>
+  Export all records
+</button>
         </div>
       )}
     </div>
