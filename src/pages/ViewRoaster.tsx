@@ -126,22 +126,26 @@ const fetchBlocks = async (districtId: number, userRole: string, userId?: number
     
     let response;
     if (isAdminLevelRole) {
+      console.log('Using GetAllBlocks API');
       response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetAllBlocks?DistrictId=${districtId}`, {
         method: 'POST',
         headers: { 'accept': '*/*' }
       });
     } else {
       // For ADO and Gram Panchayat - use GetBlockListByDistrict
+      const requestBody = { DistrictId: Number(districtId) };
+      console.log('Using GetBlockListByDistrict API with body:', JSON.stringify(requestBody));
+      
       response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict', {
         method: 'POST',
         headers: { 
           'accept': '*/*',
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          DistrictId: districtId
-        })
+        body: JSON.stringify(requestBody)
       });
+      
+      console.log('GetBlockListByDistrict response status:', response.status);
     }
 
     if (response.ok) {
@@ -149,6 +153,8 @@ const fetchBlocks = async (districtId: number, userRole: string, userId?: number
       console.log('Blocks API response:', data);
       return data.Status ? data.Data : [];
     }
+    
+    console.error('Blocks API failed with status:', response.status);
     return [];
   } catch (error) {
     console.error('Error fetching blocks:', error);
