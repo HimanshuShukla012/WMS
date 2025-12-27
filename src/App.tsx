@@ -38,6 +38,7 @@ import DirectorMonitoring from "./pages/directormonitoring";
 import DPROWaterFee from "./pages/DPROWaterFee";
 import LoginRoute from "./components/LoginRoute"; // Add this import
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import { useNavigate, useLocation } from 'react-router-dom';
 
 // Declare global types for Google Translate
 declare global {
@@ -46,6 +47,64 @@ declare global {
     googleTranslateElementInit: () => void;
   }
 }
+
+
+const BackButtonHandler = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    
+    // Only prevent back button if user is logged in and on dashboard routes
+    const isDashboardRoute = location.pathname.includes('/admin/') ||
+                            location.pathname.includes('/gp/') ||
+                            location.pathname.includes('/callcenter/') ||
+                            location.pathname.includes('/director/') ||
+                            location.pathname.includes('/dd/') ||
+                            location.pathname.includes('/dpro/') ||
+                            location.pathname.includes('/ado/');
+    
+    if (token && isDashboardRoute) {
+      // Push current state to prevent back navigation
+      window.history.pushState(null, '', window.location.href);
+      
+      const handlePopState = (e: PopStateEvent) => {
+        e.preventDefault();
+        window.history.pushState(null, '', window.location.href);
+        
+        // Show a confirmation dialog
+        const confirmLogout = window.confirm(
+          'You are currently logged in. Do you want to logout and leave the dashboard?'
+        );
+        
+        if (confirmLogout) {
+          // Clear auth data
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('userID');
+          localStorage.removeItem('role');
+          localStorage.removeItem('cachedUserInfo');
+          localStorage.removeItem('uparm');
+          
+          // Dispatch auth state change event
+          window.dispatchEvent(new Event('authStateChange'));
+          
+          // Navigate to landing page
+          navigate('/', { replace: true });
+        }
+      };
+      
+      window.addEventListener('popstate', handlePopState);
+      
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
+  }, [location, navigate]);
+  
+  return null;
+};
+
 
 // Component to handle translate bar positioning based on route
 const TranslateBar = () => {
@@ -122,6 +181,9 @@ function App() {
       <Router>
         {/* Google Translate Bar - now positioned conditionally based on route */}
         <TranslateBar />
+
+        {/* Add Back Button Handler here */}
+        <BackButtonHandler />
 
         <Routes>
           {/* Public routes - with extra margin for translate bar */}
