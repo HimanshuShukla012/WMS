@@ -45,15 +45,16 @@ const Navbar = () => {
 
         {/* Right: Buttons */}
         <div className="hidden md:flex gap-3 flex-shrink-0">
-          <Link to="/login">
-            <button className="bg-blue-700 px-5 py-2 rounded-full hover:bg-blue-800 transition font-semibold text-sm">
-              Login
-            </button>
-          </Link>
+          
           <Link to="/complaint">
             <button className="bg-red-600 px-5 py-2 rounded-full hover:bg-red-700 transition font-semibold text-sm">
               Lodge Complaint
             </button>
+          </Link>
+          <Link to="/login">
+            <button className="bg-green-600 px-5 py-2 rounded-full hover:bg-green-700 transition font-semibold text-sm">
+  Login
+</button>
           </Link>
         </div>
 

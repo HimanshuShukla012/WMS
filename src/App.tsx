@@ -38,7 +38,7 @@ import DirectorMonitoring from "./pages/directormonitoring";
 import DPROWaterFee from "./pages/DPROWaterFee";
 import LoginRoute from "./components/LoginRoute"; // Add this import
 import PrivacyPolicy from "./pages/PrivacyPolicy";
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 // Declare global types for Google Translate
 declare global {
